@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>safe-ticket popup</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <p class="popup-eyebrow">safe-ticket extension</p>
+      <h1>데모 스캔 상태</h1>
+      <p id="status" class="popup-status">현재 탭을 확인 중입니다.</p>
+
+      <dl class="popup-meta">
+        <div>
+          <dt>현재 탭</dt>
+          <dd id="current-url">확인 중...</dd>
+        </div>
+        <div>
+          <dt>백엔드</dt>
+          <dd>http://localhost:8000</dd>
+        </div>
+        <div>
+          <dt>데모 페이지</dt>
+          <dd>http://localhost:3000/product/227242032.html</dd>
+        </div>
+      </dl>
+
+      <div class="popup-actions">
+        <button id="open-demo" type="button">데모 페이지 열기</button>
+      </div>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -28,8 +28,6 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/safe_ticket}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
-    volumes:
-      - ./apps/backend:/app/apps/backend
     depends_on:
       db:
         condition: service_healthy
@@ -40,9 +38,7 @@ services:
       dockerfile: docker/frontend.Dockerfile
     container_name: safe-ticket-frontend
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
-    volumes:
-      - ./apps/frontend:/workspace/apps/frontend
+      - "${FRONTEND_PORT:-3000}:3000"
 
   pipeline:
     build:
