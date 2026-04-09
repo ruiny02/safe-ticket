@@ -63,6 +63,7 @@ class ScanService:
             summary=inbound_payload.summary,
             risk_tags=inbound_payload.risk_tags,
             evidence_items=inbound_payload.evidence_items,
+            highlight_targets=inbound_payload.highlight_targets,
             similar_cases=inbound_payload.similar_cases,
             recommended_actions=inbound_payload.recommended_actions,
             degraded=inbound_payload.degraded,

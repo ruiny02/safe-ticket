@@ -22,9 +22,12 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     container_name: safe-ticket-backend
+    env_file:
+      - .env
     environment:
       APP_ENV: ${APP_ENV:-local}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/safe_ticket}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
