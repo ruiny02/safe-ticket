@@ -7,7 +7,7 @@
 - `apps/frontend/web-demo` 는 이제 standalone 웹페이지가 아니라 **Manifest V3 content script 확장 프로그램**이다.
 - 확장 프로그램은 `localhost` 데모 페이지와 실제 `web.joongna.com/product/*` 페이지를 대상으로 동작한다.
 - 파싱과 API payload 생성은 `apps/frontend/shared` 아래 공용 로직을 그대로 사용한다.
-- 현재는 페이지 우측 상단 고정 패널을 띄우고, `POST /api/v1/scans` 호출 결과를 표시한다.
+- 현재는 페이지 우측 상단 고정 패널을 띄우고, `POST /api/v1/scans` 생성 후 `GET /api/v1/scans/{scan_id}` 결과를 polling 해서 표시한다.
 
 ## 주요 동작
 - 허용한 사이트의 거래 게시글 페이지에서만 동작
@@ -16,8 +16,6 @@
 - 결과가 나올 때까지 polling
 - 위험 문구 하이라이트
 - 위험 요약 배지 / 메시지 표시
-- 상세 리포트 보기 버튼 제공
-- 경찰 신고 / 신고 안내 버튼 제공
 
 ## 백엔드 연동 흐름
 1. 현재 페이지에서 `content_blocks` 추출
@@ -28,11 +26,18 @@
 6. 하이라이트와 경고 UI 렌더링
 
 ## UI 요소
-- 상단 또는 우측의 위험도 배지
-- 본문 내 하이라이트 표시
-- 요약 메시지
-- `상세 리포트 보기` 버튼
-- `경찰 신고 / 신고 안내` 버튼
+- 상단 요약 카드
+  - 위험도 상태, 짧은 설명, risk score 표시
+- `문제 이유`
+  - `highlight_targets` 와 결과 요약을 바탕으로 왜 문제인지 설명
+- `권장 확인 사항`
+  - `recommended_actions` 기반 안내
+- `운영 정보`
+  - 현재 페이지 URL, 로컬 backend 주소, 데모 페이지 주소
+- 본문 내 빨간 하이라이트
+  - `css_class = safe-ticket-highlight-danger` 기준
+- 접을 수 있는 기술 세부
+  - payload preview, raw scan response 표시
 
 ## 필요한 API
 - `POST /api/v1/scans`
@@ -40,9 +45,8 @@
 - `POST /api/v1/scans/{scan_id}/feedback`
 
 ## 메모
-- 현재 단계에서는 자동 신고를 하지 않는다.
-- 경찰 버튼은 공식 신고 페이지나 신고 안내 페이지로 연결하는 수준으로 둔다.
 - 확장 프로그램 UI에서 직접 백엔드를 호출할 경우, 백엔드 CORS allowlist 에 extension origin 을 포함해야 한다.
+- 현재 MVP 는 수동으로 `백엔드로 전송` 버튼을 눌러 스캔을 시작한다.
 
 ## 로컬 실행
 1. 백엔드와 데모 페이지 서버 실행

@@ -1,4 +1,4 @@
-import type { ScanCreateRequest, ScanQueuedResponse } from "./types";
+import type { ScanCreateRequest, ScanQueuedResponse, ScanResultResponse } from "./types";
 
 export async function createScan(
   baseUrl: string,
@@ -18,4 +18,15 @@ export async function createScan(
   }
 
   return (await response.json()) as ScanQueuedResponse;
+}
+
+export async function getScan(baseUrl: string, scanId: string): Promise<ScanResultResponse> {
+  const response = await fetch(`${baseUrl}/api/v1/scans/${scanId}`);
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Scan polling failed: ${response.status} ${detail}`);
+  }
+
+  return (await response.json()) as ScanResultResponse;
 }

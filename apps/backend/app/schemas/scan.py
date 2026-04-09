@@ -53,6 +53,7 @@ class EvidenceItem(BaseModel):
     matched_text: str
     reason_code: str
     reason: str
+    css_class: str = "safe-ticket-highlight-danger"
 
 #AI가 유사하다고 판단한 데이터를 백엔드에 보내는 형식
 class SimilarCase(BaseModel):
@@ -91,6 +92,7 @@ class PipelineInboundPayload(BaseModel):
     summary: str
     risk_tags: list[str]
     evidence_items: list[EvidenceItem]
+    highlight_targets: list[EvidenceItem]
     similar_cases: list[SimilarCase]
     recommended_actions: list[RecommendedAction]
     degraded: bool = False
@@ -117,6 +119,7 @@ class ScanResultResponse(BaseModel):
     summary: str | None = None
     risk_tags: list[str] = Field(default_factory=list)
     evidence_items: list[EvidenceItem] = Field(default_factory=list)
+    highlight_targets: list[EvidenceItem] = Field(default_factory=list)
     similar_cases: list[SimilarCase] = Field(default_factory=list)
     recommended_actions: list[RecommendedAction] = Field(default_factory=list)
     degraded: bool = False

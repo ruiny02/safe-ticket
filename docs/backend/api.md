@@ -143,7 +143,19 @@ DB 연결 가능 여부 등 준비 상태 확인
       "end": 12,
       "matched_text": "안전거래 안되고",
       "reason_code": "avoid_safe_payment",
-      "reason": "안전거래 회피 표현"
+      "reason": "안전거래 회피 표현",
+      "css_class": "safe-ticket-highlight-danger"
+    }
+  ],
+  "highlight_targets": [
+    {
+      "block_id": "body-1",
+      "start": 20,
+      "end": 26,
+      "matched_text": "카카오뱅크",
+      "reason_code": "bank_account_pattern",
+      "reason": "은행명과 계좌번호 패턴이 함께 감지되었습니다.",
+      "css_class": "safe-ticket-highlight-danger"
     }
   ],
   "similar_cases": [
@@ -151,6 +163,12 @@ DB 연결 가능 여부 등 준비 상태 확인
       "case_id": "case_123",
       "score": 0.81,
       "summary": "외부 메신저 이동 후 선입금 유도 사례"
+    }
+  ],
+  "recommended_actions": [
+    {
+      "action": "은행 계좌 검증",
+      "description": "입금 전에 계좌 예금주와 거래 맥락을 다시 확인하세요."
     }
   ],
   "report_url": "/report/scan_001"
@@ -166,33 +184,6 @@ DB 연결 가능 여부 등 준비 상태 확인
   "risk_score": 0.61,
   "summary": "일부 위험 신호와 유사 사례가 감지되었지만 LLM 설명 생성에는 실패했습니다.",
   "degraded": true
-}
-```
-
-### `POST /api/v1/scans/{scan_id}/chat`
-특정 스캔 결과를 기반으로 추가 질문
-
-요청 예시:
-```json
-{
-  "question": "토스 아이디로 결제하자고 하는데 괜찮나요?"
-}
-```
-
-응답 예시:
-```json
-{
-  "answer": "현재 탐지 결과 기준으로는 위험 신호가 존재합니다.",
-  "checklist": [
-    "플랫폼 내 결제수단 우선 사용",
-    "판매자 실명과 계좌 일치 여부 확인"
-  ],
-  "references": [
-    {
-      "case_id": "case_123",
-      "summary": "외부 메신저 이동 후 선입금 유도 사례"
-    }
-  ]
 }
 ```
 
@@ -214,6 +205,61 @@ DB 연결 가능 여부 등 준비 상태 확인
 }
 ```
 
+### `GET /api/v1/scans/{scan_id}/pipeline-debug`
+백엔드가 파이프라인으로 넘긴 값과 파이프라인이 반환한 값을 같이 확인하는 디버그용 API
+
+응답 예시:
+```json
+{
+  "scan_id": "scan_001",
+  "outbound_payload": {
+    "scan_id": "scan_001",
+    "platform": "joonggonara",
+    "page_url": "https://example.com/post/123",
+    "page_title": "아이유 콘서트 티켓 양도",
+    "price": 120000,
+    "seller": {
+      "seller_id": "user123",
+      "nickname": "급처"
+    },
+    "content_blocks": [
+      {
+        "block_id": "body-1",
+        "text": "입금 은행 : 카카오뱅크 / 계좌 번호 : 3355-28-8620726"
+      }
+    ]
+  },
+  "inbound_payload": {
+    "risk_level": "high",
+    "risk_score": 0.87,
+    "summary": "은행명과 계좌번호 패턴이 함께 감지되었습니다.",
+    "risk_tags": [
+      "bank_account_pattern"
+    ],
+    "evidence_items": [],
+    "highlight_targets": [
+      {
+        "block_id": "body-1",
+        "start": 8,
+        "end": 14,
+        "matched_text": "카카오뱅크",
+        "reason_code": "bank_account_pattern",
+        "reason": "은행명과 계좌번호 패턴이 함께 감지되었습니다.",
+        "css_class": "safe-ticket-highlight-danger"
+      }
+    ],
+    "similar_cases": [],
+    "recommended_actions": [
+      {
+        "action": "은행 계좌 검증",
+        "description": "입금 전에 계좌 예금주와 거래 맥락을 다시 확인하세요."
+      }
+    ],
+    "degraded": false
+  }
+}
+```
+
 ## 에러 응답 형식
 ```json
 {
@@ -226,4 +272,5 @@ DB 연결 가능 여부 등 준비 상태 확인
 ## 구현 메모
 - 현재 단계에서는 in-process background 작업으로 시작하고, 작업량이 커지면 별도 worker / queue 로 확장한다.
 - Extension은 `POST /scans` 후 `GET /scans/{scan_id}` 를 polling 한다.
+- 완료 결과의 `highlight_targets` 는 extension이 페이지 본문에서 빨간 하이라이트를 그릴 때 사용한다.
 - Web 리포트 페이지도 동일한 scan 조회 API를 사용한다.
