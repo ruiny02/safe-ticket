@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "safe-ticket demo overlay",
+  "version": "0.0.0",
+  "description": "Parses Joongna product pages and posts demo scan payloads to the safe-ticket backend.",
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:3000/product/*",
+    "https://web.joongna.com/product/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/product/*",
+        "https://web.joongna.com/product/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "safe-ticket demo overlay",
+    "default_popup": "popup.html"
+  }
+}

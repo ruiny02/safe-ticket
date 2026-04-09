@@ -14,3 +14,4 @@
 
 ## dev
 - Docker, 브랜치 전략
+- 임시 산출물 관리 규칙: `docs/dev/artifacts.md`

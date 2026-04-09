@@ -20,11 +20,15 @@ htmlcov/
 dist/
 build/
 site/
+node_modules/
+*.tsbuildinfo
 *.egg-info/
 .eggs/
 
 playwright-report/
 test-results/
+.playwright-mcp/
+.artifacts/
 
 .DS_Store
 Thumbs.db

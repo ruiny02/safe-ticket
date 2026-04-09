@@ -1,0 +1,185 @@
+#safe-ticket-extension-root {
+  all: initial;
+}
+
+#safe-ticket-extension-root,
+#safe-ticket-extension-root * {
+  box-sizing: border-box;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+}
+
+.safe-ticket-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2147483647;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border: 1px solid rgba(18, 26, 38, 0.1);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(12, 204, 90, 0.22), transparent 28%),
+    rgba(249, 251, 251, 0.98);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2);
+  color: #112031;
+}
+
+.safe-ticket-panel.is-collapsed {
+  width: auto;
+}
+
+.safe-ticket-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+}
+
+.safe-ticket-header h1,
+.safe-ticket-card h2 {
+  margin: 0;
+}
+
+.safe-ticket-eyebrow {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0a8a44;
+}
+
+.safe-ticket-icon-button,
+.safe-ticket-primary,
+.safe-ticket-secondary {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.safe-ticket-icon-button {
+  padding: 10px 14px;
+  background: #101820;
+  color: #f8fbfb;
+}
+
+.safe-ticket-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.safe-ticket-card {
+  border: 1px solid rgba(18, 26, 38, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 16px;
+}
+
+.safe-ticket-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.safe-ticket-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.safe-ticket-summary dt {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #5b6774;
+  margin-bottom: 4px;
+}
+
+.safe-ticket-summary dd {
+  margin: 0;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.safe-ticket-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.safe-ticket-primary,
+.safe-ticket-secondary {
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+.safe-ticket-primary {
+  background: #0dcc5a;
+  color: #06210f;
+}
+
+.safe-ticket-secondary {
+  background: #16222f;
+  color: #f8fafc;
+}
+
+.safe-ticket-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.safe-ticket-badge {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.safe-ticket-badge.ok {
+  background: #ddffea;
+  color: #0a8a44;
+}
+
+.safe-ticket-badge.error {
+  background: #ffe1e1;
+  color: #b42318;
+}
+
+.safe-ticket-error {
+  margin: 0 0 14px;
+  color: #b42318;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.safe-ticket-card pre {
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #0f1720;
+  color: #d7e3ee;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+  max-height: 260px;
+}
+
+@media (max-width: 720px) {
+  .safe-ticket-panel {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    max-height: 70vh;
+  }
+}

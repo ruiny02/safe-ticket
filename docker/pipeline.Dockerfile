@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Stage-0 placeholder image.
 # When pipeline scaffold code is added, enable dependency installation like below:
-# COPY requirements.txt /tmp/requirements.txt
+# COPY apps/pipeline/requirements.txt /tmp/requirements.txt
 # RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 EXPOSE 8010
