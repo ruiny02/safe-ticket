@@ -1,12 +1,15 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
-# Stage-0 placeholder image.
-# When backend scaffold code is added, enable dependency installation like below:
-# COPY requirements.txt /tmp/requirements.txt
-# RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# Copy the shared dependency list and install the backend runtime.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy the application source so the image can run independently.
+COPY apps/backend /app/apps/backend
 
 EXPOSE 8000
 
-CMD ["python", "-m", "http.server", "8000", "--directory", "/app/apps/backend"]
+# Start the FastAPI app with uvicorn when the backend container boots.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "/app/apps/backend"]
