@@ -1,7 +1,7 @@
 # Web
 
 ## 역할
-웹 리포트 페이지는 확장 프로그램이 제공하는 짧은 경고를 **상세 분석 결과**로 확장해서 보여주는 화면이다.
+웹 리포트 페이지는 extension에서 클릭해서 이동하는 **report page** 이며, 확장 프로그램이 제공하는 짧은 경고를 **상세 분석 결과**로 확장해서 보여주는 화면이다.
 
 ## 주요 화면
 
@@ -9,6 +9,7 @@
 - 프로젝트 소개
 - 간단한 사용 방법
 - 리포트 진입 안내
+- extension 과의 연결 방식 설명
 
 ### `/report/:scanId`
 - 위험 수준 / 위험 점수
@@ -16,7 +17,7 @@
 - 유사 사례 요약
 - 대응 가이드
 - 판매자 관찰 이력 요약
-- 경찰 신고 / 신고 안내 버튼
+- extension 의 `scan panel` 에서 보던 요약을 더 자세히 풀어주는 영역
 
 ### `/report/:scanId/visual`
 - UMAP 2차원 시각화
@@ -43,7 +44,6 @@
 ## API 호출 방식
 - `POST /api/v1/scans` 로 scan 작업 생성
 - `GET /api/v1/scans/{scan_id}` 로 상태 / 결과 조회
-- `POST /api/v1/scans/{scan_id}/chat` 로 추가 질문
 - `POST /api/v1/scans/{scan_id}/feedback` 로 피드백 전송
 
 ## 시각화 메모
@@ -68,3 +68,7 @@
 ## 디자인 메모
 - 와이어프레임과 시안은 **Figma** 에서 먼저 설계한다.
 - 실제 구현은 React + Tailwind CSS 기준으로 옮긴다.
+- 역할 분리 원칙:
+  - 짧은 경고와 즉시 하이라이트는 extension `scan panel`
+  - 추가 질의응답은 extension `chat panel`
+  - 긴 설명과 상세 분석은 web `report page`
