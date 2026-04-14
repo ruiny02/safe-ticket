@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 
 import { buildScanPayload, parseJoongnaProductHtml } from "../../shared/joonggonara";
 import { createScan, getScan } from "../../shared/scan-api";
-import type { ScanCreateRequest, ScanQueuedResponse, ScanResultResponse } from "../../shared/types";
+import type { ScanCreateRequest, ScanResultResponse } from "../../shared/types";
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
 import { buildPanelContent } from "./lib/panel-content";
+import { applyPanelLayout, clearPanelLayout } from "./lib/page-layout";
 import { buildReportPageUrl } from "./lib/report-link";
 
 const API_BASE_URL = "http://localhost:8000";
@@ -17,6 +18,14 @@ interface AppProps {
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat("ko-KR").format(price);
+}
+
+function getHostLabel(pageUrl: string): string {
+  try {
+    return new URL(pageUrl).host;
+  } catch {
+    return pageUrl;
+  }
 }
 
 function wait(ms: number): Promise<void> {
@@ -65,7 +74,6 @@ async function persistLatestScan(pageUrl: string, scanId: string): Promise<void>
 
 export function App({ pageHtml, pageUrl }: AppProps) {
   const [payload, setPayload] = useState<ScanCreateRequest | null>(null);
-  const [response, setResponse] = useState<ScanQueuedResponse | null>(null);
   const [scanResult, setScanResult] = useState<ScanResultResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -78,12 +86,10 @@ export function App({ pageHtml, pageUrl }: AppProps) {
     try {
       const nextPayload = buildScanPayload(parseJoongnaProductHtml(pageHtml, pageUrl));
       setPayload(nextPayload);
-      setResponse(null);
       setScanResult(null);
       clearPageHighlights();
     } catch (nextError) {
       setPayload(null);
-      setResponse(null);
       setScanResult(null);
       clearPageHighlights();
       setError(nextError instanceof Error ? nextError.message : "Unknown parse error");
@@ -100,7 +106,6 @@ export function App({ pageHtml, pageUrl }: AppProps) {
 
     try {
       const nextResponse = await createScan(API_BASE_URL, payload);
-      setResponse(nextResponse);
       const nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
       setScanResult(nextScanResult);
       await persistLatestScan(pageUrl, nextScanResult.scan_id);
@@ -130,12 +135,26 @@ export function App({ pageHtml, pageUrl }: AppProps) {
     };
   }, [scanResult]);
 
+  useEffect(() => {
+    applyPanelLayout(isCollapsed);
+    const handleResize = () => applyPanelLayout(isCollapsed);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      clearPanelLayout();
+    };
+  }, [isCollapsed]);
+
   return (
     <aside className={`safe-ticket-panel ${isCollapsed ? "is-collapsed" : ""}`}>
       <header className="safe-ticket-header">
-        <div>
-          <p className="safe-ticket-eyebrow">safe-ticket extension MVP</p>
-          <h1>거래 페이지 스캔 패널</h1>
+        <div className="safe-ticket-brand">
+          <span className="safe-ticket-brand-mark">S</span>
+          <div>
+            <p className="safe-ticket-eyebrow">safe-ticket</p>
+            <h1>거래 스캔</h1>
+          </div>
         </div>
         <button
           className="safe-ticket-icon-button"
@@ -164,52 +183,51 @@ export function App({ pageHtml, pageUrl }: AppProps) {
             </div>
           </section>
 
+          {scanResult ? (
+            <section className="safe-ticket-cta-row">
+              <a
+                className="safe-ticket-primary safe-ticket-link-button safe-ticket-report-cta"
+                href={buildReportPageUrl(scanResult.scan_id)}
+                rel="noreferrer"
+                target="_blank"
+              >
+                정확한 분석 리포트 보기
+              </a>
+            </section>
+          ) : null}
+
           <section className="safe-ticket-card">
             <div className="safe-ticket-card-header">
-              <h2>파싱 결과</h2>
+              <h2>현재 게시글</h2>
               {payload ? <span className="safe-ticket-badge ok">ready</span> : null}
               {error ? <span className="safe-ticket-badge error">error</span> : null}
             </div>
 
             {payload ? (
-              <dl className="safe-ticket-summary">
-                <div>
-                  <dt>제목</dt>
-                  <dd>{payload.page_title}</dd>
+              <div className="safe-ticket-summary">
+                <div className="safe-ticket-summary-row">
+                  <span>제목</span>
+                  <strong>{payload.page_title}</strong>
                 </div>
-                <div>
-                  <dt>가격</dt>
-                  <dd>{formatPrice(payload.price)}원</dd>
+                <div className="safe-ticket-summary-grid">
+                  <div className="safe-ticket-summary-chip">
+                    <span>가격</span>
+                    <strong>{formatPrice(payload.price)}원</strong>
+                  </div>
+                  <div className="safe-ticket-summary-chip">
+                    <span>판매자</span>
+                    <strong>{payload.seller.nickname}</strong>
+                  </div>
                 </div>
-                <div>
-                  <dt>판매자</dt>
-                  <dd>
-                    {payload.seller.nickname} / {payload.seller.seller_id}
-                  </dd>
-                </div>
-              </dl>
+              </div>
             ) : null}
 
             {error ? <p className="safe-ticket-error">{error}</p> : null}
-
-            <div className="safe-ticket-actions">
-              <button className="safe-ticket-primary" onClick={handleParse} type="button">
-                다시 파싱
-              </button>
-              <button
-                className="safe-ticket-secondary"
-                disabled={!payload || isSending}
-                onClick={() => void handleSubmit()}
-                type="button"
-              >
-                {isSending ? "전송 중..." : "백엔드로 전송"}
-              </button>
-            </div>
           </section>
 
           <section className="safe-ticket-card">
             <div className="safe-ticket-card-header">
-              <h2>문제 이유</h2>
+              <h2>핵심 신호</h2>
               {scanResult?.highlight_targets.length ? (
                 <span className="safe-ticket-badge danger">highlighted</span>
               ) : (
@@ -228,7 +246,7 @@ export function App({ pageHtml, pageUrl }: AppProps) {
                 </ul>
               ) : (
                 <p className="safe-ticket-empty">
-                  응답이 아직 없거나, 현재 규칙 기준에서 강조할 의심 문구가 없습니다.
+                  응답이 아직 없거나, 현재 규칙 기준에서 핵심 신호가 없습니다.
                 </p>
               )}
             </div>
@@ -236,7 +254,7 @@ export function App({ pageHtml, pageUrl }: AppProps) {
 
           <section className="safe-ticket-card">
             <div className="safe-ticket-card-header">
-              <h2>권장 확인 사항</h2>
+              <h2>다음 행동</h2>
               {scanResult?.recommended_actions.length ? (
                 <span className="safe-ticket-badge danger">actions</span>
               ) : (
@@ -252,56 +270,25 @@ export function App({ pageHtml, pageUrl }: AppProps) {
                   </li>
                 ))}
               </ul>
-              {scanResult ? (
-                <div className="safe-ticket-actions">
-                  <a
-                    className="safe-ticket-primary safe-ticket-link-button"
-                    href={buildReportPageUrl(scanResult.scan_id)}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    정확한 분석 보기
-                  </a>
-                </div>
-              ) : null}
             </div>
           </section>
 
-          <section className="safe-ticket-card">
-            <div className="safe-ticket-card-header">
-              <h2>운영 정보</h2>
-              <span className="safe-ticket-badge ok">local demo</span>
+          <footer className="safe-ticket-footer">
+            <span>{getHostLabel(pageUrl)}</span>
+            <div className="safe-ticket-actions">
+              <button className="safe-ticket-tertiary" onClick={handleParse} type="button">
+                다시 읽기
+              </button>
+              <button
+                className="safe-ticket-primary"
+                disabled={!payload || isSending}
+                onClick={() => void handleSubmit()}
+                type="button"
+              >
+                {isSending ? "스캔 중..." : "스캔 실행"}
+              </button>
             </div>
-            <dl className="safe-ticket-meta-list">
-              {panelContent.meta.map((item) => (
-                <div key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-
-          <section className="safe-ticket-card">
-            <div className="safe-ticket-card-header">
-              <h2>기술 세부</h2>
-              {response ? <span className="safe-ticket-badge ok">accepted</span> : null}
-            </div>
-            <details className="safe-ticket-details" open={Boolean(error)}>
-              <summary>Payload Preview</summary>
-              <pre>{payload ? JSON.stringify(payload, null, 2) : "파싱 결과가 없습니다."}</pre>
-            </details>
-            <details className="safe-ticket-details" open={Boolean(error)}>
-              <summary>Scan Response</summary>
-              <pre>
-                {scanResult
-                  ? JSON.stringify(scanResult, null, 2)
-                  : response
-                    ? JSON.stringify(response, null, 2)
-                    : "전송 후 백엔드 응답이 여기에 표시됩니다."}
-              </pre>
-            </details>
-          </section>
+          </footer>
         </div>
       ) : null}
     </aside>

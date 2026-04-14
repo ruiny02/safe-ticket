@@ -76,6 +76,11 @@ describe("buildPanelContent", () => {
 
     expect(content.tone).toBe("ok");
     expect(content.statusLabel).toBe("ready");
-    expect(content.summary).toContain("거래 페이지 텍스트를 파싱했습니다");
+    expect(content.headline).toBe("스캔 준비");
+    expect(content.summary).toContain("페이지를 읽었습니다");
+    expect(content.actions[0]).toEqual({
+      title: "바로 실행",
+      body: "스캔을 보내면 위험 신호와 다음 행동을 짧게 정리해 보여줍니다.",
+    });
   });
 });

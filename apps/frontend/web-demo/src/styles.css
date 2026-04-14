@@ -5,36 +5,84 @@
 #safe-ticket-extension-root,
 #safe-ticket-extension-root * {
   box-sizing: border-box;
-  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+  font-family: "Inter", "Pretendard", "Noto Sans KR", sans-serif;
 }
 
 .safe-ticket-panel {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
   z-index: 2147483647;
-  width: min(420px, calc(100vw - 32px));
-  max-height: calc(100vh - 40px);
-  overflow: auto;
-  border: 1px solid rgba(18, 26, 38, 0.1);
-  border-radius: 24px;
+  width: min(368px, calc(100vw - 32px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid rgba(132, 112, 255, 0.14);
+  border-radius: 28px;
   background:
-    radial-gradient(circle at top right, rgba(12, 204, 90, 0.22), transparent 28%),
-    rgba(249, 251, 251, 0.98);
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2);
-  color: #112031;
+    radial-gradient(circle at top right, rgba(132, 112, 255, 0.18), transparent 26%),
+    rgba(255, 255, 255, 0.97);
+  box-shadow: 0 24px 80px rgba(31, 32, 64, 0.16);
+  color: #1f2040;
+  backdrop-filter: blur(14px);
 }
 
 .safe-ticket-panel.is-collapsed {
-  width: auto;
+  width: 84px;
+  bottom: auto;
+  grid-template-rows: auto;
+}
+
+.safe-ticket-panel.is-collapsed .safe-ticket-header {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 10px;
+  border-bottom: 0;
+}
+
+.safe-ticket-panel.is-collapsed .safe-ticket-brand {
+  width: 100%;
+  justify-content: center;
+}
+
+.safe-ticket-panel.is-collapsed .safe-ticket-brand > div {
+  display: none;
+}
+
+.safe-ticket-panel.is-collapsed .safe-ticket-icon-button {
+  min-width: 0;
+  width: 100%;
+  padding: 10px 0;
+  text-align: center;
 }
 
 .safe-ticket-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 18px 14px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(132, 112, 255, 0.08);
+}
+
+.safe-ticket-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.safe-ticket-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #8470ff, #a08dff);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
 }
 
 .safe-ticket-header h1,
@@ -43,76 +91,85 @@
 }
 
 .safe-ticket-eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #0a8a44;
+  color: #6e61da;
 }
 
 .safe-ticket-icon-button,
 .safe-ticket-primary,
-.safe-ticket-secondary {
+.safe-ticket-secondary,
+.safe-ticket-tertiary {
   border: 0;
-  border-radius: 999px;
   cursor: pointer;
   font-weight: 700;
 }
 
 .safe-ticket-icon-button {
-  padding: 10px 14px;
-  background: #101820;
-  color: #f8fbfb;
+  min-width: 48px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #ece8ff;
+  color: #4a3f9f;
 }
 
 .safe-ticket-body {
   display: grid;
+  align-content: start;
   gap: 12px;
-  padding: 0 18px 18px;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 18px;
+}
+
+.safe-ticket-cta-row {
+  display: grid;
 }
 
 .safe-ticket-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 24px;
-  color: #102031;
-  background: linear-gradient(135deg, rgba(9, 24, 35, 0.92), rgba(19, 50, 40, 0.92));
-  box-shadow: 0 18px 50px rgba(16, 24, 40, 0.2);
+  gap: 12px;
+  padding: 16px;
+  border-radius: 22px;
+  color: #fff;
+  background: linear-gradient(135deg, #8470ff, #6f5cf3);
 }
 
 .safe-ticket-hero.tone-danger {
-  background: linear-gradient(135deg, rgba(72, 12, 24, 0.96), rgba(133, 30, 45, 0.92));
-  color: #fff5f2;
+  background:
+    radial-gradient(circle at top right, rgba(255, 187, 201, 0.26), transparent 30%),
+    linear-gradient(135deg, #7a4dff 0%, #6a3ef1 42%, #b63b63 100%);
+  box-shadow: 0 18px 42px rgba(182, 59, 99, 0.22);
 }
 
 .safe-ticket-hero.tone-warning {
-  background: linear-gradient(135deg, rgba(92, 57, 10, 0.96), rgba(145, 88, 24, 0.92));
-  color: #fff8ef;
+  background: linear-gradient(135deg, #8d78ff, #7260db);
 }
 
 .safe-ticket-hero.tone-ok {
-  background: linear-gradient(135deg, rgba(12, 51, 28, 0.96), rgba(18, 106, 58, 0.92));
-  color: #f2fff7;
+  background: linear-gradient(135deg, #9382ff, #8070eb);
 }
 
 .safe-ticket-hero-copy h2 {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-size: 24px;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .safe-ticket-hero-copy p {
   margin: 0;
-  line-height: 1.55;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .safe-ticket-hero-status {
   display: inline-flex;
-  margin: 0 0 10px;
-  padding: 6px 10px;
+  margin: 0 0 8px;
+  padding: 5px 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
   font-size: 11px;
@@ -126,14 +183,14 @@
   align-content: start;
   justify-items: end;
   gap: 2px;
-  min-width: 72px;
+  min-width: 68px;
 }
 
 .safe-ticket-hero-score span {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  opacity: 0.8;
+  opacity: 0.82;
 }
 
 .safe-ticket-hero-score strong {
@@ -142,9 +199,9 @@
 }
 
 .safe-ticket-card {
-  border: 1px solid rgba(18, 26, 38, 0.08);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(132, 112, 255, 0.1);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
   padding: 16px;
 }
 
@@ -152,27 +209,46 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .safe-ticket-summary {
   display: grid;
   gap: 10px;
-  margin: 0 0 14px;
 }
 
-.safe-ticket-summary dt {
+.safe-ticket-summary-row {
+  display: grid;
+  gap: 6px;
+}
+
+.safe-ticket-summary-row span,
+.safe-ticket-summary-chip span {
   font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #5b6774;
-  margin-bottom: 4px;
+  color: #7a7e9d;
 }
 
-.safe-ticket-summary dd {
-  margin: 0;
+.safe-ticket-summary-row strong,
+.safe-ticket-summary-chip strong {
   line-height: 1.45;
-  word-break: break-word;
+  color: #26274c;
+}
+
+.safe-ticket-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.safe-ticket-summary-chip {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f7f5ff;
 }
 
 .safe-ticket-actions {
@@ -182,26 +258,41 @@
 }
 
 .safe-ticket-primary,
-.safe-ticket-secondary {
-  padding: 12px 16px;
+.safe-ticket-secondary,
+.safe-ticket-tertiary {
+  padding: 11px 14px;
+  border-radius: 14px;
   font-size: 13px;
 }
 
 .safe-ticket-primary {
-  background: #0dcc5a;
-  color: #06210f;
+  background: linear-gradient(135deg, #8470ff, #6f5cf3);
+  color: #fff;
 }
 
 .safe-ticket-secondary {
-  background: #16222f;
-  color: #f8fafc;
+  background: #ece8ff;
+  color: #4a3f9f;
+}
+
+.safe-ticket-tertiary {
+  background: #f4f2ff;
+  color: #5c568d;
 }
 
 .safe-ticket-link-button {
   text-decoration: none;
 }
 
-.safe-ticket-secondary:disabled {
+.safe-ticket-report-cta {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  padding: 13px 16px;
+  box-shadow: 0 14px 28px rgba(111, 92, 243, 0.22);
+}
+
+.safe-ticket-primary:disabled {
   cursor: not-allowed;
   opacity: 0.56;
 }
@@ -215,52 +306,26 @@
 }
 
 .safe-ticket-badge.ok {
-  background: #ddffea;
-  color: #0a8a44;
+  background: #ece8ff;
+  color: #5b4dd1;
 }
 
-.safe-ticket-badge.error {
-  background: #ffe1e1;
-  color: #b42318;
-}
-
+.safe-ticket-badge.error,
 .safe-ticket-badge.danger {
-  background: #ffe3e0;
-  color: #b42318;
+  background: #ffe8e8;
+  color: #c43f5c;
 }
 
 .safe-ticket-error {
-  margin: 0 0 14px;
+  margin: 0;
   color: #b42318;
   font-weight: 700;
   line-height: 1.5;
 }
 
-.safe-ticket-card pre {
-  margin: 0;
-  padding: 14px;
-  border-radius: 14px;
-  background: #0f1720;
-  color: #d7e3ee;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow: auto;
-  max-height: 260px;
-}
-
 .safe-ticket-messages {
   display: grid;
   gap: 12px;
-}
-
-.safe-ticket-result-summary {
-  margin: 0;
-  line-height: 1.55;
-  color: #16222f;
-  font-weight: 600;
 }
 
 .safe-ticket-list {
@@ -271,61 +336,36 @@
 }
 
 .safe-ticket-list li {
-  color: #16222f;
+  color: #35365f;
   line-height: 1.5;
 }
 
 .safe-ticket-list strong {
   display: block;
   margin-bottom: 2px;
+  color: #1f2040;
 }
 
 .safe-ticket-empty {
   margin: 0;
-  color: #5b6774;
+  color: #72769a;
   line-height: 1.55;
 }
 
-.safe-ticket-meta-list {
+.safe-ticket-footer {
   display: grid;
-  gap: 12px;
-  margin: 0;
+  gap: 10px;
+  padding-top: 2px;
 }
 
-.safe-ticket-meta-list dt {
-  margin-bottom: 4px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #5b6774;
-}
-
-.safe-ticket-meta-list dd {
-  margin: 0;
-  line-height: 1.45;
+.safe-ticket-footer > span {
+  font-size: 12px;
+  color: #7b80a5;
   word-break: break-word;
 }
 
-.safe-ticket-details {
-  display: grid;
-  gap: 10px;
-}
-
-.safe-ticket-details + .safe-ticket-details {
-  margin-top: 12px;
-}
-
-.safe-ticket-details summary {
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #465567;
-  letter-spacing: 0.04em;
-}
-
 .safe-ticket-highlight-danger {
-  background: rgba(255, 77, 79, 0.18);
+  background: rgba(255, 77, 79, 0.16);
   color: #a61b1b;
   border-radius: 4px;
   padding: 0 2px;
@@ -333,6 +373,19 @@
 }
 
 @media (max-width: 720px) {
+  .safe-ticket-panel {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+  }
+
+  .safe-ticket-panel.is-collapsed {
+    left: auto;
+    width: 84px;
+  }
+
   .safe-ticket-hero {
     grid-template-columns: 1fr;
   }
@@ -341,12 +394,7 @@
     justify-items: start;
   }
 
-  .safe-ticket-panel {
-    top: auto;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
-    width: auto;
-    max-height: 70vh;
+  .safe-ticket-summary-grid {
+    grid-template-columns: 1fr;
   }
 }

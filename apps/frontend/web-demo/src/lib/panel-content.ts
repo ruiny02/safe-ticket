@@ -35,24 +35,24 @@ export function buildPanelContent(options: {
 
   if (!scanResult) {
     return {
-      headline: "스캔 준비 완료",
+      headline: "스캔 준비",
       tone: payload ? "ok" : "warning",
       statusLabel: payload ? "ready" : "waiting",
       summary: payload
-        ? "거래 페이지 텍스트를 파싱했습니다. 스캔을 보내면 위험 신호와 하이라이트 위치를 바로 확인할 수 있습니다."
-        : "아직 파싱 결과가 없습니다. 페이지 텍스트를 다시 읽어온 뒤 스캔을 보내세요.",
+        ? "페이지를 읽었습니다. 스캔을 보내면 핵심 신호와 다음 행동을 바로 정리해 보여줍니다."
+        : "아직 페이지 정보를 읽지 못했습니다. 페이지를 다시 확인한 뒤 스캔을 시도하세요.",
       reasons: payload
         ? [
             {
-              title: "현재 잡아둔 대상",
+              title: "현재 대상",
               body: `${payload.page_title} / ${payload.seller.nickname} / ${payload.price.toLocaleString("ko-KR")}원`,
             },
           ]
         : [],
       actions: [
         {
-          title: "다음 단계",
-          body: "백엔드로 전송을 누르면 위험 문구, 은행/계좌 패턴, 권장 행동을 패널에 표시합니다.",
+          title: "바로 실행",
+          body: "스캔을 보내면 위험 신호와 다음 행동을 짧게 정리해 보여줍니다.",
         },
       ],
       meta,
@@ -60,12 +60,12 @@ export function buildPanelContent(options: {
   }
 
   const tone = scanResult.risk_level === "high" ? "danger" : scanResult.risk_level === "medium" ? "warning" : "ok";
-  const reasons = scanResult.highlight_targets.map((target) => ({
+  const reasons = scanResult.highlight_targets.slice(0, 3).map((target) => ({
     title: target.matched_text,
     body: target.reason,
   }));
 
-  const actions = scanResult.recommended_actions.map((action) => ({
+  const actions = scanResult.recommended_actions.slice(0, 2).map((action) => ({
     title: action.action,
     body: action.description,
   }));
