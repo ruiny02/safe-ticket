@@ -133,3 +133,41 @@
 ## 민감정보 메모
 - 계좌, 전화번호, 메신저 ID 는 raw 값과 hash 전략을 분리해 설계한다.
 - UI 노출이나 seller history 요약에는 raw 값 전체를 직접 쓰지 않고 masking / hash 활용을 기본으로 잡는다.
+
+## Alembic 운영 메모
+- Alembic 설정 파일: `apps/backend/alembic.ini`
+- migration 디렉토리: `apps/backend/migrations`
+- SQLAlchemy metadata: `apps/backend/app/db/models.py`
+
+### 현재 초기 revision
+- head revision: `63da3c25624b`
+- 목적: `vector` extension 생성 + 초기 핵심 테이블 생성
+
+### 로컬 Docker Postgres에 반영
+```bash
+cd /home/taeyeong/lectures/CDP_ws/safe-ticket
+source .venv/bin/activate
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/safe_ticket \
+PYTHONPATH=apps/backend \
+alembic -c apps/backend/alembic.ini upgrade head
+```
+
+### 현재 revision 확인
+```bash
+cd /home/taeyeong/lectures/CDP_ws/safe-ticket
+source .venv/bin/activate
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/safe_ticket \
+PYTHONPATH=apps/backend \
+alembic -c apps/backend/alembic.ini current
+```
+
+### DB 직접 확인
+```bash
+docker exec safe-ticket-db psql -U postgres -d safe_ticket -c "\\dt"
+docker exec safe-ticket-db psql -U postgres -d safe_ticket -c "\\d scans"
+```
+
+## 협업 메모
+- Git에는 실제 DB 데이터가 아니라 migration 파일과 모델 코드만 올라간다.
+- 로컬 Docker DB 안의 실제 테이블 상태와 데이터는 각 개발자 환경에 따로 존재한다.
+- 협업 시에는 `alembic upgrade head` 로 schema를 맞추고, 공통 개발 데이터가 필요하면 seed / fixture 로 공유한다.

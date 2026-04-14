@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Polling values are returned to the frontend when scans are created.
     scan_poll_interval_ms: int = Field(default=2000, alias="SCAN_POLL_INTERVAL_MS")
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list, alias="BACKEND_CORS_ORIGINS")
+    database_url: str = Field(
+        default="postgresql+psycopg://postgres:postgres@localhost:5433/safe_ticket",
+        alias="DATABASE_URL",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
