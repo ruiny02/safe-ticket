@@ -29,6 +29,7 @@ playwright-report/
 test-results/
 .playwright-mcp/
 .artifacts/
+.references/
 
 .DS_Store
 Thumbs.db
