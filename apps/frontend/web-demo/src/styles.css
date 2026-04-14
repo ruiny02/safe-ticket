@@ -197,6 +197,10 @@
   color: #f8fafc;
 }
 
+.safe-ticket-link-button {
+  text-decoration: none;
+}
+
 .safe-ticket-secondary:disabled {
   cursor: not-allowed;
   opacity: 0.56;

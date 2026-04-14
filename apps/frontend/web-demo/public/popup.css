@@ -87,6 +87,11 @@ h1 {
   word-break: break-word;
 }
 
+.popup-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .popup-actions button {
   width: 100%;
   border: 0;
@@ -97,4 +102,9 @@ h1 {
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
+}
+
+#open-report {
+  background: #0dcc5a;
+  color: #06210f;
 }

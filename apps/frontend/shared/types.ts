@@ -58,3 +58,31 @@ export interface ScanResultResponse {
   degraded: boolean;
   report_url: string | null;
 }
+
+export interface PipelineOutboundPayload {
+  scan_id: string;
+  platform: string;
+  page_url: string;
+  page_title: string;
+  price: number;
+  seller: SellerInfo;
+  content_blocks: ContentBlock[];
+}
+
+export interface PipelineInboundPayload {
+  risk_level: "low" | "medium" | "high";
+  risk_score: number;
+  summary: string;
+  risk_tags: string[];
+  evidence_items: ScanHighlightTarget[];
+  highlight_targets: ScanHighlightTarget[];
+  similar_cases: SimilarCase[];
+  recommended_actions: RecommendedAction[];
+  degraded: boolean;
+}
+
+export interface PipelineExchangeResponse {
+  scan_id: string;
+  outbound_payload: PipelineOutboundPayload;
+  inbound_payload: PipelineInboundPayload;
+}

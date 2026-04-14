@@ -5,8 +5,10 @@ import { createScan, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanQueuedResponse, ScanResultResponse } from "../../shared/types";
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
 import { buildPanelContent } from "./lib/panel-content";
+import { buildReportPageUrl } from "./lib/report-link";
 
 const API_BASE_URL = "http://localhost:8000";
+const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
 
 interface AppProps {
   pageHtml: string;
@@ -36,6 +38,29 @@ async function pollScanResult(scanId: string, pollAfterMs: number): Promise<Scan
   }
 
   throw new Error("Timed out while waiting for scan result");
+}
+
+async function persistLatestScan(pageUrl: string, scanId: string): Promise<void> {
+  const extensionApi = (globalThis as typeof globalThis & {
+    chrome?: {
+      storage?: {
+        local?: {
+          set: (items: Record<string, unknown>) => Promise<void>;
+        };
+      };
+    };
+  }).chrome;
+
+  if (!extensionApi?.storage?.local) {
+    return;
+  }
+
+  await extensionApi.storage.local.set({
+    [LATEST_SCAN_STORAGE_KEY]: {
+      pageUrl,
+      scanId,
+    },
+  });
 }
 
 export function App({ pageHtml, pageUrl }: AppProps) {
@@ -78,6 +103,7 @@ export function App({ pageHtml, pageUrl }: AppProps) {
       setResponse(nextResponse);
       const nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
       setScanResult(nextScanResult);
+      await persistLatestScan(pageUrl, nextScanResult.scan_id);
     } catch (nextError) {
       setScanResult(null);
       clearPageHighlights();
@@ -226,6 +252,18 @@ export function App({ pageHtml, pageUrl }: AppProps) {
                   </li>
                 ))}
               </ul>
+              {scanResult ? (
+                <div className="safe-ticket-actions">
+                  <a
+                    className="safe-ticket-primary safe-ticket-link-button"
+                    href={buildReportPageUrl(scanResult.scan_id)}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    정확한 분석 보기
+                  </a>
+                </div>
+              ) : null}
             </div>
           </section>
 
