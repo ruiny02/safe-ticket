@@ -1,4 +1,4 @@
-"""Service layer that coordinates API requests and dummy pipeline processing."""
+"""Service layer that coordinates API requests and real pipeline processing."""
 
 from __future__ import annotations
 
@@ -8,12 +8,13 @@ from app.core.config import get_settings
 from app.repositories.in_memory import store
 from app.schemas.scan import (
     FeedbackRequest,
+    PipelineErrorInfo,
     PipelineExchangeResponse,
     ScanCreateRequest,
     ScanCreateResponse,
     ScanResultResponse,
 )
-from app.services.pipeline_client import dummy_pipeline_client
+from app.services.pipeline_client import PipelineClientError, pipeline_client
 
 
 class ScanService:
@@ -39,7 +40,7 @@ class ScanService:
         )
 
     def process_scan(self, scan_id: str) -> None:
-        """Simulate sending the scan to the AI pipeline and storing its result."""
+        """Send the saved payload to the pipeline and translate the outcome into scan status."""
         existing_scan = store.get_scan(scan_id)
         if existing_scan is None:
             return
@@ -49,10 +50,35 @@ class ScanService:
 
         exchange = store.get_pipeline_exchange(scan_id)
         if exchange is None:
+            self._mark_scan_failed(
+                scan_id=scan_id,
+                error_info=PipelineErrorInfo(
+                    error_type="pipeline_request_missing",
+                    message="No outbound pipeline payload was recorded for this scan.",
+                    retryable=False,
+                ),
+            )
             return
 
-        # Reuse the stored dummy response so debug inspection matches the completed result exactly.
-        inbound_payload = exchange.inbound_payload
+        try:
+            inbound_payload = pipeline_client.analyze(exchange.outbound_payload)
+        except PipelineClientError as exc:
+            error_info = PipelineErrorInfo(
+                error_type=exc.error_type,
+                message=exc.message,
+                retryable=exc.retryable,
+                status_code=exc.status_code,
+            )
+            store.save_pipeline_exchange(
+                PipelineExchangeResponse(
+                    scan_id=scan_id,
+                    outbound_payload=exchange.outbound_payload,
+                    inbound_payload=None,
+                    pipeline_error=error_info,
+                )
+            )
+            self._mark_scan_failed(scan_id=scan_id, error_info=error_info)
+            return
 
         # Save the final completed scan in the format consumed by the frontend.
         final_scan = ScanResultResponse(
@@ -75,6 +101,7 @@ class ScanService:
                 scan_id=scan_id,
                 outbound_payload=exchange.outbound_payload,
                 inbound_payload=inbound_payload,
+                pipeline_error=None,
             )
         )
 
@@ -96,12 +123,23 @@ class ScanService:
 
     def attach_pipeline_request(self, scan_id: str, payload: ScanCreateRequest) -> None:
         """Capture the outbound payload before the background task runs."""
-        outbound_payload = dummy_pipeline_client.build_outbound_payload(scan_id=scan_id, payload=payload)
+        outbound_payload = pipeline_client.build_outbound_payload(scan_id=scan_id, payload=payload)
         store.save_pipeline_exchange(
             PipelineExchangeResponse(
                 scan_id=scan_id,
                 outbound_payload=outbound_payload,
-                inbound_payload=dummy_pipeline_client.analyze(outbound_payload),
+                inbound_payload=None,
+                pipeline_error=None,
+            )
+        )
+
+    def _mark_scan_failed(self, scan_id: str, error_info: PipelineErrorInfo) -> None:
+        """Persist a stable failed scan result without leaking transport-layer details."""
+        store.save_scan(
+            ScanResultResponse(
+                scan_id=scan_id,
+                status="failed",
+                summary=error_info.message,
             )
         )
 
