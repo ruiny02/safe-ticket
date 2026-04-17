@@ -3,8 +3,6 @@
 
 중고나라와 번개장터 거래 채팅을 흉내낸 정적 페이지입니다.
 
-현재 GitHub 저장소인 `safe-ticket` 폴더 밖에 둔 독립 파일이며, 브라우저에서 HTML 파일을 직접 열어 확인할 수 있습니다.
-
 ## Files
 
 - `joongna-chat.html`: 중고나라 거래 채팅 데모
@@ -97,14 +95,12 @@ localStorage.setItem("safeTicketReportBaseUrl", "http://localhost:5174/report/")
 1. 채팅 데모 서버를 켭니다.
 
 ```bat
-cd "C:\Users\GUSEOYEONG\Desktop\frontend\trade-chat-demo"
 npx serve -l 3000
 ```
 
 2. 백엔드를 켭니다.
 
 ```bat
-cd "C:\Users\GUSEOYEONG\Desktop\frontend\safe-ticket\apps\backend"
 set BACKEND_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -119,12 +115,7 @@ $env:BACKEND_CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 3. Chrome에서 `chrome://extensions`를 엽니다.
 4. `개발자 모드`를 켭니다.
 5. `압축해제된 확장 프로그램을 로드합니다`를 누릅니다.
-6. 아래 폴더를 선택합니다.
-
-```text
-C:\Users\GUSEOYEONG\Desktop\frontend\trade-chat-demo
-```
-
+6. 해당 폴더를 선택합니다.
 7. 아래 페이지에 접속한 뒤 새로고침합니다.
 
 ```text
