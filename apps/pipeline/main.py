@@ -17,6 +17,36 @@ PROCESSED_DIR = BASE_DIR / "data" / "processed"
 PROCESSED_FILE = PROCESSED_DIR / "processed_posts.jsonl"
 
 
+def build_backend_payload(post: dict) -> dict:
+    raw_text = post.get("content") or post.get("rendered_text") or ""
+
+    return {
+        "raw_text": raw_text,
+        "platform": post.get("platform", "unknown"),
+        "url": post.get("url", ""),
+        "title": post.get("title", ""),
+        "price": post.get("price", ""),
+        "seller_info": {
+            "seller_id": post.get("seller_id", ""),
+        },
+        "extracted_entities": {
+            "phone_number": post.get("phone_number", ""),
+            "account_number": post.get("account_number", ""),
+            "kakao_id": post.get("kakao_id", ""),
+        },
+        "rule_flags": post.get("risk_flags", []),
+        "text_for_embedding": post.get("text_for_embedding", ""),
+        "data_quality_score": post.get("data_quality_score", 0),
+        "quality_flags": post.get("quality_flags", []),
+    }
+
+
+def remove_heavy_fields(post: dict) -> dict:
+    cleaned = post.copy()
+    cleaned.pop("raw_html", None)
+    return cleaned
+
+
 def run_pipeline(skip_db: bool = False) -> None:
     ensure_dir(RAW_DIR)
     ensure_dir(PROCESSED_DIR)
@@ -45,9 +75,12 @@ def run_pipeline(skip_db: bool = False) -> None:
         post["is_valid_post"] = True
         post = enrich_post_with_entities(post)
         post = calculate_quality_score(post)
+        post["backend_payload"] = build_backend_payload(post)
         valid_posts.append(post)
 
-    save_jsonl(PROCESSED_FILE, valid_posts)
+    output_posts = [remove_heavy_fields(post) for post in valid_posts]
+    save_jsonl(PROCESSED_FILE, output_posts)
+
     print(f"  Extracted {len(valid_posts)} valid posts.")
     print(f"  Saved processed dataset to {PROCESSED_FILE}")
 

@@ -3,3 +3,4 @@ SQLAlchemy>=1.4
 psycopg2-binary>=2.9
 python-dotenv>=1.0
 beautifulsoup4>=4.12.2
+requests>=2.31.0
