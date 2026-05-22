@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.post("", response_model=ScanCreateResponse, status_code=status.HTTP_202_ACCEPTED)
 def create_scan(payload: ScanCreateRequest, background_tasks: BackgroundTasks) -> ScanCreateResponse:
-    """Create a scan job and schedule dummy pipeline processing in the background."""
+    """Create a scan job and schedule pipeline processing in the background."""
     # Create the initial scan record that the client can start polling.
     created_scan = scan_service.create_scan(payload)
 

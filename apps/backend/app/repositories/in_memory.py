@@ -33,7 +33,7 @@ class InMemoryStore:
             self.feedback.setdefault(scan_id, []).append(payload)
 
     def save_pipeline_exchange(self, exchange: PipelineExchangeResponse) -> None:
-        """Persist the request and response exchanged with the dummy pipeline."""
+        """Persist the request and response exchanged with the pipeline."""
         with self.lock:
             self.pipeline_exchanges[exchange.scan_id] = exchange
 
@@ -41,6 +41,13 @@ class InMemoryStore:
         """Return the stored pipeline trace for a scan."""
         with self.lock:
             return self.pipeline_exchanges.get(scan_id)
+
+    def clear(self) -> None:
+        """Reset all in-memory state so tests do not leak data into one another."""
+        with self.lock:
+            self.scans.clear()
+            self.feedback.clear()
+            self.pipeline_exchanges.clear()
 
 
 # A module-level singleton is enough for this local scaffold.
