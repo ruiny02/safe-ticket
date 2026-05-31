@@ -1,105 +1,240 @@
-from pathlib import Path
-import sys
+"""FastAPI service that exposes the AI pipeline contract used by the backend."""
 
-from crawlers.crawler import crawl_marketplace_pages
-from preprocess.cleaner import clean_post, validate_post
-from preprocess.entity_extractor import enrich_post_with_entities
-from preprocess.scoring import calculate_quality_score
-from utils.file_utils import ensure_dir, save_jsonl
-from utils.quality_report import DataQualityReport
-from db.connection import get_engine
-from db.models import init_db
-from db.loader import load_processed_data
+from __future__ import annotations
 
-BASE_DIR = Path(__file__).resolve().parent
-RAW_DIR = BASE_DIR / "data" / "raw"
-PROCESSED_DIR = BASE_DIR / "data" / "processed"
-PROCESSED_FILE = PROCESSED_DIR / "processed_posts.jsonl"
+from typing import Literal
+
+from fastapi import FastAPI
+from pydantic import BaseModel, Field, HttpUrl
 
 
-def build_backend_payload(post: dict) -> dict:
-    raw_text = post.get("content") or post.get("rendered_text") or ""
+class HealthResponse(BaseModel):
+    """Simple health-check response consumed by the backend."""
 
-    return {
-        "raw_text": raw_text,
-        "platform": post.get("platform", "unknown"),
-        "url": post.get("url", ""),
-        "title": post.get("title", ""),
-        "price": post.get("price", ""),
-        "seller_info": {
-            "seller_id": post.get("seller_id", ""),
-        },
-        "extracted_entities": {
-            "phone_number": post.get("phone_number", ""),
-            "account_number": post.get("account_number", ""),
-            "kakao_id": post.get("kakao_id", ""),
-        },
-        "rule_flags": post.get("risk_flags", []),
-        "text_for_embedding": post.get("text_for_embedding", ""),
-        "data_quality_score": post.get("data_quality_score", 0),
-        "quality_flags": post.get("quality_flags", []),
-    }
+    status: Literal["ok"]
 
 
-def remove_heavy_fields(post: dict) -> dict:
-    cleaned = post.copy()
-    cleaned.pop("raw_html", None)
-    return cleaned
+class SellerInfo(BaseModel):
+    """Seller fields received from the backend scan request."""
+
+    seller_id: str
+    nickname: str
 
 
-def run_pipeline(skip_db: bool = False) -> None:
-    ensure_dir(RAW_DIR)
-    ensure_dir(PROCESSED_DIR)
+class ContentBlock(BaseModel):
+    """Text block extracted from the marketplace page."""
 
-    print("[1/4] Crawling marketplace pages...")
-    raw_posts = crawl_marketplace_pages(RAW_DIR)
-    print(f"  Crawled {len(raw_posts)} posts and saved raw artifacts.")
-
-    print("[2/4] Cleaning raw data...")
-    cleaned_posts = [clean_post(post) for post in raw_posts]
-    print(f"  Cleaned {len(cleaned_posts)} posts.")
-
-    print("[3/4] Validating, extracting entities, and scoring...")
-    valid_posts = []
-    invalid_posts = []
-
-    for post in cleaned_posts:
-        is_valid, reason = validate_post(post)
-        post["validation_reason"] = reason
-
-        if not is_valid:
-            post["is_valid_post"] = False
-            invalid_posts.append(post)
-            continue
-
-        post["is_valid_post"] = True
-        post = enrich_post_with_entities(post)
-        post = calculate_quality_score(post)
-        post["backend_payload"] = build_backend_payload(post)
-        valid_posts.append(post)
-
-    output_posts = [remove_heavy_fields(post) for post in valid_posts]
-    save_jsonl(PROCESSED_FILE, output_posts)
-
-    print(f"  Extracted {len(valid_posts)} valid posts.")
-    print(f"  Saved processed dataset to {PROCESSED_FILE}")
-
-    print("\n[Quality Report]")
-    report = DataQualityReport()
-    report.analyze(raw_posts, valid_posts, invalid_posts)
-    report.print_report()
-
-    if skip_db:
-        print("\nSkipping database loading (--skip-db flag used).")
-        return
-
-    print("\n[4/4] Loading processed data into PostgreSQL...")
-    engine = get_engine()
-    init_db(engine)
-    load_processed_data(engine, PROCESSED_FILE)
-    print("  Data loaded into PostgreSQL table fraud_posts.")
+    block_id: str
+    text: str
 
 
-if __name__ == "__main__":
-    skip_db = "--skip-db" in sys.argv
-    run_pipeline(skip_db=skip_db)
+class PipelineOutboundPayload(BaseModel):
+    """Request schema sent by the backend to the pipeline."""
+
+    scan_id: str
+    platform: str
+    page_url: HttpUrl
+    page_title: str
+    price: int = Field(ge=0)
+    seller: SellerInfo
+    content_blocks: list[ContentBlock]
+
+
+class EvidenceItem(BaseModel):
+    """Evidence span returned to the backend for highlighting."""
+
+    block_id: str
+    start: int
+    end: int
+    matched_text: str
+    reason_code: str
+    reason: str
+    css_class: str = "safe-ticket-highlight-danger"
+
+
+class SimilarCase(BaseModel):
+    """Similar-case placeholder matching the backend response contract."""
+
+    case_id: str
+    score: float
+    summary: str
+
+
+class RecommendedAction(BaseModel):
+    """Action the frontend can show to the user."""
+
+    action: str
+    description: str
+
+
+class PipelineInboundPayload(BaseModel):
+    """Response schema expected by backend PipelineInboundPayload validation."""
+
+    risk_level: Literal["low", "medium", "high"]
+    risk_score: float
+    summary: str
+    risk_tags: list[str]
+    evidence_items: list[EvidenceItem]
+    highlight_targets: list[EvidenceItem]
+    similar_cases: list[SimilarCase]
+    recommended_actions: list[RecommendedAction]
+    degraded: bool = False
+
+
+class RiskRule(BaseModel):
+    """Rule definition used by the temporary deterministic analyzer."""
+
+    reason_code: str
+    reason: str
+    keywords: list[str]
+    score: float
+
+
+RULES = [
+    RiskRule(
+        reason_code="avoid_safe_payment",
+        reason="The listing appears to ask the buyer to avoid protected payment.",
+        keywords=["transfer me first", "wire first", "bank transfer", "safe payment not", "선입금", "계좌", "입금"],
+        score=0.35,
+    ),
+    RiskRule(
+        reason_code="off_platform_contact",
+        reason="The listing appears to move communication away from the marketplace.",
+        keywords=["kakao", "telegram", "messenger", "open chat", "카카오", "카톡", "오픈채팅", "텔레그램"],
+        score=0.25,
+    ),
+    RiskRule(
+        reason_code="urgency_pressure",
+        reason="The listing uses urgency language that can pressure quick payment.",
+        keywords=["urgent", "today only", "quick sale", "지금", "급처", "오늘만"],
+        score=0.15,
+    ),
+    RiskRule(
+        reason_code="ticket_transfer_risk",
+        reason="The listing discusses ticket transfer, which is a common scam context.",
+        keywords=["ticket", "concert", "seat", "티켓", "콘서트", "좌석", "양도"],
+        score=0.10,
+    ),
+]
+
+
+app = FastAPI(
+    title="safe-ticket-pipeline",
+    description="HTTP API used by the backend to request listing risk analysis.",
+    version="0.1.0",
+)
+
+
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    """Return a 200 response when the pipeline service is reachable."""
+    return HealthResponse(status="ok")
+
+
+@app.post("/api/v1/analyze", response_model=PipelineInboundPayload)
+def analyze(payload: PipelineOutboundPayload) -> PipelineInboundPayload:
+    """Analyze a scan request and return the exact schema expected by the backend."""
+    evidence_items: list[EvidenceItem] = []
+    risk_tags: list[str] = []
+    risk_score = 0.0
+
+    for block in payload.content_blocks:
+        block_text_lower = block.text.lower()
+        for rule in RULES:
+            matched_keyword = next(
+                (keyword for keyword in rule.keywords if keyword.lower() in block_text_lower),
+                None,
+            )
+            if matched_keyword is None:
+                continue
+
+            start = block_text_lower.find(matched_keyword.lower())
+            end = start + len(matched_keyword)
+            evidence_items.append(
+                EvidenceItem(
+                    block_id=block.block_id,
+                    start=start,
+                    end=end,
+                    matched_text=block.text[start:end],
+                    reason_code=rule.reason_code,
+                    reason=rule.reason,
+                )
+            )
+            if rule.reason_code not in risk_tags:
+                risk_tags.append(rule.reason_code)
+                risk_score += rule.score
+
+    risk_score = min(round(risk_score, 2), 1.0)
+    risk_level = _risk_level_from_score(risk_score)
+
+    return PipelineInboundPayload(
+        risk_level=risk_level,
+        risk_score=risk_score,
+        summary=_build_summary(risk_level=risk_level, risk_tags=risk_tags),
+        risk_tags=risk_tags,
+        evidence_items=evidence_items,
+        highlight_targets=evidence_items,
+        similar_cases=_build_similar_cases(risk_tags),
+        recommended_actions=_build_recommended_actions(risk_tags),
+        degraded=False,
+    )
+
+
+def _risk_level_from_score(score: float) -> Literal["low", "medium", "high"]:
+    """Convert a numeric score into the backend's expected risk buckets."""
+    if score >= 0.60:
+        return "high"
+    if score >= 0.25:
+        return "medium"
+    return "low"
+
+
+def _build_summary(risk_level: str, risk_tags: list[str]) -> str:
+    """Build a concise summary while the full AI pipeline is still being developed."""
+    if not risk_tags:
+        return "No major risk signals were detected by the temporary pipeline rules."
+
+    joined_tags = ", ".join(risk_tags)
+    return f"{risk_level.title()} risk detected based on these signals: {joined_tags}."
+
+
+def _build_similar_cases(risk_tags: list[str]) -> list[SimilarCase]:
+    """Return placeholder similar cases when risk signals are present."""
+    if not risk_tags:
+        return []
+
+    return [
+        SimilarCase(
+            case_id="rule_based_reference_001",
+            score=0.72,
+            summary="Rule-based reference case generated until retrieval is connected.",
+        )
+    ]
+
+
+def _build_recommended_actions(risk_tags: list[str]) -> list[RecommendedAction]:
+    """Return user-facing actions that match the detected risk signals."""
+    actions = [
+        RecommendedAction(
+            action="use_safe_payment",
+            description="Use the marketplace's protected payment flow before transferring money.",
+        )
+    ]
+
+    if "off_platform_contact" in risk_tags:
+        actions.append(
+            RecommendedAction(
+                action="stay_on_platform",
+                description="Keep conversation inside the marketplace chat when possible.",
+            )
+        )
+
+    if "avoid_safe_payment" in risk_tags:
+        actions.append(
+            RecommendedAction(
+                action="verify_seller_account",
+                description="Do not send money until the seller and payment method are verified.",
+            )
+        )
+
+    return actions

@@ -23,17 +23,28 @@ services:
       dockerfile: docker/backend.Dockerfile
     container_name: safe-ticket-backend
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       APP_ENV: ${APP_ENV:-local}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/safe_ticket}
+      PIPELINE_BASE_URL: http://pipeline:8010
+      PIPELINE_ANALYZE_PATH: ${PIPELINE_ANALYZE_PATH:-/api/v1/analyze}
+      PIPELINE_TIMEOUT_SECONDS: ${PIPELINE_TIMEOUT_SECONDS:-10}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
+      pipeline:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:
@@ -59,6 +70,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:
