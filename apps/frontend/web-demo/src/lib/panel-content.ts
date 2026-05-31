@@ -1,4 +1,4 @@
-import type { ScanCreateRequest, ScanResultResponse } from "../../../shared/types";
+import type { ExternalLookupResult, ScanCreateRequest, ScanResultResponse } from "../../../shared/types";
 
 export interface PanelReason {
   title: string;
@@ -10,6 +10,14 @@ export interface PanelMetaItem {
   value: string;
 }
 
+export interface PanelExternalLookup {
+  title: string;
+  body: string;
+  statusLabel: ExternalLookupResult["status"];
+  tone: "danger" | "warning" | "ok";
+  keyword: string;
+}
+
 export interface PanelContent {
   headline: string;
   tone: "danger" | "warning" | "ok";
@@ -17,7 +25,38 @@ export interface PanelContent {
   summary: string;
   reasons: PanelReason[];
   actions: PanelReason[];
+  externalLookups: PanelExternalLookup[];
   meta: PanelMetaItem[];
+}
+
+function providerLabel(provider: ExternalLookupResult["provider"]): string {
+  return provider === "police" ? "경찰청" : "더치트";
+}
+
+function kindLabel(kind: ExternalLookupResult["kind"]): string {
+  return kind === "account" ? "계좌" : "전화번호";
+}
+
+function lookupTone(result: ExternalLookupResult): PanelExternalLookup["tone"] {
+  if (result.status === "failed" || result.risk_found === true) {
+    return "danger";
+  }
+
+  if (result.status === "login_required") {
+    return "warning";
+  }
+
+  return "ok";
+}
+
+function buildExternalLookups(results: ExternalLookupResult[] = []): PanelExternalLookup[] {
+  return results.slice(0, 4).map((result) => ({
+    title: `${providerLabel(result.provider)} · ${kindLabel(result.kind)}`,
+    body: result.message,
+    statusLabel: result.status,
+    tone: lookupTone(result),
+    keyword: result.keyword,
+  }));
 }
 
 export function buildPanelContent(options: {
@@ -55,6 +94,7 @@ export function buildPanelContent(options: {
           body: "스캔을 보내면 위험 신호와 다음 행동을 짧게 정리해 보여줍니다.",
         },
       ],
+      externalLookups: [],
       meta,
     };
   }
@@ -84,6 +124,7 @@ export function buildPanelContent(options: {
       "응답은 도착했지만 요약 메시지가 비어 있습니다. Raw response를 열어 세부 정보를 확인하세요.",
     reasons,
     actions,
+    externalLookups: buildExternalLookups(scanResult.external_lookup_results),
     meta,
   };
 }

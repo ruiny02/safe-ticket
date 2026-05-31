@@ -43,6 +43,30 @@ describe("buildPanelContent", () => {
           description: "판매자 실명과 계좌 예금주를 교차 확인하세요.",
         },
       ],
+      external_lookup_results: [
+        {
+          provider: "police",
+          kind: "account",
+          keyword: "3355288620726",
+          status: "completed",
+          message: "최근 3개월 내 사기 피해 신고가 3건 이상 접수된 이력은 확인되지 않습니다.",
+          source_url: "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none",
+          report_count: 0,
+          risk_found: false,
+          result_text: null,
+        },
+        {
+          provider: "thecheat",
+          kind: "account",
+          keyword: "3355288620726",
+          status: "login_required",
+          message: "더치트 조회는 로그인 또는 앱 OTP 인증이 필요합니다.",
+          source_url: "https://thecheat.co.kr/rb/?mod=ssl_login_otp",
+          report_count: null,
+          risk_found: null,
+          result_text: "로그인이 필요합니다.",
+        },
+      ],
       degraded: false,
       report_url: "/report/scan_123",
     };
@@ -65,6 +89,22 @@ describe("buildPanelContent", () => {
       title: "verify_identity",
       body: "판매자 실명과 계좌 예금주를 교차 확인하세요.",
     });
+    expect(content.externalLookups).toEqual([
+      {
+        title: "경찰청 · 계좌",
+        body: "최근 3개월 내 사기 피해 신고가 3건 이상 접수된 이력은 확인되지 않습니다.",
+        statusLabel: "completed",
+        tone: "ok",
+        keyword: "3355288620726",
+      },
+      {
+        title: "더치트 · 계좌",
+        body: "더치트 조회는 로그인 또는 앱 OTP 인증이 필요합니다.",
+        statusLabel: "login_required",
+        tone: "warning",
+        keyword: "3355288620726",
+      },
+    ]);
   });
 
   it("builds a ready-state summary before the scan is sent", () => {

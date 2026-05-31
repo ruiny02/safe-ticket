@@ -328,6 +328,78 @@
   gap: 12px;
 }
 
+.safe-ticket-lookup-card {
+  background:
+    radial-gradient(circle at top right, rgba(132, 112, 255, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.94);
+}
+
+.safe-ticket-lookup-list {
+  display: grid;
+  gap: 10px;
+}
+
+.safe-ticket-lookup-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(132, 112, 255, 0.12);
+  border-radius: 16px;
+  background: #f8f6ff;
+}
+
+.safe-ticket-lookup-row.tone-danger {
+  border-color: rgba(196, 63, 92, 0.18);
+  background: #fff2f4;
+}
+
+.safe-ticket-lookup-row.tone-warning {
+  border-color: rgba(240, 187, 51, 0.28);
+  background: #fff9e8;
+}
+
+.safe-ticket-lookup-row.tone-ok {
+  border-color: rgba(132, 112, 255, 0.14);
+  background: #f8f6ff;
+}
+
+.safe-ticket-lookup-row > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.safe-ticket-lookup-row strong {
+  color: #1f2040;
+  font-size: 13px;
+}
+
+.safe-ticket-lookup-row span {
+  color: #6c63a3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.safe-ticket-lookup-row p {
+  margin: 0;
+  color: #4d5078;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.safe-ticket-lookup-row small {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(132, 112, 255, 0.12);
+  color: #5b4dd1;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .safe-ticket-list {
   display: grid;
   gap: 10px;

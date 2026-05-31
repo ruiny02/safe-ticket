@@ -306,6 +306,46 @@ function SellerObservationCard({
   );
 }
 
+function ExternalLookupCard({ dashboard }: { dashboard: DashboardModel }) {
+  return (
+    <article className="dashboard-card dashboard-col-12 dashboard-external-card">
+      <header className="dashboard-card-header">
+        <div>
+          <h3>External verification</h3>
+          <p>경찰청과 더치트 조회 결과를 scan 결과와 함께 묶어 보여줍니다.</p>
+        </div>
+        <span className="dashboard-pill is-neutral">{dashboard.externalLookups.length} checks</span>
+      </header>
+      <div className="dashboard-card-body">
+        {dashboard.externalLookups.length ? (
+          <div className="dashboard-external-grid">
+            {dashboard.externalLookups.map((lookup) => (
+              <a
+                className={`dashboard-external-row ${getToneClass(lookup.tone)}`}
+                href={lookup.sourceUrl}
+                key={`${lookup.title}-${lookup.keyword}-${lookup.statusLabel}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <div className="dashboard-external-row-head">
+                  <strong>{lookup.title}</strong>
+                  <span className={`dashboard-pill ${getToneClass(lookup.tone)}`}>{lookup.statusLabel}</span>
+                </div>
+                <p>{lookup.message}</p>
+                <small>{lookup.keyword}</small>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="dashboard-muted-copy">
+            현재 scan 응답에는 외부 조회 결과가 없습니다. 계좌번호나 010 전화번호 후보가 잡히면 이 카드에 결과가 표시됩니다.
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function NarrativeCard({ title, sentences }: { title: string; sentences: string[] }) {
   return (
     <article className="dashboard-card dashboard-col-6">
@@ -570,6 +610,8 @@ export function App() {
                 items={dashboard.overview.items}
                 title={dashboard.overview.label}
               />
+
+              <ExternalLookupCard dashboard={dashboard} />
 
               <article className="dashboard-card dashboard-col-8">
                 <header className="dashboard-card-header">
@@ -864,6 +906,8 @@ export function App() {
             {reportBrief.sections.map((section) => (
               <NarrativeCard key={section.title} sentences={section.sentences} title={section.title} />
             ))}
+
+            <ExternalLookupCard dashboard={dashboard} />
           </section>
         ) : null}
       </>

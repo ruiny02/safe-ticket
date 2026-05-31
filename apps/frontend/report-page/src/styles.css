@@ -830,6 +830,78 @@ svg {
   line-height: 1.7;
 }
 
+.dashboard-external-card {
+  background:
+    radial-gradient(circle at top right, rgba(132, 112, 255, 0.12), transparent 30%),
+    #fff;
+}
+
+.dashboard-external-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dashboard-external-row {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--gray-100);
+  border-radius: 16px;
+  background: var(--gray-50);
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.dashboard-external-row:hover {
+  border-color: rgba(132, 112, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.dashboard-external-row.is-danger {
+  border-color: rgba(255, 86, 86, 0.18);
+  background: linear-gradient(180deg, #fff, var(--red-50));
+}
+
+.dashboard-external-row.is-warning {
+  border-color: rgba(240, 187, 51, 0.24);
+  background: linear-gradient(180deg, #fff, var(--yellow-50));
+}
+
+.dashboard-external-row.is-ok {
+  border-color: rgba(132, 112, 255, 0.16);
+  background: linear-gradient(180deg, #fff, var(--violet-50));
+}
+
+.dashboard-external-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-external-row strong {
+  color: var(--gray-900);
+  font-size: 15px;
+}
+
+.dashboard-external-row p {
+  margin: 0;
+  color: var(--gray-600);
+  line-height: 1.7;
+}
+
+.dashboard-external-row small {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-muted-copy {
+  margin: 0;
+  color: var(--gray-500);
+  line-height: 1.7;
+}
+
 .dashboard-observation-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1160,6 +1232,7 @@ svg {
   .dashboard-source-grid,
   .dashboard-overview-grid,
   .dashboard-observation-grid,
+  .dashboard-external-grid,
   .dashboard-profile-grid {
     grid-template-columns: 1fr;
   }

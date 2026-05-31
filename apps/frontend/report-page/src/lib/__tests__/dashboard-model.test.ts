@@ -53,6 +53,30 @@ const scanResult: ScanResultResponse = {
       description: "추가 송금 요청이 오면 바로 거래를 중단하세요.",
     },
   ],
+  external_lookup_results: [
+    {
+      provider: "police",
+      kind: "account",
+      keyword: "3355288620726",
+      status: "completed",
+      message: "최근 3개월 내 사기 피해 신고가 3건 이상 접수된 이력은 확인되지 않습니다.",
+      source_url: "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none",
+      report_count: 0,
+      risk_found: false,
+      result_text: null,
+    },
+    {
+      provider: "thecheat",
+      kind: "account",
+      keyword: "3355288620726",
+      status: "login_required",
+      message: "더치트 조회는 로그인 또는 앱 OTP 인증이 필요합니다.",
+      source_url: "https://thecheat.co.kr/rb/?mod=ssl_login_otp",
+      report_count: null,
+      risk_found: null,
+      result_text: "로그인이 필요합니다.",
+    },
+  ],
   degraded: false,
   report_url: "/report/scan_1234abcd",
 };
@@ -122,6 +146,24 @@ describe("buildDashboardModel", () => {
       recentFraudCases: 3,
       observedAliases: ["낭닥SJ", "급처티켓", "openchat123"],
     });
+    expect(model.externalLookups).toEqual([
+      {
+        title: "경찰청 · 계좌",
+        keyword: "3355288620726",
+        statusLabel: "completed",
+        message: "최근 3개월 내 사기 피해 신고가 3건 이상 접수된 이력은 확인되지 않습니다.",
+        tone: "ok",
+        sourceUrl: "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none",
+      },
+      {
+        title: "더치트 · 계좌",
+        keyword: "3355288620726",
+        statusLabel: "login_required",
+        message: "더치트 조회는 로그인 또는 앱 OTP 인증이 필요합니다.",
+        tone: "warning",
+        sourceUrl: "https://thecheat.co.kr/rb/?mod=ssl_login_otp",
+      },
+    ]);
     expect(model.lookupLinks.map((link) => link.label)).toEqual(["경찰청 조회 안내", "더치트 조회"]);
   });
 });

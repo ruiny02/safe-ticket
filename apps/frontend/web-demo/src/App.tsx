@@ -196,6 +196,35 @@ export function App({ pageHtml, pageUrl }: AppProps) {
             </section>
           ) : null}
 
+          <section className="safe-ticket-card safe-ticket-lookup-card">
+            <div className="safe-ticket-card-header">
+              <h2>외부 조회</h2>
+              {panelContent.externalLookups.length ? (
+                <span className="safe-ticket-badge ok">{panelContent.externalLookups.length} checks</span>
+              ) : (
+                <span className="safe-ticket-badge ok">standby</span>
+              )}
+            </div>
+            <div className="safe-ticket-lookup-list">
+              {panelContent.externalLookups.length ? (
+                panelContent.externalLookups.map((lookup) => (
+                  <article className={`safe-ticket-lookup-row tone-${lookup.tone}`} key={`${lookup.title}-${lookup.keyword}-${lookup.statusLabel}`}>
+                    <div>
+                      <strong>{lookup.title}</strong>
+                      <span>{lookup.keyword}</span>
+                    </div>
+                    <p>{lookup.body}</p>
+                    <small>{lookup.statusLabel}</small>
+                  </article>
+                ))
+              ) : (
+                <p className="safe-ticket-empty">
+                  스캔 완료 후 경찰청/더치트 조회 결과가 여기에 표시됩니다.
+                </p>
+              )}
+            </div>
+          </section>
+
           <section className="safe-ticket-card">
             <div className="safe-ticket-card-header">
               <h2>현재 게시글</h2>
