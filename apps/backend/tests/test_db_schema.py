@@ -12,7 +12,7 @@ def test_metadata_contains_documented_tables() -> None:
         "scan_blocks",
         "scan_evidence_items",
         "scan_similar_cases",
-        "feedback",
+        "pipeline_exchanges",
         "seller_observations",
     }
 
@@ -32,7 +32,7 @@ def test_child_tables_reference_expected_parents() -> None:
         "scan_blocks": {"scans"},
         "scan_evidence_items": {"scans"},
         "scan_similar_cases": {"scans", "cases", "case_chunks"},
-        "feedback": {"scans"},
+        "pipeline_exchanges": {"scans"},
     }
 
     for table_name, expected_targets in table_foreign_keys.items():

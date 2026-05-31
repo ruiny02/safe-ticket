@@ -1,16 +1,22 @@
 """API tests that verify backend behavior around real pipeline integration."""
 
+import os
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_safe_ticket.db")
+
 from fastapi.testclient import TestClient
 import pytest
 
+from app.db.base import Base
+from app.db.session import engine
 from app.main import app
-from app.repositories.in_memory import store
 from app.schemas.scan import (
     EvidenceItem,
     PipelineInboundPayload,
     RecommendedAction,
     SimilarCase,
 )
+from app.repositories.db_store import db_store
 from app.services import pipeline_client as pipeline_client_module
 from app.services.pipeline_client import PipelineUnavailableError
 
@@ -89,15 +95,20 @@ def build_pipeline_result() -> PipelineInboundPayload:
 
 
 @pytest.fixture(autouse=True)
-def reset_store() -> None:
-    """Clear shared in-memory state before each test."""
-    store.clear()
+def reset_database() -> None:
+    """Rebuild test tables so each API test starts from empty persisted state."""
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
 
 def test_scan_flow_and_pipeline_debug(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure a successful pipeline call completes the scan and stores the exchange."""
+    observed_statuses: list[str] = []
 
-    def mock_analyze(*_args, **_kwargs) -> PipelineInboundPayload:
+    def mock_analyze(outbound_payload, *_args, **_kwargs) -> PipelineInboundPayload:
+        scan = db_store.get_scan(outbound_payload.scan_id)
+        assert scan is not None
+        observed_statuses.append(scan.status)
         return build_pipeline_result()
 
     monkeypatch.setattr(pipeline_client_module.pipeline_client, "analyze", mock_analyze)
@@ -113,6 +124,7 @@ def test_scan_flow_and_pipeline_debug(monkeypatch: pytest.MonkeyPatch) -> None:
     scan_body = scan_response.json()
     assert scan_body["status"] == "completed"
     assert len(scan_body["highlight_targets"]) == 2
+    assert observed_statuses == ["processing"]
 
     # Inspect the exact outbound and inbound payloads used for pipeline integration.
     debug_response = client.get(f"/api/v1/scans/{scan_id}/pipeline-debug")
@@ -121,6 +133,36 @@ def test_scan_flow_and_pipeline_debug(monkeypatch: pytest.MonkeyPatch) -> None:
     assert debug_body["outbound_payload"]["scan_id"] == scan_id
     assert debug_body["inbound_payload"]["risk_level"] == "high"
     assert debug_body["pipeline_error"] is None
+
+
+def test_scan_list_endpoint_returns_recent_scans(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the list endpoint returns compact scan summaries for history screens."""
+
+    def mock_analyze(*_args, **_kwargs) -> PipelineInboundPayload:
+        return build_pipeline_result()
+
+    monkeypatch.setattr(pipeline_client_module.pipeline_client, "analyze", mock_analyze)
+
+    first_response = client.post("/api/v1/scans", json=build_scan_payload())
+    second_payload = build_scan_payload()
+    second_payload["page_title"] = "Baseball ticket sale"
+    second_response = client.post("/api/v1/scans", json=second_payload)
+
+    assert first_response.status_code == 202
+    assert second_response.status_code == 202
+
+    list_response = client.get("/api/v1/scans?limit=10&offset=0")
+
+    assert list_response.status_code == 200
+    body = list_response.json()
+    assert body["total"] == 2
+    assert body["limit"] == 10
+    assert body["offset"] == 0
+    assert {item["scan_id"] for item in body["items"]} == {
+        first_response.json()["scan_id"],
+        second_response.json()["scan_id"],
+    }
+    assert all(item["status"] == "completed" for item in body["items"])
 
 
 def test_failed_pipeline_marks_scan_failed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,20 +186,11 @@ def test_failed_pipeline_marks_scan_failed(monkeypatch: pytest.MonkeyPatch) -> N
     assert debug_response.json()["pipeline_error"]["error_type"] == "pipeline_unavailable"
 
 
-def test_feedback_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure the feedback API behaves as expected after scan creation."""
+def test_pipeline_health_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the health endpoint exposes backend-to-pipeline reachability."""
+    monkeypatch.setattr(pipeline_client_module.pipeline_client, "health_check", lambda: True)
 
-    def mock_analyze(*_args, **_kwargs) -> PipelineInboundPayload:
-        return build_pipeline_result()
+    response = client.get("/api/v1/health/pipeline")
 
-    monkeypatch.setattr(pipeline_client_module.pipeline_client, "analyze", mock_analyze)
-
-    create_response = client.post("/api/v1/scans", json=build_scan_payload())
-    scan_id = create_response.json()["scan_id"]
-
-    feedback_response = client.post(
-        f"/api/v1/scans/{scan_id}/feedback",
-        json={"feedback_type": "helpful", "comment": "The pipeline-backed response is easy to inspect."},
-    )
-    assert feedback_response.status_code == 200
-    assert feedback_response.json()["status"] == "saved"
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "pipeline_reachable": True}

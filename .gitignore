@@ -16,6 +16,10 @@ env/
 .coverage
 .coverage.*
 htmlcov/
+safe_ticket.db
+test_safe_ticket.db
+*.sqlite
+*.sqlite3
 
 dist/
 build/

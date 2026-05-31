@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # Polling values are returned to the frontend when scans are created.
     scan_poll_interval_ms: int = Field(default=2000, alias="SCAN_POLL_INTERVAL_MS")
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list, alias="BACKEND_CORS_ORIGINS")
+    database_url: str = Field(default="sqlite:///./safe_ticket.db", alias="DATABASE_URL")
+    pipeline_base_url: str = Field(default="http://pipeline:8010", alias="PIPELINE_BASE_URL")
+    pipeline_analyze_path: str = Field(default="/api/v1/analyze", alias="PIPELINE_ANALYZE_PATH")
+    pipeline_timeout_seconds: float = Field(default=10.0, alias="PIPELINE_TIMEOUT_SECONDS")
+    pipeline_api_key: str | None = Field(default=None, alias="PIPELINE_API_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -25,7 +30,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
-    
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_cors_origins(cls, value: str | list[str]) -> list[str]:

@@ -5,13 +5,13 @@ from __future__ import annotations
 from uuid import uuid4
 
 from app.core.config import get_settings
-from app.repositories.in_memory import store
+from app.repositories.db_store import db_store
 from app.schemas.scan import (
-    FeedbackRequest,
     PipelineErrorInfo,
     PipelineExchangeResponse,
     ScanCreateRequest,
     ScanCreateResponse,
+    ScanListResponse,
     ScanResultResponse,
 )
 from app.services.pipeline_client import PipelineClientError, pipeline_client
@@ -25,13 +25,7 @@ class ScanService:
         scan_id = f"scan_{uuid4().hex[:8]}"
         settings = get_settings()
 
-        # The initial record contains only queue metadata because processing has not started yet.
-        store.save_scan(
-            ScanResultResponse(
-                scan_id=scan_id,
-                status="queued",
-            )
-        )
+        db_store.create_scan(scan_id=scan_id, payload=payload)
 
         return ScanCreateResponse(
             scan_id=scan_id,
@@ -39,16 +33,21 @@ class ScanService:
             poll_after_ms=settings.scan_poll_interval_ms,
         )
 
+    def enqueue_scan(self, payload: ScanCreateRequest) -> ScanCreateResponse:
+        """Create the scan and record the outbound pipeline request in one safe step."""
+        created_scan = self.create_scan(payload)
+        self.attach_pipeline_request(created_scan.scan_id, payload)
+        return created_scan
+
     def process_scan(self, scan_id: str) -> None:
         """Send the saved payload to the pipeline and translate the outcome into scan status."""
-        existing_scan = store.get_scan(scan_id)
-        if existing_scan is None:
+        if db_store.get_scan(scan_id) is None:
             return
 
         # Move the job into processing so polling clients can observe progress.
-        store.save_scan(existing_scan.model_copy(update={"status": "processing"}))
+        db_store.update_scan_status(scan_id=scan_id, status="processing")
 
-        exchange = store.get_pipeline_exchange(scan_id)
+        exchange = db_store.get_pipeline_exchange(scan_id)
         if exchange is None:
             self._mark_scan_failed(
                 scan_id=scan_id,
@@ -69,7 +68,7 @@ class ScanService:
                 retryable=exc.retryable,
                 status_code=exc.status_code,
             )
-            store.save_pipeline_exchange(
+            db_store.save_pipeline_exchange(
                 PipelineExchangeResponse(
                     scan_id=scan_id,
                     outbound_payload=exchange.outbound_payload,
@@ -95,8 +94,8 @@ class ScanService:
             degraded=inbound_payload.degraded,
             report_url=f"/report/{scan_id}",
         )
-        store.save_scan(final_scan)
-        store.save_pipeline_exchange(
+        db_store.save_scan(final_scan)
+        db_store.save_pipeline_exchange(
             PipelineExchangeResponse(
                 scan_id=scan_id,
                 outbound_payload=exchange.outbound_payload,
@@ -107,24 +106,20 @@ class ScanService:
 
     def get_scan(self, scan_id: str) -> ScanResultResponse | None:
         """Return the current scan state."""
-        return store.get_scan(scan_id)
+        return db_store.get_scan(scan_id)
 
-    def save_feedback(self, scan_id: str, payload: FeedbackRequest) -> bool:
-        """Store feedback only when the scan exists."""
-        scan = store.get_scan(scan_id)
-        if scan is None:
-            return False
-        store.save_feedback(scan_id, payload)
-        return True
+    def list_scans(self, limit: int, offset: int) -> ScanListResponse:
+        """Return recent scans for backend checks and future frontend list views."""
+        return db_store.list_scans(limit=limit, offset=offset)
 
     def get_pipeline_exchange(self, scan_id: str) -> PipelineExchangeResponse | None:
         """Return the recorded backend-to-pipeline exchange."""
-        return store.get_pipeline_exchange(scan_id)
+        return db_store.get_pipeline_exchange(scan_id)
 
     def attach_pipeline_request(self, scan_id: str, payload: ScanCreateRequest) -> None:
         """Capture the outbound payload before the background task runs."""
         outbound_payload = pipeline_client.build_outbound_payload(scan_id=scan_id, payload=payload)
-        store.save_pipeline_exchange(
+        db_store.save_pipeline_exchange(
             PipelineExchangeResponse(
                 scan_id=scan_id,
                 outbound_payload=outbound_payload,
@@ -135,13 +130,7 @@ class ScanService:
 
     def _mark_scan_failed(self, scan_id: str, error_info: PipelineErrorInfo) -> None:
         """Persist a stable failed scan result without leaking transport-layer details."""
-        store.save_scan(
-            ScanResultResponse(
-                scan_id=scan_id,
-                status="failed",
-                summary=error_info.message,
-            )
-        )
+        db_store.update_scan_status(scan_id=scan_id, status="failed", summary=error_info.message)
 
 
 # A module-level service instance keeps route imports small.

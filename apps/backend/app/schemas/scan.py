@@ -1,10 +1,13 @@
-"""Schemas for scan creation, results, real pipeline data, and feedback."""
+"""Schemas for scan creation, results, and real pipeline data."""
 
 from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
+
+
+ScanStatus = Literal["queued", "processing", "completed", "partial", "failed"]
 
 
 class SellerInfo(BaseModel):
@@ -115,12 +118,34 @@ class PipelineExchangeResponse(BaseModel):
     pipeline_error: PipelineErrorInfo | None = None
 
 
+class ScanListItemResponse(BaseModel):
+    """Compact scan summary used by list views and quick backend inspection."""
+
+    scan_id: str
+    status: ScanStatus
+    platform: str
+    page_title: str
+    price: int
+    risk_level: Literal["low", "medium", "high"] | None = None
+    risk_score: float | None = None
+    summary: str | None = None
+
+
+class ScanListResponse(BaseModel):
+    """Paginated response containing recent scan jobs."""
+
+    items: list[ScanListItemResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class ScanResultResponse(BaseModel):
     """Polling response for scan status and final analysis result."""
 
     # The first fields are always present, even before processing finishes.
     scan_id: str
-    status: Literal["queued", "processing", "completed", "partial", "failed"]
+    status: ScanStatus
 
     # The remaining fields appear once the pipeline has produced a result.
     risk_level: Literal["low", "medium", "high"] | None = None
@@ -134,9 +159,3 @@ class ScanResultResponse(BaseModel):
     degraded: bool = False
     report_url: str | None = None
 
-
-class FeedbackRequest(BaseModel):
-    """User feedback that can later improve rules or model behavior."""
-
-    feedback_type: Literal["false_positive", "false_negative", "helpful", "not_helpful"]
-    comment: str | None = None

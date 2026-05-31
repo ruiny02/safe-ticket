@@ -12,15 +12,21 @@ from sqlalchemy import Float
 from sqlalchemy import ForeignKey
 from sqlalchemy import Index
 from sqlalchemy import Integer
+from sqlalchemy import JSON
 from sqlalchemy import String
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
-from sqlalchemy import func
+from sqlalchemy import text
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+
+
+# SQLite does not support PostgreSQL's now() function, but both SQLite and
+# PostgreSQL understand CURRENT_TIMESTAMP as a server-side default value.
+TIMESTAMP_DEFAULT = text("CURRENT_TIMESTAMP")
 
 
 class Case(Base):
@@ -37,7 +43,7 @@ class Case(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
     )
 
     chunks: Mapped[list["CaseChunk"]] = relationship(back_populates="case", cascade="all, delete-orphan")
@@ -63,7 +69,7 @@ class CaseChunk(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
     )
 
     case: Mapped["Case"] = relationship(back_populates="chunks")
@@ -85,7 +91,7 @@ class CaseEntity(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
     )
 
     case: Mapped["Case"] = relationship(back_populates="entities")
@@ -104,18 +110,24 @@ class Scan(Base):
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     llm_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risk_tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    evidence_items_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    highlight_targets_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    similar_cases_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    recommended_actions_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     degraded: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    report_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
         index=True,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
+        onupdate=datetime.utcnow,
     )
 
     blocks: Mapped[list["ScanBlock"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
@@ -127,7 +139,10 @@ class Scan(Base):
         back_populates="scan",
         cascade="all, delete-orphan",
     )
-    feedback_items: Mapped[list["Feedback"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
+    pipeline_exchange: Mapped["PipelineExchange | None"] = relationship(
+        back_populates="scan",
+        cascade="all, delete-orphan",
+    )
 
 
 class ScanBlock(Base):
@@ -203,24 +218,31 @@ class ScanSimilarCase(Base):
     chunk: Mapped["CaseChunk | None"] = relationship(back_populates="similar_scan_matches")
 
 
-class Feedback(Base):
-    __tablename__ = "feedback"
+class PipelineExchange(Base):
+    __tablename__ = "pipeline_exchanges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     scan_id: Mapped[str] = mapped_column(
         ForeignKey("scans.scan_id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
+        unique=True,
     )
-    feedback_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outbound_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    inbound_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    pipeline_error: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=TIMESTAMP_DEFAULT,
+        onupdate=datetime.utcnow,
     )
 
-    scan: Mapped["Scan"] = relationship(back_populates="feedback_items")
+    scan: Mapped["Scan"] = relationship(back_populates="pipeline_exchange")
 
 
 class SellerObservation(Base):
@@ -237,7 +259,7 @@ class SellerObservation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        server_default=TIMESTAMP_DEFAULT,
     )
 
 
