@@ -163,3 +163,59 @@ def test_thecheat_lookup_uses_cdp_when_configured(monkeypatch: pytest.MonkeyPatc
     assert result.status == "completed"
     assert captured["payload"] == payload
     assert captured["cdp_url"] == "http://lookup-browser:9223"
+
+
+def test_thecheat_cleanup_preserves_one_session_page_and_closes_extra_pages() -> None:
+    """TheCheat cleanup should keep the user's login page and close every extra tab."""
+
+    class FakePage:
+        def __init__(self, url: str) -> None:
+            self.url = url
+            self.closed = False
+
+        def is_closed(self) -> bool:
+            return self.closed
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeContext:
+        def __init__(self) -> None:
+            self.pages = [
+                FakePage("https://thecheat.co.kr/rb/?mod=ssl_login_otp"),
+                FakePage("https://thecheat.co.kr/rb/?mod=_search"),
+                FakePage("https://thecheat.co.kr/rb/?mod=_search_result"),
+                FakePage("chrome-error://chromewebdata/"),
+            ]
+
+    context = FakeContext()
+    session_page = context.pages[0]
+
+    external_lookup_service._close_extra_thecheat_pages(context, keep_pages={session_page})
+
+    assert context.pages[0].closed is False
+    assert context.pages[1].closed is True
+    assert context.pages[2].closed is True
+    assert context.pages[3].closed is True
+
+
+def test_thecheat_session_page_prefers_search_page_over_result_page() -> None:
+    """TheCheat session detection should not preserve a stale result page when search is open."""
+
+    class FakePage:
+        def __init__(self, url: str) -> None:
+            self.url = url
+
+        def is_closed(self) -> bool:
+            return False
+
+    class FakeContext:
+        def __init__(self) -> None:
+            self.pages = [
+                FakePage("https://thecheat.co.kr/rb/?mod=_search_result"),
+                FakePage("https://thecheat.co.kr/rb/?mod=_search"),
+            ]
+
+    context = FakeContext()
+
+    assert external_lookup_service._find_thecheat_session_page(context) is context.pages[1]

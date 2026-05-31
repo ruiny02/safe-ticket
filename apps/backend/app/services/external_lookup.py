@@ -15,6 +15,7 @@ from app.schemas.external_lookup import ExternalLookupRequest, ExternalLookupRes
 
 POLICE_FRAUD_URL = "https://www.police.go.kr/user/cyber/fraud.do"
 POLICE_PAGE_URL = "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none"
+THECHEAT_HOST = "thecheat.co.kr"
 THECHEAT_SEARCH_URL = "https://thecheat.co.kr/rb/?mod=_search"
 
 
@@ -203,11 +204,14 @@ class ExternalLookupService:
                 )
                 try:
                     context = browser.contexts[0] if browser.contexts else browser.new_context()
+                    session_page = self._find_thecheat_session_page(context)
+                    self._close_extra_thecheat_pages(context, keep_pages={session_page} if session_page else set())
                     page = context.new_page()
                     try:
                         final_url, page_text = self._submit_thecheat_search(page, payload)
                     finally:
-                        page.close()
+                        self._close_browser_page(page)
+                        self._close_extra_thecheat_pages(context, keep_pages={session_page} if session_page else set())
                 finally:
                     browser.close()
         except (PlaywrightError, PlaywrightTimeoutError) as exc:
@@ -247,6 +251,65 @@ class ExternalLookupService:
         page.wait_for_timeout(1000)
         page_text = page.locator("body").inner_text(timeout=settings.external_lookup_timeout_ms)
         return page.url, page_text
+
+    def _find_thecheat_session_page(self, context):
+        """Return the visible TheCheat page that should remain open for user login/OTP."""
+        thecheat_pages = [
+            page
+            for page in context.pages
+            if self._is_open_browser_page(page) and self._is_thecheat_page(page)
+        ]
+        for page in thecheat_pages:
+            try:
+                if "mod=ssl_login_otp" in page.url:
+                    return page
+            except (AttributeError, PlaywrightError):
+                continue
+        for page in thecheat_pages:
+            try:
+                if "mod=_search" in page.url and "mod=_search_result" not in page.url:
+                    return page
+            except (AttributeError, PlaywrightError):
+                continue
+        if thecheat_pages:
+            return thecheat_pages[0]
+
+        for page in context.pages:
+            if self._is_open_browser_page(page):
+                return page
+        return None
+
+    def _close_extra_thecheat_pages(self, context, *, keep_pages: set[object]) -> None:
+        """Close extra lookup-browser tabs while preserving the user's session page."""
+        keep_page_ids = {id(page) for page in keep_pages}
+        for page in list(context.pages):
+            if id(page) in keep_page_ids:
+                continue
+            if not self._is_open_browser_page(page):
+                continue
+            self._close_browser_page(page)
+
+    def _is_open_browser_page(self, page) -> bool:
+        """Return whether a Playwright page can still be operated on."""
+        try:
+            return not page.is_closed()
+        except (AttributeError, PlaywrightError):
+            return False
+
+    def _is_thecheat_page(self, page) -> bool:
+        """Return whether the page belongs to the shared TheCheat browser session."""
+        try:
+            return THECHEAT_HOST in page.url
+        except (AttributeError, PlaywrightError):
+            return False
+
+    def _close_browser_page(self, page) -> None:
+        """Close a Playwright page, ignoring races where the page already disappeared."""
+        try:
+            if not page.is_closed():
+                page.close()
+        except (AttributeError, PlaywrightError):
+            return
 
 
 external_lookup_service = ExternalLookupService()
