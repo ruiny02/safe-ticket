@@ -1,4 +1,9 @@
 import type { ExternalLookupResult, ScanCreateRequest, ScanResultResponse } from "../../../shared/types";
+import {
+  externalLookupStatusLabel,
+  externalLookupTitle,
+  formatExternalLookupKeyword,
+} from "../../../shared/external-lookup-display";
 
 export interface PanelReason {
   title: string;
@@ -13,7 +18,7 @@ export interface PanelMetaItem {
 export interface PanelExternalLookup {
   title: string;
   body: string;
-  statusLabel: ExternalLookupResult["status"];
+  statusLabel: string;
   tone: "danger" | "warning" | "ok";
   keyword: string;
 }
@@ -27,14 +32,6 @@ export interface PanelContent {
   actions: PanelReason[];
   externalLookups: PanelExternalLookup[];
   meta: PanelMetaItem[];
-}
-
-function providerLabel(provider: ExternalLookupResult["provider"]): string {
-  return provider === "police" ? "경찰청" : "더치트";
-}
-
-function kindLabel(kind: ExternalLookupResult["kind"]): string {
-  return kind === "account" ? "계좌" : "전화번호";
 }
 
 function lookupTone(result: ExternalLookupResult): PanelExternalLookup["tone"] {
@@ -51,11 +48,11 @@ function lookupTone(result: ExternalLookupResult): PanelExternalLookup["tone"] {
 
 function buildExternalLookups(results: ExternalLookupResult[] = []): PanelExternalLookup[] {
   return results.slice(0, 4).map((result) => ({
-    title: `${providerLabel(result.provider)} · ${kindLabel(result.kind)}`,
+    title: externalLookupTitle(result),
     body: result.message,
-    statusLabel: result.status,
+    statusLabel: externalLookupStatusLabel(result),
     tone: lookupTone(result),
-    keyword: result.keyword,
+    keyword: formatExternalLookupKeyword(result),
   }));
 }
 

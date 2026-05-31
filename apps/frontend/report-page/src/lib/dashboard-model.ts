@@ -1,4 +1,9 @@
 import type { ExternalLookupResult, PipelineExchangeResponse, ScanResultResponse } from "../../../shared/types";
+import {
+  externalLookupStatusLabel,
+  externalLookupTitle,
+  formatExternalLookupKeyword,
+} from "../../../shared/external-lookup-display";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./demo-embedding";
 
 type Tone = "danger" | "warning" | "ok";
@@ -25,7 +30,7 @@ export interface DashboardLookupLink {
 export interface DashboardExternalLookup {
   title: string;
   keyword: string;
-  statusLabel: ExternalLookupResult["status"];
+  statusLabel: string;
   message: string;
   tone: Tone;
   sourceUrl: string;
@@ -107,14 +112,6 @@ function extractAccountNumber(contentBlocks: { text: string }[]): string {
   return match?.[0] ?? "미확인";
 }
 
-function providerLabel(provider: ExternalLookupResult["provider"]): string {
-  return provider === "police" ? "경찰청" : "더치트";
-}
-
-function kindLabel(kind: ExternalLookupResult["kind"]): string {
-  return kind === "account" ? "계좌" : "전화번호";
-}
-
 function lookupTone(result: ExternalLookupResult): Tone {
   if (result.status === "failed" || result.risk_found === true) {
     return "danger";
@@ -129,9 +126,9 @@ function lookupTone(result: ExternalLookupResult): Tone {
 
 function buildExternalLookups(results: ExternalLookupResult[] = []): DashboardExternalLookup[] {
   return results.map((result) => ({
-    title: `${providerLabel(result.provider)} · ${kindLabel(result.kind)}`,
-    keyword: result.keyword,
-    statusLabel: result.status,
+    title: externalLookupTitle(result),
+    keyword: formatExternalLookupKeyword(result),
+    statusLabel: externalLookupStatusLabel(result),
     message: result.message,
     tone: lookupTone(result),
     sourceUrl: result.source_url,

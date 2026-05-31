@@ -52,16 +52,37 @@ def parse_thecheat_result(
             result_text=normalized_text[:1000] or None,
         )
 
+    risk_found = _thecheat_result_has_report(normalized_text)
+    message = (
+        "더치트 공개 검색 결과에서 피해사례가 확인되었습니다. 송금 전 거래를 중단하고 상세 내용을 확인하세요."
+        if risk_found
+        else "더치트 공개 검색 결과, 최근 3개월 기준 피해사례는 확인되지 않았습니다."
+    )
+
     return ExternalLookupResponse(
         provider="thecheat",
         kind=kind,
         keyword=keyword,
         status="completed",
-        message="더치트 조회 결과 페이지에 도달했습니다.",
+        message=message,
         source_url=final_url,
-        risk_found=None,
+        report_count=None if risk_found else 0,
+        risk_found=risk_found,
         result_text=normalized_text[:2000] or None,
     )
+
+
+def _thecheat_result_has_report(normalized_text: str) -> bool:
+    """Detect explicit report-list signals while ignoring generic disclaimer text."""
+    risk_markers = (
+        "피해사례가 확인",
+        "피해사례가 있습니다",
+        "피해사례 있음",
+        "피해등록일",
+        "피해금액",
+        "용의자",
+    )
+    return any(marker in normalized_text for marker in risk_markers)
 
 
 def get_thecheat_cdp_url(cdp_url: str) -> str:
@@ -166,9 +187,12 @@ class ExternalLookupService:
         """Build the normalized police lookup response from a reported count."""
         risk_found = count >= 3
         if risk_found:
-            message = f"최근 3개월 내 사이버범죄 신고시스템에 사기 피해 신고가 3건 이상({count}건) 접수되었습니다."
+            message = (
+                f"경찰청 사이버범죄 신고시스템 기준 최근 3개월 내 사기 피해 신고가 {count}건 확인되어 "
+                "3건 이상 위험 기준에 해당합니다."
+            )
         else:
-            message = "최근 3개월 내 사기 피해 신고가 3건 이상 접수된 이력은 확인되지 않습니다."
+            message = "경찰청 사이버범죄 신고시스템 기준 최근 3개월 내 3건 이상 신고된 이력은 확인되지 않았습니다."
 
         return ExternalLookupResponse(
             provider="police",

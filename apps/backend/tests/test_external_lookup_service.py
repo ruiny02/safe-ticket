@@ -116,6 +116,43 @@ def test_thecheat_login_required_detection() -> None:
     assert "로그인" in result.message
 
 
+def test_thecheat_completed_result_uses_direct_no_report_message() -> None:
+    """Completed TheCheat searches should directly say whether reports were found."""
+
+    result = parse_thecheat_result(
+        keyword="3355288620726",
+        kind="account",
+        final_url="https://thecheat.co.kr/rb/?mod=_search_result",
+        page_text="검색 기간 : 최근 3개월 더치트 빅데이터 분석결과 카카오뱅크 계좌로 추정됩니다.",
+    )
+
+    assert result.status == "completed"
+    assert result.report_count == 0
+    assert result.risk_found is False
+    assert result.message == "더치트 공개 검색 결과, 최근 3개월 기준 피해사례는 확인되지 않았습니다."
+
+
+def test_thecheat_ignores_generic_report_registration_copy() -> None:
+    """TheCheat navigation/footer text should not be treated as a found report."""
+
+    result = parse_thecheat_result(
+        keyword="3020264877711",
+        kind="account",
+        final_url="https://thecheat.co.kr/rb/?mod=_search_result",
+        page_text=(
+            "검색 피해등록 홈 헬프센터 검색 기간 : 최근 3개월 "
+            "피해사례 등록 후 24시간 동안 피등록자에게 소명 시간이 제공됩니다. "
+            "더치트 빅데이터 분석결과 농협 계좌로 추정됩니다. "
+            "피해사례 게시물 내용에 대해 더치트는 보증하지 않습니다."
+        ),
+    )
+
+    assert result.status == "completed"
+    assert result.report_count == 0
+    assert result.risk_found is False
+    assert result.message == "더치트 공개 검색 결과, 최근 3개월 기준 피해사례는 확인되지 않았습니다."
+
+
 def test_thecheat_uses_configured_cdp_browser_endpoint() -> None:
     """A live Docker browser endpoint is the only supported TheCheat session source."""
 
