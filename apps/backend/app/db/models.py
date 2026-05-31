@@ -115,6 +115,7 @@ class Scan(Base):
     highlight_targets_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     similar_cases_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     recommended_actions_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    external_lookup_results_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     degraded: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     report_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

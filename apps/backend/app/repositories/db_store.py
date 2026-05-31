@@ -37,6 +37,7 @@ class DatabaseStore:
                 highlight_targets_json=[],
                 similar_cases_json=[],
                 recommended_actions_json=[],
+                external_lookup_results_json=[],
             )
             scan.blocks = [
                 ScanBlock(block_id=block.block_id, text=block.text)
@@ -61,6 +62,9 @@ class DatabaseStore:
             row.highlight_targets_json = [item.model_dump(mode="json") for item in scan.highlight_targets]
             row.similar_cases_json = [item.model_dump(mode="json") for item in scan.similar_cases]
             row.recommended_actions_json = [item.model_dump(mode="json") for item in scan.recommended_actions]
+            row.external_lookup_results_json = [
+                item.model_dump(mode="json") for item in scan.external_lookup_results
+            ]
             row.degraded = scan.degraded
             row.report_url = scan.report_url
             db.commit()
@@ -172,6 +176,7 @@ class DatabaseStore:
             highlight_targets=row.highlight_targets_json or [],
             similar_cases=row.similar_cases_json or [],
             recommended_actions=row.recommended_actions_json or [],
+            external_lookup_results=row.external_lookup_results_json or [],
             degraded=row.degraded,
             report_url=row.report_url,
         )

@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.schemas.external_lookup import ExternalLookupResponse
+
 
 ScanStatus = Literal["queued", "processing", "completed", "partial", "failed"]
 
@@ -156,6 +158,7 @@ class ScanResultResponse(BaseModel):
     highlight_targets: list[EvidenceItem] = Field(default_factory=list)
     similar_cases: list[SimilarCase] = Field(default_factory=list)
     recommended_actions: list[RecommendedAction] = Field(default_factory=list)
+    external_lookup_results: list[ExternalLookupResponse] = Field(default_factory=list)
     degraded: bool = False
     report_url: str | None = None
 
