@@ -36,3 +36,13 @@ bi-weekly-report/
 Thumbs.db
 .idea/
 .vscode/
+__pycache__/
+*.pyc
+
+# pipeline
+apps/pipeline/data/
+apps/pipeline/venv/
+
+# python
+__pycache__/
+*.pyc
