@@ -223,6 +223,120 @@
         margin-bottom: 2px;
       }
 
+      .stc-lookup-card {
+        display: grid;
+        gap: 9px;
+        border: 1px solid #edf0f2;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 12px;
+        box-shadow: 0 10px 28px rgba(17, 24, 39, 0.05);
+      }
+
+      .stc-lookup-card[hidden] {
+        display: none;
+      }
+
+      .stc-lookup-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .stc-lookup-head strong {
+        color: #17211f;
+        font-size: 13px;
+      }
+
+      .stc-lookup-head span {
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #64748b;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .stc-lookup-list {
+        display: grid;
+        gap: 7px;
+      }
+
+      .stc-lookup-row {
+        display: grid;
+        gap: 6px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 9px;
+        background: #ffffff;
+        line-height: 1.4;
+      }
+
+      .stc-lookup-row.is-danger {
+        border-color: rgba(223, 33, 72, 0.24);
+        background: #fff7f8;
+      }
+
+      .stc-lookup-row.is-warning {
+        border-color: rgba(245, 158, 11, 0.28);
+        background: #fffbeb;
+      }
+
+      .stc-lookup-row.is-ok {
+        border-color: rgba(34, 197, 94, 0.2);
+        background: #f7fef9;
+      }
+
+      .stc-lookup-row-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .stc-lookup-row strong {
+        color: #17211f;
+        font-size: 12px;
+      }
+
+      .stc-lookup-row p {
+        margin: 0;
+        color: #4b5563;
+        font-size: 12px;
+      }
+
+      .stc-lookup-row small {
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .stc-lookup-status {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #475569;
+        padding: 3px 7px;
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .stc-lookup-row.is-danger .stc-lookup-status {
+        background: #ffe8ee;
+        color: #c1123a;
+      }
+
+      .stc-lookup-row.is-warning .stc-lookup-status {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .stc-lookup-row.is-ok .stc-lookup-status {
+        background: #dcfce7;
+        color: #166534;
+      }
+
       .stc-actions {
         display: flex;
         gap: 8px;
@@ -538,6 +652,10 @@
     return merged;
   }
 
+  function buildExternalLookupRows(results) {
+    return window.SafeTicketExternalLookupDisplay?.buildExternalLookupRows?.(results) ?? [];
+  }
+
   function highlightFirstMatch(root, target) {
     if (!root) {
       return;
@@ -607,6 +725,8 @@
     const score = root.querySelector("[data-stc-score]");
     const status = root.querySelector("[data-stc-status]");
     const list = root.querySelector("[data-stc-list]");
+    const lookupCard = root.querySelector("[data-stc-lookup-card]");
+    const lookupList = root.querySelector("[data-stc-lookup-list]");
     const submit = root.querySelector("[data-stc-submit]");
     const dashboardLink = root.querySelector("[data-stc-dashboard-link]");
     const reportLink = root.querySelector("[data-stc-report-link]");
@@ -636,6 +756,23 @@
       const li = document.createElement("li");
       li.innerHTML = `<strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.body)}</span>`;
       list.appendChild(li);
+    }
+
+    const externalLookups = state.externalLookups ?? [];
+    lookupCard.hidden = externalLookups.length === 0;
+    lookupList.innerHTML = "";
+    for (const lookup of externalLookups) {
+      const row = document.createElement("article");
+      row.className = `stc-lookup-row is-${escapeHtml(lookup.tone)}`;
+      row.innerHTML = `
+        <div class="stc-lookup-row-head">
+          <strong>${escapeHtml(lookup.title)}</strong>
+          <span class="stc-lookup-status">${escapeHtml(lookup.statusLabel)}</span>
+        </div>
+        <small>${escapeHtml(lookup.keyword)}</small>
+        <p>${escapeHtml(lookup.message)}</p>
+      `;
+      lookupList.appendChild(row);
     }
   }
 
@@ -756,6 +893,13 @@
           <strong data-stc-score>--</strong>
         </section>
         <ul class="stc-list" data-stc-list></ul>
+        <section class="stc-lookup-card" data-stc-lookup-card hidden>
+          <div class="stc-lookup-head">
+            <strong>외부 조회</strong>
+            <span>경찰청 · 더치트</span>
+          </div>
+          <div class="stc-lookup-list" data-stc-lookup-list></div>
+        </section>
         <div class="stc-report-actions">
           <a class="stc-report-link is-disabled" data-stc-dashboard-link aria-disabled="true" target="_blank" rel="noreferrer">대시보드 보기</a>
           <a class="stc-report-link is-disabled" data-stc-report-link aria-disabled="true" target="_blank" rel="noreferrer">리포트 보기</a>
@@ -788,6 +932,7 @@
         score: "--",
         status: "하이라이트를 초기화했습니다.",
         items: [],
+        externalLookups: [],
         busy: false,
         tone: "idle",
         scanId: null,
@@ -835,6 +980,7 @@
       score: "...",
       status: "백엔드로 채팅 내용을 전송하고 있습니다.",
       items: [],
+      externalLookups: [],
       busy: true,
       tone: "busy",
       scanId: null,
@@ -846,6 +992,7 @@
         score: "...",
         status: `scan_id ${queued.scan_id} 결과를 기다리는 중입니다.`,
         items: [],
+        externalLookups: [],
         busy: true,
         tone: "busy",
         scanId: queued.scan_id,
@@ -865,6 +1012,7 @@
           title: target.matched_text,
           body: target.reason,
         })),
+        externalLookups: buildExternalLookupRows(result.external_lookup_results),
         busy: false,
         tone: targets.length ? "danger" : "idle",
         scanId: result.scan_id,
@@ -877,6 +1025,7 @@
             ? `${error.message}  백엔드가 실행 중인지, CORS에 현재 페이지 origin이 포함되어 있는지 확인하세요.`
             : "알 수 없는 오류가 발생했습니다.",
         items: [],
+        externalLookups: [],
         busy: false,
         tone: "error",
         scanId: null,
