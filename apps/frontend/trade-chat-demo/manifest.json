@@ -17,7 +17,7 @@
         "http://localhost:*/*",
         "http://127.0.0.1:*/*"
       ],
-      "js": ["safe-ticket-page-parser.js", "safe-ticket-chat-scan.js"],
+      "js": ["safe-ticket-page-parser.js", "safe-ticket-external-lookup-display.js", "safe-ticket-chat-scan.js"],
       "run_at": "document_idle"
     }
   ],

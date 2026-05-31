@@ -43,6 +43,41 @@ describe("buildPanelContent", () => {
           description: "판매자 실명과 계좌 예금주를 교차 확인하세요.",
         },
       ],
+      external_lookup_results: [
+        {
+          provider: "police",
+          kind: "account",
+          keyword: "3355288620726",
+          status: "completed",
+          message: "경찰청 사이버범죄 신고시스템 기준 최근 3개월 내 3건 이상 신고된 이력은 확인되지 않았습니다.",
+          source_url: "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none",
+          report_count: 0,
+          risk_found: false,
+          result_text: null,
+        },
+        {
+          provider: "thecheat",
+          kind: "account",
+          keyword: "3355288620726",
+          status: "login_required",
+          message: "더치트 조회는 로그인 또는 앱 OTP 인증이 필요합니다.",
+          source_url: "https://thecheat.co.kr/rb/?mod=ssl_login_otp",
+          report_count: null,
+          risk_found: null,
+          result_text: "로그인이 필요합니다.",
+        },
+        {
+          provider: "police",
+          kind: "phone",
+          keyword: "01041120302",
+          status: "completed",
+          message: "경찰청 사이버범죄 신고시스템 기준 최근 3개월 내 3건 이상 신고된 이력은 확인되지 않았습니다.",
+          source_url: "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none",
+          report_count: 0,
+          risk_found: false,
+          result_text: null,
+        },
+      ],
       degraded: false,
       report_url: "/report/scan_123",
     };
@@ -65,6 +100,29 @@ describe("buildPanelContent", () => {
       title: "verify_identity",
       body: "판매자 실명과 계좌 예금주를 교차 확인하세요.",
     });
+    expect(content.externalLookups).toEqual([
+      {
+        title: "경찰청 사이버사기 조회 · 계좌번호",
+        body: "경찰청 사이버범죄 신고시스템 기준 최근 3개월 내 3건 이상 신고된 이력은 확인되지 않았습니다.",
+        statusLabel: "신고 이력 없음",
+        tone: "ok",
+        keyword: "3355-28-8620726",
+      },
+      {
+        title: "더치트 피해사례 조회 · 계좌번호",
+        body: "더치트 조회는 로그인 또는 앱 OTP 인증이 필요합니다.",
+        statusLabel: "로그인 필요",
+        tone: "warning",
+        keyword: "3355-28-8620726",
+      },
+      {
+        title: "경찰청 사이버사기 조회 · 전화번호",
+        body: "경찰청 사이버범죄 신고시스템 기준 최근 3개월 내 3건 이상 신고된 이력은 확인되지 않았습니다.",
+        statusLabel: "신고 이력 없음",
+        tone: "ok",
+        keyword: "010-4112-0302",
+      },
+    ]);
   });
 
   it("builds a ready-state summary before the scan is sent", () => {

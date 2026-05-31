@@ -35,6 +35,20 @@ DB_PORT=5433 docker compose up --build
 실행 후 접속 주소:
 - 데모 페이지: `http://localhost:3000/product/227242032.html`
 - 백엔드 health: `http://localhost:8000/api/v1/health/live`
+- 더치트 로그인 브라우저: `http://localhost:6080`
+
+### 2-1. 더치트 조회를 사용할 때
+더치트는 OTP 로그인이 필요하므로 자동 로그인을 하지 않습니다. Docker 안에 떠 있는 브라우저에 사용자가 직접 로그인하면, backend가 그 브라우저 세션을 재사용합니다.
+
+1. `http://localhost:6080` 접속
+   - 디렉터리 목록이 보이면 `vnc.html` 을 클릭하거나 `http://localhost:6080/vnc.html` 로 직접 접속합니다.
+2. noVNC 화면에서 `Connect` 클릭
+3. 열린 Chromium에서 더치트 로그인 및 OTP 인증 완료
+4. 이후 backend의 `POST /api/v1/external-lookups` 더치트 조회가 해당 로그인 세션을 사용
+
+주의:
+- `docker compose down -v` 를 실행하면 더치트 브라우저 프로필 볼륨도 삭제되어 다시 로그인해야 합니다.
+- `LOOKUP_BROWSER_PORT` 를 바꾸면 `.env` 와 접속 주소도 같이 맞춰야 합니다.
 
 ### 3. extension 빌드
 새 터미널에서:

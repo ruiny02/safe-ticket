@@ -1,4 +1,9 @@
-import type { PipelineExchangeResponse, ScanResultResponse } from "../../../shared/types";
+import type { ExternalLookupResult, PipelineExchangeResponse, ScanResultResponse } from "../../../shared/types";
+import {
+  externalLookupStatusLabel,
+  externalLookupTitle,
+  formatExternalLookupKeyword,
+} from "../../../shared/external-lookup-display";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./demo-embedding";
 
 type Tone = "danger" | "warning" | "ok";
@@ -20,6 +25,15 @@ export interface DashboardLookupLink {
   label: string;
   href: string;
   description: string;
+}
+
+export interface DashboardExternalLookup {
+  title: string;
+  keyword: string;
+  statusLabel: string;
+  message: string;
+  tone: Tone;
+  sourceUrl: string;
 }
 
 export interface DashboardModel {
@@ -62,6 +76,7 @@ export interface DashboardModel {
   sellerSignals: DashboardSignal[];
   reasons: DashboardSignal[];
   actions: DashboardSignal[];
+  externalLookups: DashboardExternalLookup[];
   lookupLinks: DashboardLookupLink[];
 }
 
@@ -95,6 +110,29 @@ function extractAccountNumber(contentBlocks: { text: string }[]): string {
   const match = joined.match(/\b\d{3,4}-\d{2}-\d{6,7}\b/);
 
   return match?.[0] ?? "미확인";
+}
+
+function lookupTone(result: ExternalLookupResult): Tone {
+  if (result.status === "failed" || result.risk_found === true) {
+    return "danger";
+  }
+
+  if (result.status === "login_required") {
+    return "warning";
+  }
+
+  return "ok";
+}
+
+function buildExternalLookups(results: ExternalLookupResult[] = []): DashboardExternalLookup[] {
+  return results.map((result) => ({
+    title: externalLookupTitle(result),
+    keyword: formatExternalLookupKeyword(result),
+    statusLabel: externalLookupStatusLabel(result),
+    message: result.message,
+    tone: lookupTone(result),
+    sourceUrl: result.source_url,
+  }));
 }
 
 export function buildDashboardModel({
@@ -190,6 +228,7 @@ export function buildDashboardModel({
       value: action.description,
       tone: "default",
     })),
+    externalLookups: buildExternalLookups(scanResult.external_lookup_results),
     lookupLinks: [
       {
         label: "경찰청 조회 안내",

@@ -6,7 +6,9 @@ from uuid import uuid4
 
 from app.core.config import get_settings
 from app.repositories.db_store import db_store
+from app.schemas.external_lookup import ExternalLookupProvider, ExternalLookupResponse
 from app.schemas.scan import (
+    ContentBlock,
     PipelineErrorInfo,
     PipelineExchangeResponse,
     ScanCreateRequest,
@@ -14,7 +16,17 @@ from app.schemas.scan import (
     ScanListResponse,
     ScanResultResponse,
 )
+from app.services.external_lookup import (
+    POLICE_PAGE_URL,
+    THECHEAT_SEARCH_URL,
+    ExternalLookupError,
+    external_lookup_service,
+)
 from app.services.pipeline_client import PipelineClientError, pipeline_client
+from app.services.rules.external_lookup_candidates import ExternalLookupCandidate, extract_external_lookup_candidates
+
+
+EXTERNAL_LOOKUP_PROVIDERS: tuple[ExternalLookupProvider, ...] = ("police", "thecheat")
 
 
 class ScanService:
@@ -80,6 +92,7 @@ class ScanService:
             return
 
         # Save the final completed scan in the format consumed by the frontend.
+        external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
         final_scan = ScanResultResponse(
             scan_id=scan_id,
             status="completed",
@@ -91,6 +104,7 @@ class ScanService:
             highlight_targets=inbound_payload.highlight_targets,
             similar_cases=inbound_payload.similar_cases,
             recommended_actions=inbound_payload.recommended_actions,
+            external_lookup_results=external_lookup_results,
             degraded=inbound_payload.degraded,
             report_url=f"/report/{scan_id}",
         )
@@ -131,6 +145,38 @@ class ScanService:
     def _mark_scan_failed(self, scan_id: str, error_info: PipelineErrorInfo) -> None:
         """Persist a stable failed scan result without leaking transport-layer details."""
         db_store.update_scan_status(scan_id=scan_id, status="failed", summary=error_info.message)
+
+    def _run_external_lookups(self, content_blocks: list[ContentBlock]) -> list[ExternalLookupResponse]:
+        """Run police and TheCheat lookups for parsed phone/account candidates."""
+        lookup_results: list[ExternalLookupResponse] = []
+
+        for candidate in extract_external_lookup_candidates(content_blocks):
+            for provider in EXTERNAL_LOOKUP_PROVIDERS:
+                try:
+                    lookup_results.append(external_lookup_service.lookup(candidate.to_request(provider)))
+                except Exception as exc:
+                    lookup_results.append(self._build_failed_external_lookup(provider, candidate, exc))
+
+        return lookup_results
+
+    def _build_failed_external_lookup(
+        self,
+        provider: ExternalLookupProvider,
+        candidate: ExternalLookupCandidate,
+        exc: Exception,
+    ) -> ExternalLookupResponse:
+        """Convert an external-provider failure into scan metadata instead of failing the scan."""
+        message = str(exc) if isinstance(exc, ExternalLookupError) else f"외부조회 처리 중 오류가 발생했습니다: {exc}"
+        source_url = POLICE_PAGE_URL if provider == "police" else THECHEAT_SEARCH_URL
+
+        return ExternalLookupResponse(
+            provider=provider,
+            kind=candidate.kind,
+            keyword=candidate.keyword,
+            status="failed",
+            message=message,
+            source_url=source_url,
+        )
 
 
 # A module-level service instance keeps route imports small.

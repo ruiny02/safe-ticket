@@ -33,6 +33,7 @@ services:
       PIPELINE_BASE_URL: http://pipeline:8010
       PIPELINE_ANALYZE_PATH: ${PIPELINE_ANALYZE_PATH:-/api/v1/analyze}
       PIPELINE_TIMEOUT_SECONDS: ${PIPELINE_TIMEOUT_SECONDS:-10}
+      THECHEAT_CDP_URL: ${THECHEAT_CDP_URL:-http://lookup-browser:9223}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -40,11 +41,32 @@ services:
         condition: service_healthy
       pipeline:
         condition: service_healthy
+      lookup-browser:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=3)\""]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  lookup-browser:
+    build:
+      context: .
+      dockerfile: docker/lookup-browser.Dockerfile
+    container_name: safe-ticket-lookup-browser
+    environment:
+      SCREEN_RESOLUTION: ${LOOKUP_BROWSER_SCREEN_RESOLUTION:-1440x1000x24}
+      THECHEAT_LOGIN_URL: ${THECHEAT_LOGIN_URL:-https://thecheat.co.kr/rb/?mod=ssl_login_otp}
+    ports:
+      - "${LOOKUP_BROWSER_PORT:-6080}:6080"
+    shm_size: "1gb"
+    volumes:
+      - lookup_browser_profile:/data/profile
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9223/json/version >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   frontend:
     build:
@@ -78,3 +100,4 @@ services:
 
 volumes:
   pgdata:
+  lookup_browser_profile:

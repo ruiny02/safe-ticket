@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     pipeline_timeout_seconds: float = Field(default=10.0, alias="PIPELINE_TIMEOUT_SECONDS")
     pipeline_api_key: str | None = Field(default=None, alias="PIPELINE_API_KEY")
 
+    # External lookup automation uses a user-created TheCheat browser session if available.
+    external_lookup_timeout_ms: int = Field(default=15000, alias="EXTERNAL_LOOKUP_TIMEOUT_MS")
+    thecheat_cdp_url: str = Field(default="", alias="THECHEAT_CDP_URL")
+
+    # Pipeline integration settings control backend-to-pipeline HTTP calls.
+    pipeline_base_url: str = Field(default="http://pipeline:8010", alias="PIPELINE_BASE_URL")
+    pipeline_analyze_path: str = Field(default="/api/v1/analyze", alias="PIPELINE_ANALYZE_PATH")
+    pipeline_timeout_seconds: float = Field(default=10.0, alias="PIPELINE_TIMEOUT_SECONDS")
+    pipeline_api_key: str = Field(default="", alias="PIPELINE_API_KEY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

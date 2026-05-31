@@ -44,6 +44,18 @@ export interface SimilarCase {
   summary: string;
 }
 
+export interface ExternalLookupResult {
+  provider: "police" | "thecheat";
+  kind: "phone" | "account";
+  keyword: string;
+  status: "completed" | "login_required" | "failed";
+  message: string;
+  source_url: string;
+  report_count: number | null;
+  risk_found: boolean | null;
+  result_text: string | null;
+}
+
 export interface ScanResultResponse {
   scan_id: string;
   status: "queued" | "processing" | "completed" | "partial" | "failed";
@@ -55,6 +67,7 @@ export interface ScanResultResponse {
   highlight_targets: ScanHighlightTarget[];
   similar_cases: SimilarCase[];
   recommended_actions: RecommendedAction[];
+  external_lookup_results?: ExternalLookupResult[];
   degraded: boolean;
   report_url: string | null;
 }
