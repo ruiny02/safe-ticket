@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "safe-ticket demo overlay",
+  "name": "safe-ticket",
   "version": "0.0.0",
   "description": "Parses Joongna and Bunjang product or chat pages and posts scan payloads to the safe-ticket backend.",
+  "icons": {
+    "16": "icons/safe-ticket-icon-16.png",
+    "32": "icons/safe-ticket-icon-32.png",
+    "48": "icons/safe-ticket-icon-48.png",
+    "128": "icons/safe-ticket-icon-128.png"
+  },
   "permissions": ["storage"],
   "host_permissions": [
     "http://localhost:8000/*",
@@ -11,6 +17,17 @@
     "http://127.0.0.1:3000/*",
     "https://web.joongna.com/*",
     "https://m.bunjang.co.kr/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/safe-ticket-icon-128.png"],
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://web.joongna.com/*",
+        "https://m.bunjang.co.kr/*"
+      ]
+    }
   ],
   "content_scripts": [
     {
@@ -29,7 +46,13 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "safe-ticket demo overlay",
+    "default_icon": {
+      "16": "icons/safe-ticket-icon-16.png",
+      "32": "icons/safe-ticket-icon-32.png",
+      "48": "icons/safe-ticket-icon-48.png",
+      "128": "icons/safe-ticket-icon-128.png"
+    },
+    "default_title": "safe-ticket",
     "default_popup": "popup.html"
   }
 }

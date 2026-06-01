@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   getSupportedMarketplacePageStatus,
+  getSupportedSafeTicketPageStatus,
   isSupportedMarketplacePage,
+  isSupportedSafeTicketPage,
 } from "../../../../shared/page-target";
 
 describe("isSupportedMarketplacePage", () => {
@@ -34,6 +36,16 @@ describe("getSupportedMarketplacePageStatus", () => {
     expect(getSupportedMarketplacePageStatus("http://localhost:3000/")).toEqual({
       supported: false,
       label: "중고나라 또는 번개장터 상품 상세/채팅 페이지를 열면 패널이 자동으로 나타납니다.",
+    });
+  });
+});
+
+describe("feature-compatible safe-ticket aliases", () => {
+  it("keeps unified extension helper names wired to marketplace support", () => {
+    expect(isSupportedSafeTicketPage("http://localhost:3000/joongna-chat.html")).toBe(true);
+    expect(getSupportedSafeTicketPageStatus("http://localhost:3000/bunjang-chat.html")).toEqual({
+      supported: true,
+      label: "지원되는 페이지에서 패널이 동작하고 있습니다.",
     });
   });
 });

@@ -34,3 +34,5 @@ export function getSupportedMarketplacePageStatus(url: string): {
 
 export const isSupportedJoongnaPage = isSupportedMarketplacePage;
 export const getSupportedJoongnaPageStatus = getSupportedMarketplacePageStatus;
+export const isSupportedSafeTicketPage = isSupportedMarketplacePage;
+export const getSupportedSafeTicketPageStatus = getSupportedMarketplacePageStatus;
