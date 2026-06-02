@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
+import {
+  enhanceJoongnaProductPayloadFromDocument,
+  isReliableJoongnaProductPayload,
+} from "../../shared/joonggonara";
 import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
 import { createScan, createScanSync, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
@@ -42,6 +46,10 @@ interface PanelInteraction {
   startY: number;
 }
 
+function readCurrentPageUrl(): string {
+  return window.location.href;
+}
+
 function formatPrice(price: number): string {
   return new Intl.NumberFormat("ko-KR").format(price);
 }
@@ -74,6 +82,29 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+async function readMarketplaceHtml(pageUrl: string): Promise<string> {
+  const shouldFetchSource = /https:\/\/web\.joongna\.com\//i.test(pageUrl);
+
+  if (!shouldFetchSource) {
+    return document.documentElement.outerHTML;
+  }
+
+  try {
+    const response = await window.fetch(pageUrl, {
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      return await response.text();
+    }
+  } catch {
+    // Fall through to live DOM snapshot.
+  }
+
+  return document.documentElement.outerHTML;
 }
 
 function loadPanelPreferences(): PanelPreferences {
@@ -145,12 +176,14 @@ async function persistLatestScan(pageUrl: string, scanId: string): Promise<void>
 
 export function App({ pageUrl }: AppProps) {
   const initialPanelStateRef = useRef<PanelPreferences | null>(null);
+  const parseRequestIdRef = useRef(0);
 
   if (!initialPanelStateRef.current) {
     initialPanelStateRef.current = loadPanelPreferences();
   }
 
   const [payload, setPayload] = useState<ScanCreateRequest | null>(null);
+  const [currentPageUrl, setCurrentPageUrl] = useState(pageUrl);
   const [scanResult, setScanResult] = useState<ScanResultResponse | null>(null);
   const [appliedHighlights, setAppliedHighlights] = useState<ScanHighlightTarget[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -162,14 +195,37 @@ export function App({ pageUrl }: AppProps) {
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [interaction, setInteraction] = useState<PanelInteraction | null>(null);
-  const panelContent = buildPanelContent({ pageUrl, payload, scanResult, appliedHighlights });
+  const panelContent = buildPanelContent({ pageUrl: currentPageUrl, payload, scanResult, appliedHighlights });
 
-  const parseCurrentPage = (options?: { silent?: boolean }): boolean => {
+  const parseCurrentPage = async (options?: { silent?: boolean }): Promise<boolean> => {
+    const requestId = ++parseRequestIdRef.current;
+    const activePageUrl = readCurrentPageUrl();
+
     try {
-      const nextPayload = buildScanPayload(
-        parseMarketplacePageHtml(document.documentElement.outerHTML, pageUrl),
+      const sourceHtml = await readMarketplaceHtml(activePageUrl);
+      const parsedPayload = buildScanPayload(
+        parseMarketplacePageHtml(sourceHtml, activePageUrl),
       );
+      const nextPayload = enhanceJoongnaProductPayloadFromDocument(document, parsedPayload);
+      const isReliablePayload = isReliableJoongnaProductPayload(nextPayload);
+
+      if (requestId !== parseRequestIdRef.current || activePageUrl !== readCurrentPageUrl()) {
+        return false;
+      }
+
+      if (!isReliablePayload) {
+        if (!options?.silent) {
+          setPayload(null);
+          setScanResult(null);
+          setAppliedHighlights([]);
+          clearPageHighlights();
+          setError("페이지 정보를 더 읽는 중이에요. 잠시 후 다시 시도해 주세요.");
+        }
+        return false;
+      }
+
       setPayload(nextPayload);
+      setCurrentPageUrl(activePageUrl);
       if (!options?.silent) {
         setScanResult(null);
         setAppliedHighlights([]);
@@ -190,7 +246,7 @@ export function App({ pageUrl }: AppProps) {
   };
 
   const handleParse = () => {
-    parseCurrentPage();
+    void parseCurrentPage();
   };
 
   const handleSubmit = async () => {
@@ -212,7 +268,7 @@ export function App({ pageUrl }: AppProps) {
       }
 
       setScanResult(nextScanResult);
-      await persistLatestScan(pageUrl, nextScanResult.scan_id);
+      await persistLatestScan(currentPageUrl, nextScanResult.scan_id);
     } catch (nextError) {
       setScanResult(null);
       setAppliedHighlights([]);
@@ -253,8 +309,30 @@ export function App({ pageUrl }: AppProps) {
   };
 
   useEffect(() => {
-    parseCurrentPage({ silent: true });
-  }, [pageUrl]);
+    void parseCurrentPage({ silent: true });
+  }, [currentPageUrl]);
+
+  useEffect(() => {
+    let previousUrl = readCurrentPageUrl();
+
+    const intervalId = window.setInterval(() => {
+      const nextUrl = readCurrentPageUrl();
+
+      if (nextUrl !== previousUrl) {
+        previousUrl = nextUrl;
+        setCurrentPageUrl(nextUrl);
+        setPayload(null);
+        setScanResult(null);
+        setAppliedHighlights([]);
+        clearPageHighlights();
+        setError(null);
+      }
+    }, 500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     if (payload || !document.body) {
@@ -266,7 +344,7 @@ export function App({ pageUrl }: AppProps) {
     let intervalId = 0;
 
     const observer = new MutationObserver(() => {
-      tryUntilReady();
+      void tryUntilReady();
     });
 
     const stop = () => {
@@ -277,15 +355,26 @@ export function App({ pageUrl }: AppProps) {
       observer.disconnect();
     };
 
-    const tryUntilReady = () => {
+    let isTrying = false;
+
+    const tryUntilReady = async () => {
       if (stopped) {
         return;
       }
 
-      attemptCount += 1;
-      if (parseCurrentPage({ silent: true })) {
-        stop();
+      if (isTrying) {
         return;
+      }
+
+      isTrying = true;
+      attemptCount += 1;
+      try {
+        if (await parseCurrentPage({ silent: true })) {
+          stop();
+          return;
+        }
+      } finally {
+        isTrying = false;
       }
 
       if (attemptCount >= 12) {
@@ -301,12 +390,12 @@ export function App({ pageUrl }: AppProps) {
     });
 
     intervalId = window.setInterval(tryUntilReady, 800);
-    tryUntilReady();
+    void tryUntilReady();
 
     return () => {
       stop();
     };
-  }, [pageUrl, payload]);
+  }, [currentPageUrl, payload]);
 
   useEffect(() => {
     setChatMessages([createMessage("assistant", buildChatWelcomeMessage(payload, scanResult))]);
@@ -749,7 +838,7 @@ export function App({ pageUrl }: AppProps) {
             </section>
 
           <footer className="safe-ticket-footer">
-            <span>{getHostLabel(pageUrl)}</span>
+            <span>{getHostLabel(currentPageUrl)}</span>
           </footer>
         </div>
       ) : null}

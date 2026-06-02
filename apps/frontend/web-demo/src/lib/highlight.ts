@@ -30,13 +30,14 @@ export function applyPageHighlights(
   clearPageHighlights(documentRef);
 
   const appliedTargets: ScanHighlightTarget[] = [];
+  const sortedTargets = [...targets].sort((left, right) => right.matched_text.length - left.matched_text.length);
 
-  for (const target of targets) {
+  for (const target of sortedTargets) {
     if (!target.matched_text.trim()) {
       continue;
     }
 
-    if (highlightFirstMatch(target, documentRef)) {
+    if (highlightAllMatches(target, documentRef) > 0) {
       appliedTargets.push(target);
     }
   }
@@ -57,44 +58,66 @@ export function clearPageHighlights(documentRef: Document = document): void {
   }
 }
 
-function highlightFirstMatch(target: ScanHighlightTarget, documentRef: Document): boolean {
-  const match = findTextNodeWithMatch(documentRef.body, target.matched_text);
-  if (!match) {
-    return false;
+function highlightAllMatches(target: ScanHighlightTarget, documentRef: Document): number {
+  const textNodes = findTextNodesWithMatch(documentRef.body, target.matched_text);
+  let appliedCount = 0;
+
+  for (const textNode of textNodes) {
+    appliedCount += highlightMatchesInTextNode(textNode, target, documentRef);
   }
 
-  const { textNode, matchIndex, matchLength } = match;
-  const originalText = textNode.nodeValue ?? "";
-  const before = originalText.slice(0, matchIndex);
-  const matchText = originalText.slice(matchIndex, matchIndex + matchLength);
-  const after = originalText.slice(matchIndex + matchLength);
+  return appliedCount;
+}
 
-  const wrapper = documentRef.createElement("mark");
-  wrapper.className = target.css_class;
-  wrapper.dataset.safeTicketHighlight = "true";
-  wrapper.dataset.reasonCode = target.reason_code;
-  wrapper.title = target.reason;
-  wrapper.textContent = matchText;
+function highlightMatchesInTextNode(
+  textNode: Text,
+  target: ScanHighlightTarget,
+  documentRef: Document,
+): number {
+  const originalText = textNode.nodeValue ?? "";
+  const ranges = findAllMatchRanges(originalText, target.matched_text);
+
+  if (!ranges.length) {
+    return 0;
+  }
 
   const fragment = documentRef.createDocumentFragment();
-  if (before) {
-    fragment.appendChild(documentRef.createTextNode(before));
+  let cursor = 0;
+
+  for (const range of ranges) {
+    if (range.index < cursor) {
+      continue;
+    }
+
+    if (range.index > cursor) {
+      fragment.appendChild(documentRef.createTextNode(originalText.slice(cursor, range.index)));
+    }
+
+    const wrapper = documentRef.createElement("mark");
+    wrapper.className = target.css_class;
+    wrapper.dataset.safeTicketHighlight = "true";
+    wrapper.dataset.reasonCode = target.reason_code;
+    wrapper.title = target.reason;
+    wrapper.textContent = originalText.slice(range.index, range.index + range.length);
+    fragment.appendChild(wrapper);
+
+    cursor = range.index + range.length;
   }
-  fragment.appendChild(wrapper);
-  if (after) {
-    fragment.appendChild(documentRef.createTextNode(after));
+
+  if (cursor < originalText.length) {
+    fragment.appendChild(documentRef.createTextNode(originalText.slice(cursor)));
   }
 
   textNode.parentNode?.replaceChild(fragment, textNode);
-  return true;
+  return ranges.length;
 }
 
-function findTextNodeWithMatch(
+function findTextNodesWithMatch(
   root: HTMLElement | null,
   matchedText: string,
-): { textNode: Text; matchIndex: number; matchLength: number } | null {
+): Text[] {
   if (!root) {
-    return null;
+    return [];
   }
 
   const documentRef = root.ownerDocument;
@@ -104,7 +127,7 @@ function findTextNodeWithMatch(
     {
       acceptNode(node) {
         const text = node.nodeValue ?? "";
-        if (!findMatchRange(text, matchedText)) {
+        if (!findAllMatchRanges(text, matchedText).length) {
           return NodeFilter.FILTER_SKIP;
         }
 
@@ -131,57 +154,68 @@ function findTextNodeWithMatch(
     },
   );
 
+  const matches: Text[] = [];
   let currentNode = walker.nextNode() as Text | null;
   while (currentNode) {
-    const text = currentNode.nodeValue ?? "";
-    const range = findMatchRange(text, matchedText);
-    if (range) {
-      return {
-        textNode: currentNode,
-        matchIndex: range.index,
-        matchLength: range.length,
-      };
-    }
-
+    matches.push(currentNode);
     currentNode = walker.nextNode() as Text | null;
   }
 
-  return null;
+  return matches;
 }
 
-function findMatchRange(text: string, matchedText: string): { index: number; length: number } | null {
-  const directIndex = text.indexOf(matchedText);
-  if (directIndex >= 0) {
-    return {
+function findAllMatchRanges(text: string, matchedText: string): Array<{ index: number; length: number }> {
+  const directMatches: Array<{ index: number; length: number }> = [];
+  let directCursor = 0;
+
+  while (directCursor < text.length) {
+    const directIndex = text.indexOf(matchedText, directCursor);
+    if (directIndex < 0) {
+      break;
+    }
+
+    directMatches.push({
       index: directIndex,
       length: matchedText.length,
-    };
+    });
+    directCursor = directIndex + Math.max(1, matchedText.length);
+  }
+
+  if (directMatches.length) {
+    return directMatches;
   }
 
   const normalizedNeedle = normalizeWhitespace(matchedText);
   if (!normalizedNeedle) {
-    return null;
+    return [];
   }
 
   const regex = buildWhitespaceTolerantRegex(matchedText);
   if (!regex) {
-    return null;
+    return [];
   }
 
-  const match = regex.exec(text);
-  if (!match || match.index < 0) {
-    return null;
+  const matches: Array<{ index: number; length: number }> = [];
+  const globalRegex = new RegExp(regex.source, "g");
+  let match = globalRegex.exec(text);
+
+  while (match && match.index >= 0) {
+    const matchedSegment = match[0];
+    if (normalizeWhitespace(matchedSegment) === normalizedNeedle) {
+      matches.push({
+        index: match.index,
+        length: matchedSegment.length,
+      });
+    }
+
+    if (matchedSegment.length === 0) {
+      globalRegex.lastIndex += 1;
+    }
+
+    match = globalRegex.exec(text);
   }
 
-  const matchedSegment = match[0];
-  if (normalizeWhitespace(matchedSegment) !== normalizedNeedle) {
-    return null;
-  }
-
-  return {
-    index: match.index,
-    length: matchedSegment.length,
-  };
+  return matches;
 }
 
 function normalizeWhitespace(value: string): string {
