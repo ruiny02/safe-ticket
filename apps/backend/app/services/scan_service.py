@@ -51,6 +51,15 @@ class ScanService:
         self.attach_pipeline_request(created_scan.scan_id, payload)
         return created_scan
 
+    def run_scan_sync(self, payload: ScanCreateRequest) -> ScanResultResponse:
+        """Create, process, and return a scan result in one request for local frontend testing."""
+        created_scan = self.enqueue_scan(payload)
+        self.process_scan(created_scan.scan_id)
+        scan = self.get_scan(created_scan.scan_id)
+        if scan is None:
+          raise RuntimeError("scan not found after synchronous processing")
+        return scan
+
     def process_scan(self, scan_id: str) -> None:
         """Send the saved payload to the pipeline and translate the outcome into scan status."""
         if db_store.get_scan(scan_id) is None:

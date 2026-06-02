@@ -28,6 +28,14 @@ class ContentBlock(BaseModel):
     text: str
 
 
+class MarketplaceSignal(BaseModel):
+    """A marketplace trust or reputation signal extracted from the page."""
+
+    key: str
+    label: str
+    value: str
+
+
 class ScanCreateRequest(BaseModel):
     """Payload accepted when the frontend asks the backend to analyze a listing."""
 
@@ -38,6 +46,7 @@ class ScanCreateRequest(BaseModel):
     price: int = Field(ge=0)
     seller: SellerInfo
     content_blocks: list[ContentBlock]
+    marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
 
 
 class ScanCreateResponse(BaseModel):
@@ -86,6 +95,7 @@ class PipelineOutboundPayload(BaseModel):
     price: int
     seller: SellerInfo
     content_blocks: list[ContentBlock]
+    marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
 
 
 class PipelineInboundPayload(BaseModel):

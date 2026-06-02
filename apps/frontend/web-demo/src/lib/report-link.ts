@@ -3,8 +3,12 @@ export interface LatestScanState {
   scanId: string;
 }
 
+export function buildDashboardPageUrl(scanId: string): string {
+  return `http://localhost:3000/report/#/dashboard?scanId=${encodeURIComponent(scanId)}`;
+}
+
 export function buildReportPageUrl(scanId: string): string {
-  return `http://localhost:3000/report/#/report/${scanId}`;
+  return `http://localhost:3000/report/#/reports/${encodeURIComponent(scanId)}`;
 }
 
 export function getReportPageUrlForTab(

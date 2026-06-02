@@ -23,16 +23,25 @@ export function extractHighlightTargets(result: ScanResultResponse): PageHighlig
   }));
 }
 
-export function applyPageHighlights(targets: ScanHighlightTarget[], documentRef: Document = document): void {
+export function applyPageHighlights(
+  targets: ScanHighlightTarget[],
+  documentRef: Document = document,
+): ScanHighlightTarget[] {
   clearPageHighlights(documentRef);
+
+  const appliedTargets: ScanHighlightTarget[] = [];
 
   for (const target of targets) {
     if (!target.matched_text.trim()) {
       continue;
     }
 
-    highlightFirstMatch(target, documentRef);
+    if (highlightFirstMatch(target, documentRef)) {
+      appliedTargets.push(target);
+    }
   }
+
+  return appliedTargets;
 }
 
 export function clearPageHighlights(documentRef: Document = document): void {
@@ -48,28 +57,24 @@ export function clearPageHighlights(documentRef: Document = document): void {
   }
 }
 
-function highlightFirstMatch(target: ScanHighlightTarget, documentRef: Document): void {
-  const textNode = findTextNodeWithMatch(documentRef.body, target.matched_text);
-  if (!textNode) {
-    return;
+function highlightFirstMatch(target: ScanHighlightTarget, documentRef: Document): boolean {
+  const match = findTextNodeWithMatch(documentRef.body, target.matched_text);
+  if (!match) {
+    return false;
   }
 
+  const { textNode, matchIndex, matchLength } = match;
   const originalText = textNode.nodeValue ?? "";
-  const matchIndex = originalText.indexOf(target.matched_text);
-  if (matchIndex < 0) {
-    return;
-  }
-
   const before = originalText.slice(0, matchIndex);
-  const match = originalText.slice(matchIndex, matchIndex + target.matched_text.length);
-  const after = originalText.slice(matchIndex + target.matched_text.length);
+  const matchText = originalText.slice(matchIndex, matchIndex + matchLength);
+  const after = originalText.slice(matchIndex + matchLength);
 
   const wrapper = documentRef.createElement("mark");
   wrapper.className = target.css_class;
   wrapper.dataset.safeTicketHighlight = "true";
   wrapper.dataset.reasonCode = target.reason_code;
   wrapper.title = target.reason;
-  wrapper.textContent = match;
+  wrapper.textContent = matchText;
 
   const fragment = documentRef.createDocumentFragment();
   if (before) {
@@ -81,9 +86,13 @@ function highlightFirstMatch(target: ScanHighlightTarget, documentRef: Document)
   }
 
   textNode.parentNode?.replaceChild(fragment, textNode);
+  return true;
 }
 
-function findTextNodeWithMatch(root: HTMLElement | null, matchedText: string): Text | null {
+function findTextNodeWithMatch(
+  root: HTMLElement | null,
+  matchedText: string,
+): { textNode: Text; matchIndex: number; matchLength: number } | null {
   if (!root) {
     return null;
   }
@@ -95,7 +104,7 @@ function findTextNodeWithMatch(root: HTMLElement | null, matchedText: string): T
     {
       acceptNode(node) {
         const text = node.nodeValue ?? "";
-        if (!text.includes(matchedText)) {
+        if (!findMatchRange(text, matchedText)) {
           return NodeFilter.FILTER_SKIP;
         }
 
@@ -122,5 +131,73 @@ function findTextNodeWithMatch(root: HTMLElement | null, matchedText: string): T
     },
   );
 
-  return walker.nextNode() as Text | null;
+  let currentNode = walker.nextNode() as Text | null;
+  while (currentNode) {
+    const text = currentNode.nodeValue ?? "";
+    const range = findMatchRange(text, matchedText);
+    if (range) {
+      return {
+        textNode: currentNode,
+        matchIndex: range.index,
+        matchLength: range.length,
+      };
+    }
+
+    currentNode = walker.nextNode() as Text | null;
+  }
+
+  return null;
+}
+
+function findMatchRange(text: string, matchedText: string): { index: number; length: number } | null {
+  const directIndex = text.indexOf(matchedText);
+  if (directIndex >= 0) {
+    return {
+      index: directIndex,
+      length: matchedText.length,
+    };
+  }
+
+  const normalizedNeedle = normalizeWhitespace(matchedText);
+  if (!normalizedNeedle) {
+    return null;
+  }
+
+  const regex = buildWhitespaceTolerantRegex(matchedText);
+  if (!regex) {
+    return null;
+  }
+
+  const match = regex.exec(text);
+  if (!match || match.index < 0) {
+    return null;
+  }
+
+  const matchedSegment = match[0];
+  if (normalizeWhitespace(matchedSegment) !== normalizedNeedle) {
+    return null;
+  }
+
+  return {
+    index: match.index,
+    length: matchedSegment.length,
+  };
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function buildWhitespaceTolerantRegex(value: string): RegExp | null {
+  const parts = normalizeWhitespace(value)
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!parts.length) {
+    return null;
+  }
+
+  const escaped = parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(escaped.join("\\s+"));
 }

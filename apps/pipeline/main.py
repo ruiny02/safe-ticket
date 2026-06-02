@@ -28,6 +28,14 @@ class ContentBlock(BaseModel):
     text: str
 
 
+class MarketplaceSignal(BaseModel):
+    """Marketplace trust or reputation signal extracted from the page."""
+
+    key: str
+    label: str
+    value: str
+
+
 class PipelineOutboundPayload(BaseModel):
     """Request schema sent by the backend to the pipeline."""
 
@@ -38,6 +46,7 @@ class PipelineOutboundPayload(BaseModel):
     price: int = Field(ge=0)
     seller: SellerInfo
     content_blocks: list[ContentBlock]
+    marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
 
 
 class EvidenceItem(BaseModel):
