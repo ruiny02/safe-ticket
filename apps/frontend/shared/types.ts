@@ -1,3 +1,5 @@
+export type MarketplacePlatform = "joonggonara" | "bunjang";
+
 export interface SellerInfo {
   seller_id: string;
   nickname: string;
@@ -8,13 +10,20 @@ export interface ContentBlock {
   text: string;
 }
 
+export interface MarketplaceSignal {
+  key: string;
+  label: string;
+  value: string;
+}
+
 export interface ScanCreateRequest {
-  platform: "joonggonara";
+  platform: MarketplacePlatform;
   page_url: string;
   page_title: string;
   price: number;
   seller: SellerInfo;
   content_blocks: ContentBlock[];
+  marketplace_signals: MarketplaceSignal[];
 }
 
 export interface ScanQueuedResponse {
@@ -80,6 +89,7 @@ export interface PipelineOutboundPayload {
   price: number;
   seller: SellerInfo;
   content_blocks: ContentBlock[];
+  marketplace_signals: MarketplaceSignal[];
 }
 
 export interface PipelineInboundPayload {

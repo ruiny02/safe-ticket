@@ -26,6 +26,12 @@ def create_scan(payload: ScanCreateRequest, background_tasks: BackgroundTasks) -
     return created_scan
 
 
+@router.post("/sync", response_model=ScanResultResponse)
+def create_scan_sync(payload: ScanCreateRequest) -> ScanResultResponse:
+    """Run a scan synchronously for local frontend testing flows."""
+    return scan_service.run_scan_sync(payload)
+
+
 @router.get("", response_model=ScanListResponse)
 def list_scans(
     limit: int = Query(default=20, ge=1, le=100),
