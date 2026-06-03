@@ -7,6 +7,10 @@ load_dotenv()
 
 
 def get_database_url() -> str:
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        return db_url
+
     db_url = os.getenv("POSTGRES_URI")
     if db_url:
         return db_url

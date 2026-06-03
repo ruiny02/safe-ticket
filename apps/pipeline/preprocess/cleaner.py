@@ -41,6 +41,7 @@ def clean_post(post: dict) -> dict:
     post["title"] = _clean_text(post.get("title", ""))
     post["content"] = _clean_text(post.get("content", ""))
     post["price"] = _normalize_price(post.get("price", ""))
+    post["price_int"] = _parse_price_to_int(post.get("price", ""))
     post["seller_id"] = _clean_text(post.get("seller_id", ""))
     post["rendered_text"] = _clean_text(post.get("rendered_text", ""))
     return post
@@ -63,6 +64,13 @@ def _normalize_price(price_str: str) -> str:
     price_str = price_str.replace("원", "")
     price_str = re.sub(r"\s+", "", price_str)
     return price_str.strip()
+
+
+def _parse_price_to_int(price_str: str) -> int:
+    digits = re.sub(r"[^0-9]", "", price_str or "")
+    if not digits:
+        return 0
+    return int(digits)
 
 
 def validate_post(post: dict) -> tuple[bool, str]:
