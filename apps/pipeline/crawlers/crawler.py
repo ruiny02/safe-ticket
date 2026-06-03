@@ -1,4 +1,5 @@
 import logging
+import hashlib
 import random
 import re
 import time
@@ -167,11 +168,16 @@ def parse_marketplace_html(
     }
 
 
-def _collect_detail_links(page: Page, page_info: dict[str, Any], max_links: int = 5) -> list[str]:
+def _collect_visible_detail_links(
+    page: Page,
+    page_info: dict[str, Any],
+    links: list[str],
+    seen_links: set[str],
+    max_links: int,
+) -> None:
     base_url = page_info["base_url"]
     allowed_tokens = page_info["allowed_tokens"]
 
-    links: list[str] = []
     anchors = page.query_selector_all("a[href]")
 
     for anchor in anchors:
@@ -193,7 +199,8 @@ def _collect_detail_links(page: Page, page_info: dict[str, Any], max_links: int 
             if not any(token in absolute_url for token in allowed_tokens):
                 continue
 
-            if absolute_url not in links:
+            if absolute_url not in seen_links:
+                seen_links.add(absolute_url)
                 links.append(absolute_url)
 
             if len(links) >= max_links:
@@ -202,10 +209,94 @@ def _collect_detail_links(page: Page, page_info: dict[str, Any], max_links: int 
         except Exception:
             continue
 
+
+def _collect_detail_links(
+    page: Page,
+    page_info: dict[str, Any],
+    max_links: int = 5,
+    scroll_rounds: int = 0,
+) -> list[str]:
+    links: list[str] = []
+    seen_links: set[str] = set()
+
+    _collect_visible_detail_links(page, page_info, links, seen_links, max_links)
+
+    last_scroll_height = 0
+    stagnant_rounds = 0
+
+    for scroll_idx in range(scroll_rounds):
+        if len(links) >= max_links:
+            break
+
+        try:
+            scroll_height = page.evaluate("() => document.body.scrollHeight")
+            page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(random.randint(900, 1600))
+
+            _collect_visible_detail_links(page, page_info, links, seen_links, max_links)
+
+            new_scroll_height = page.evaluate("() => document.body.scrollHeight")
+            if new_scroll_height == last_scroll_height or new_scroll_height == scroll_height:
+                stagnant_rounds += 1
+            else:
+                stagnant_rounds = 0
+
+            last_scroll_height = new_scroll_height
+
+            logging.info(
+                "Scroll %d/%d collected %d/%d links for %s",
+                scroll_idx + 1,
+                scroll_rounds,
+                len(links),
+                max_links,
+                page_info["platform"],
+            )
+
+            if stagnant_rounds >= 3:
+                logging.info("Stopping scroll collection for %s: no new page growth", page_info["platform"])
+                break
+
+        except Exception as exc:
+            logging.warning("Failed while scrolling search page for %s: %s", page_info["platform"], exc)
+            break
+
     return links[:max_links]
 
 
-def crawl_marketplace_pages(raw_dir: Path) -> list[dict[str, Any]]:
+def _goto_with_retries(
+    page: Page,
+    url: str,
+    retries: int = 2,
+    timeout_ms: int = 30000,
+) -> bool:
+    for attempt in range(1, retries + 2):
+        try:
+            page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+            return True
+        except Exception as exc:
+            if attempt > retries:
+                logging.error("Failed to load %s after %d attempts: %s", url, attempt, exc)
+                return False
+
+            sleep_seconds = min(2 * attempt, 6)
+            logging.warning(
+                "Retrying %s after load failure (%d/%d): %s",
+                url,
+                attempt,
+                retries + 1,
+                exc,
+            )
+            time.sleep(sleep_seconds)
+
+    return False
+
+
+def crawl_marketplace_pages(
+    raw_dir: Path,
+    max_links_per_platform: int = 5,
+    retries: int = 2,
+    scroll_rounds: int = 0,
+) -> list[dict[str, Any]]:
     raw_dir.mkdir(parents=True, exist_ok=True)
     posts: list[dict[str, Any]] = []
 
@@ -225,20 +316,25 @@ def crawl_marketplace_pages(raw_dir: Path) -> list[dict[str, Any]]:
             platform = page_info["platform"]
             logging.info("Loading search page for %s", platform)
 
-            try:
-                page.goto(page_info["search_url"], wait_until="networkidle", timeout=30000)
-                time.sleep(random.uniform(1.0, 2.0))
-            except Exception as exc:
-                logging.error("Failed to load search page %s: %s", platform, exc)
+            if not _goto_with_retries(page, page_info["search_url"], retries=retries):
                 continue
 
-            detail_links = _collect_detail_links(page, page_info)
+            time.sleep(random.uniform(1.0, 2.0))
+
+            detail_links = _collect_detail_links(
+                page,
+                page_info,
+                max_links=max_links_per_platform,
+                scroll_rounds=scroll_rounds,
+            )
             logging.info("Collected %d links for %s", len(detail_links), platform)
 
             for idx, detail_url in enumerate(detail_links, start=1):
                 try:
                     logging.info("Visiting detail page %s", detail_url)
-                    page.goto(detail_url, wait_until="networkidle", timeout=30000)
+                    if not _goto_with_retries(page, detail_url, retries=retries):
+                        continue
+
                     time.sleep(random.uniform(1.0, 2.0))
 
                     html = page.content()
@@ -252,9 +348,10 @@ def crawl_marketplace_pages(raw_dir: Path) -> list[dict[str, Any]]:
                         rendered_text=rendered_text,
                     )
 
-                    raw_html_path = raw_dir / f"raw_{platform}_{idx}.html"
-                    rendered_text_path = raw_dir / f"rendered_text_{platform}_{idx}.txt"
-                    parsed_json_path = raw_dir / f"parsed_{platform}_{idx}.json"
+                    artifact_key = _build_artifact_key(platform, detail_url, idx)
+                    raw_html_path = raw_dir / f"raw_{artifact_key}.html"
+                    rendered_text_path = raw_dir / f"rendered_text_{artifact_key}.txt"
+                    parsed_json_path = raw_dir / f"parsed_{artifact_key}.json"
 
                     write_text(raw_html_path, html)
                     write_text(rendered_text_path, rendered_text)
@@ -269,3 +366,8 @@ def crawl_marketplace_pages(raw_dir: Path) -> list[dict[str, Any]]:
         browser.close()
 
     return posts
+
+
+def _build_artifact_key(platform: str, url: str, idx: int) -> str:
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:10]
+    return f"{platform}_{idx:04d}_{digest}"

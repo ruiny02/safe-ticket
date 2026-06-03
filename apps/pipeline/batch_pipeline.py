@@ -3,13 +3,18 @@
 from pathlib import Path
 import sys
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from crawlers.crawler import crawl_marketplace_pages
 from db.connection import get_engine
 from db.loader import load_processed_data
 from db.models import init_db
+from memory_export import save_memory_cases_jsonl
 from preprocess.cleaner import clean_post, validate_post
 from preprocess.entity_extractor import enrich_post_with_entities
 from preprocess.scoring import calculate_quality_score
+from rag.embedding_export import save_embedding_cases_jsonl
+from rag.repository import load_embedding_cases
 from utils.file_utils import ensure_dir, save_jsonl
 from utils.quality_report import DataQualityReport
 
@@ -17,6 +22,8 @@ BASE_DIR = Path(__file__).resolve().parent
 RAW_DIR = BASE_DIR / "data" / "raw"
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 PROCESSED_FILE = PROCESSED_DIR / "processed_posts.jsonl"
+MEMORY_CASES_FILE = PROCESSED_DIR / "memory_cases.jsonl"
+EMBEDDING_CASES_FILE = PROCESSED_DIR / "memory_case_embeddings.jsonl"
 
 
 def build_backend_payload(post: dict) -> dict:
@@ -29,6 +36,7 @@ def build_backend_payload(post: dict) -> dict:
         "url": post.get("url", ""),
         "title": post.get("title", ""),
         "price": post.get("price", ""),
+        "price_int": post.get("price_int", 0),
         "seller_info": {
             "seller_id": post.get("seller_id", ""),
         },
@@ -51,13 +59,39 @@ def remove_heavy_fields(post: dict) -> dict:
     return cleaned
 
 
-def run_pipeline(skip_db: bool = False) -> None:
+def _read_int_arg(flag: str, default: int) -> int:
+    if flag not in sys.argv:
+        return default
+
+    flag_index = sys.argv.index(flag)
+    value_index = flag_index + 1
+
+    if value_index >= len(sys.argv):
+        return default
+
+    try:
+        return int(sys.argv[value_index])
+    except ValueError:
+        return default
+
+
+def run_pipeline(
+    skip_db: bool = False,
+    max_links_per_platform: int = 5,
+    retries: int = 2,
+    scroll_rounds: int = 0,
+) -> None:
     """Run crawler, preprocessing, scoring, and optional database loading."""
     ensure_dir(RAW_DIR)
     ensure_dir(PROCESSED_DIR)
 
     print("[1/4] Crawling marketplace pages...")
-    raw_posts = crawl_marketplace_pages(RAW_DIR)
+    raw_posts = crawl_marketplace_pages(
+        RAW_DIR,
+        max_links_per_platform=max_links_per_platform,
+        retries=retries,
+        scroll_rounds=scroll_rounds,
+    )
     print(f"  Crawled {len(raw_posts)} posts and saved raw artifacts.")
 
     print("[2/4] Cleaning raw data...")
@@ -85,9 +119,21 @@ def run_pipeline(skip_db: bool = False) -> None:
 
     output_posts = [remove_heavy_fields(post) for post in valid_posts]
     save_jsonl(PROCESSED_FILE, output_posts)
+    memory_export_result = save_memory_cases_jsonl(output_posts, MEMORY_CASES_FILE)
+    embedding_export_result = save_embedding_cases_jsonl(output_posts, EMBEDDING_CASES_FILE)
 
     print(f"  Extracted {len(valid_posts)} valid posts.")
     print(f"  Saved processed dataset to {PROCESSED_FILE}")
+    print(
+        "  Saved backend RAG import artifact to "
+        f"{MEMORY_CASES_FILE} "
+        f"({memory_export_result['memory_cases_written']} records)."
+    )
+    print(
+        "  Saved embedding artifact to "
+        f"{EMBEDDING_CASES_FILE} "
+        f"({embedding_export_result['embedding_cases_written']} records)."
+    )
 
     print("\n[Quality Report]")
     report = DataQualityReport()
@@ -98,13 +144,35 @@ def run_pipeline(skip_db: bool = False) -> None:
         print("\nSkipping database loading (--skip-db flag used).")
         return
 
-    print("\n[4/4] Loading processed data into PostgreSQL...")
+    print("\n[4/4] Loading processed data into local pipeline table...")
     engine = get_engine()
-    init_db(engine)
-    load_processed_data(engine, PROCESSED_FILE)
-    print("  Data loaded into PostgreSQL table fraud_posts.")
+    try:
+        init_db(engine)
+        load_result = load_processed_data(engine, PROCESSED_FILE)
+        embedding_load_result = load_embedding_cases(engine, EMBEDDING_CASES_FILE)
+    except SQLAlchemyError as exc:
+        print("\nDatabase loading failed.")
+        print("  Processed JSONL artifacts were already saved successfully.")
+        print("  Start PostgreSQL or rerun with --skip-db if you only need files.")
+        print(f"  Error: {exc}")
+        return
+
+    print(
+        "  Data loaded: "
+        f"{load_result['fraud_posts_inserted']} fraud_posts inserted, "
+        f"{embedding_load_result['embedding_cases_inserted']} embedding cases inserted, "
+        f"{embedding_load_result['embedding_chunks_inserted']} embedding chunks inserted."
+    )
 
 
 if __name__ == "__main__":
     skip_db = "--skip-db" in sys.argv
-    run_pipeline(skip_db=skip_db)
+    max_links = _read_int_arg("--max-links", default=5)
+    retries = _read_int_arg("--retries", default=2)
+    scrolls = _read_int_arg("--scrolls", default=0)
+    run_pipeline(
+        skip_db=skip_db,
+        max_links_per_platform=max_links,
+        retries=retries,
+        scroll_rounds=scrolls,
+    )
