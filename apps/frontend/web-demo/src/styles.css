@@ -425,9 +425,47 @@
   gap: 12px;
 }
 
+.safe-ticket-chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.safe-ticket-suggestion-chip {
+  border: 1px solid #d9e0eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5d6678;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.safe-ticket-suggestion-chip:hover:not(:disabled) {
+  border-color: rgba(255, 22, 71, 0.34);
+  color: #c71947;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 22, 71, 0.1);
+}
+
+.safe-ticket-suggestion-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .safe-ticket-chat-log {
   display: grid;
   gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .safe-ticket-chat-bubble {

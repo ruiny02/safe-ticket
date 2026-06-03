@@ -1,21 +1,214 @@
-import type { ScanCreateRequest, ScanResultResponse } from "../../../shared/types";
+import type {
+  ExternalLookupResult,
+  MarketplaceSignal,
+  ScanCreateRequest,
+  ScanHighlightTarget,
+  ScanResultResponse,
+  SimilarCase,
+} from "../../../shared/types";
+
+function formatRiskLevel(riskLevel: ScanResultResponse["risk_level"]): string {
+  if (riskLevel === "high") {
+    return "높음";
+  }
+
+  if (riskLevel === "medium") {
+    return "보통";
+  }
+
+  if (riskLevel === "low") {
+    return "낮음";
+  }
+
+  return "미확인";
+}
+
+function formatRiskScore(riskScore: number | null): string {
+  if (riskScore === null) {
+    return "--";
+  }
+
+  return `${Math.round(riskScore * 100)}점`;
+}
+
+function formatPrice(price: number): string {
+  return `${price.toLocaleString("ko-KR")}원`;
+}
+
+function containsAny(text: string, keywords: string[]): boolean {
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function formatSignal(signal: MarketplaceSignal): string {
+  return `${signal.label}: ${signal.value}`;
+}
+
+function describeEvidence(target: ScanHighlightTarget): string {
+  return `"${target.matched_text}" - ${target.reason}`;
+}
+
+function describeLookup(result: ExternalLookupResult): string {
+  const providerLabel = result.provider === "police" ? "경찰청" : "더치트";
+  const keywordLabel = result.kind === "account" ? "계좌" : "전화번호";
+
+  return `${providerLabel} ${keywordLabel} 조회: ${result.message}`;
+}
+
+function describeSimilarCase(similarCase: SimilarCase): string {
+  return `${similarCase.summary} (유사도 ${Math.round(similarCase.score * 100)}점)`;
+}
+
+function buildListingSummary(payload: ScanCreateRequest): string {
+  const summary = [
+    `플랫폼: ${payload.platform === "joonggonara" ? "중고나라" : "번개장터"}`,
+    `제목: ${payload.page_title}`,
+    `가격: ${formatPrice(payload.price)}`,
+    `판매자: ${payload.seller.nickname}`,
+  ];
+
+  if (payload.marketplace_signals.length) {
+    summary.push(
+      `신뢰지표: ${payload.marketplace_signals
+        .slice(0, 4)
+        .map(formatSignal)
+        .join(", ")}`,
+    );
+  }
+
+  return summary.join("\n");
+}
+
+function buildRiskSummary(scanResult: ScanResultResponse): string {
+  const lines = [
+    `현재 위험도는 ${formatRiskLevel(scanResult.risk_level)}이고, 점수는 ${formatRiskScore(scanResult.risk_score)}입니다.`,
+  ];
+
+  if (scanResult.summary) {
+    lines.push(`요약: ${scanResult.summary}`);
+  }
+
+  if (scanResult.highlight_targets.length) {
+    lines.push(
+      `주요 근거: ${scanResult.highlight_targets
+        .slice(0, 3)
+        .map((target) => `"${target.matched_text}"`)
+        .join(", ")}`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+function buildTrustSignalSummary(signals: MarketplaceSignal[]): string {
+  if (!signals.length) {
+    return "현재 페이지에서 읽은 신뢰지표는 아직 없습니다. 상품 상세나 채팅 화면에 노출된 별점, 거래후기, 안심결제, 단골 같은 정보가 보이는지 함께 확인해 주세요.";
+  }
+
+  return [
+    "현재 읽은 신뢰지표는 아래와 같습니다.",
+    ...signals.slice(0, 6).map((signal) => `- ${formatSignal(signal)}`),
+  ].join("\n");
+}
+
+function buildHighlightSummary(highlights: ScanHighlightTarget[]): string {
+  if (!highlights.length) {
+    return "현재 하이라이트된 위험 표현은 없습니다. 스캔 결과가 낮은 위험이거나, 아직 페이지에서 매칭된 표현이 없을 수 있어요.";
+  }
+
+  return [
+    "현재 페이지에서 표시된 위험 표현입니다.",
+    ...highlights.slice(0, 6).map((target) => `- ${describeEvidence(target)}`),
+  ].join("\n");
+}
+
+function buildActionSummary(scanResult: ScanResultResponse): string {
+  if (!scanResult.recommended_actions.length) {
+    return "권장 행동은 아직 비어 있습니다. 우선 판매자 정보, 결제 방식, 하이라이트된 문구를 다시 확인해 보세요.";
+  }
+
+  return [
+    "지금 바로 확인하면 좋은 항목입니다.",
+    ...scanResult.recommended_actions
+      .slice(0, 4)
+      .map((action, index) => `${index + 1}. ${action.description}`),
+  ].join("\n");
+}
+
+function buildExternalLookupSummary(results: ExternalLookupResult[] = []): string {
+  if (!results.length) {
+    return "이번 스캔에서 외부조회 결과는 아직 없습니다. 계좌번호나 전화번호가 본문에 있으면 조회 카드가 함께 채워질 수 있어요.";
+  }
+
+  return [
+    "외부조회 결과를 정리해 드릴게요.",
+    ...results.slice(0, 4).map((result) => `- ${describeLookup(result)}`),
+  ].join("\n");
+}
+
+function buildSimilarCaseSummary(similarCases: SimilarCase[]): string {
+  if (!similarCases.length) {
+    return "현재 연결된 유사 사례는 없습니다. 다만 지금 파이프라인의 유사 사례는 아직 임시 데이터일 수 있어요.";
+  }
+
+  return [
+    "현재 결과와 가까운 사례입니다.",
+    ...similarCases.slice(0, 3).map((similarCase) => `- ${describeSimilarCase(similarCase)}`),
+  ].join("\n");
+}
 
 export function buildChatWelcomeMessage(
   payload: ScanCreateRequest | null,
   scanResult: ScanResultResponse | null,
 ): string {
   if (!payload) {
-    return "이 패널은 현재 상품 정보와 스캔 결과를 바탕으로 안내합니다. 페이지 파싱이 끝나면 질문을 이어갈 수 있어요.";
+    return "이 챗봇은 현재 페이지 정보와 스캔 결과를 바탕으로 설명해 드립니다. 페이지 파싱이 끝나면 질문을 이어갈 수 있어요.";
   }
 
   if (!scanResult) {
-    return `${payload.seller.nickname} 판매자의 "${payload.page_title}" 정보를 읽어왔어요. Scan을 실행하면 왜 위험한지, 무엇을 확인해야 하는지 바로 설명해 드릴게요.`;
+    return `${payload.seller.nickname} 판매자의 "${payload.page_title}" 정보를 읽어왔어요. Scan을 실행하면 왜 위험한지, 무엇을 먼저 확인해야 하는지, 신뢰지표가 어떤 의미인지 바로 설명해 드릴게요.`;
   }
 
-  const riskScore = scanResult.risk_score === null ? "--" : Math.round(scanResult.risk_score * 100);
-  const riskLevel = scanResult.risk_level ?? "unknown";
+  return [
+    `스캔이 완료됐어요. 현재 위험도는 ${formatRiskLevel(scanResult.risk_level)}이고 점수는 ${formatRiskScore(scanResult.risk_score)}입니다.`,
+    "이제 왜 위험한지, 하이라이트된 문구가 무엇인지, 판매자와 신뢰지표를 어떻게 봐야 하는지 계속 물어볼 수 있어요.",
+  ].join("\n");
+}
 
-  return `스캔이 완료됐어요. 현재 위험도는 ${riskLevel} (${riskScore}) 입니다. "왜 위험한가요?" 또는 "무엇을 확인해야 하나요?"처럼 물어보세요.`;
+export function buildSuggestedPrompts(
+  payload: ScanCreateRequest | null,
+  scanResult: ScanResultResponse | null,
+): string[] {
+  if (!payload) {
+    return ["지금 어떤 정보를 읽고 있나요?", "페이지 파싱이 끝났나요?"];
+  }
+
+  if (!scanResult) {
+    const prompts = ["이 상품 정보를 요약해줘", "신뢰지표를 먼저 보여줘"];
+
+    if (payload.marketplace_signals.length) {
+      prompts.push("이 신뢰지표는 어떻게 해석해?");
+    } else {
+      prompts.push("스캔 전에 무엇을 먼저 확인해야 해?");
+    }
+
+    return prompts;
+  }
+
+  const prompts = [
+    "왜 위험한가요?",
+    "무엇을 먼저 확인해야 하나요?",
+    "하이라이트된 문구를 설명해줘",
+  ];
+
+  if (payload.marketplace_signals.length) {
+    prompts.push("신뢰지표를 요약해줘");
+  } else if (scanResult.external_lookup_results?.length) {
+    prompts.push("외부조회 결과를 알려줘");
+  } else {
+    prompts.push("판매자 정보를 요약해줘");
+  }
+
+  return prompts;
 }
 
 export function buildAssistantReply(options: {
@@ -24,43 +217,186 @@ export function buildAssistantReply(options: {
   scanResult: ScanResultResponse | null;
 }): string {
   const { payload, prompt, scanResult } = options;
-  const normalizedPrompt = prompt.toLowerCase();
+  const normalizedPrompt = prompt.trim().toLowerCase();
 
   if (!payload) {
     return "아직 페이지 파싱이 끝나지 않았어요. 상품 정보가 읽히면 그 내용을 기준으로 답변할 수 있습니다.";
   }
 
   if (!scanResult) {
-    return "아직 Scan 전 상태예요. 먼저 Scan을 눌러 위험 신호를 분석하면 더 정확히 답변할 수 있어요.";
+    if (containsAny(normalizedPrompt, ["요약", "summary", "상품", "listing", "price", "seller"])) {
+      return buildListingSummary(payload);
+    }
+
+    if (
+      containsAny(normalizedPrompt, [
+        "신뢰",
+        "지표",
+        "후기",
+        "별점",
+        "안심결제",
+        "단골",
+        "거래내역",
+        "trust",
+      ])
+    ) {
+      return buildTrustSignalSummary(payload.marketplace_signals);
+    }
+
+    return [
+      "아직 Scan 전 상태예요. 먼저 Scan을 실행하면 위험도, 하이라이트 문구, 권장 행동까지 더 정확히 설명할 수 있어요.",
+      "",
+      buildListingSummary(payload),
+    ].join("\n");
+  }
+
+  if (scanResult.status === "failed") {
+    return "이번 스캔은 실패 상태예요. 서버 연결이나 파이프라인 상태를 확인한 뒤 다시 Scan을 눌러 주세요.";
   }
 
   if (
-    normalizedPrompt.includes("why") ||
-    normalizedPrompt.includes("risk") ||
-    prompt.includes("왜") ||
-    prompt.includes("위험")
+    containsAny(normalizedPrompt, [
+      "왜",
+      "위험",
+      "이유",
+      "사유",
+      "risky",
+      "risk",
+      "danger",
+      "suspicious",
+    ])
   ) {
-    const topReason = scanResult.highlight_targets[0];
-    if (topReason) {
-      return `현재 판단에서 가장 먼저 잡힌 신호는 "${topReason.matched_text}" 입니다. 사유는 ${topReason.reason} 이고, 이 문구가 판매자의 송금 유도나 거래 압박과 연결되는지 함께 확인하는 게 좋아요.`;
-    }
+    return [
+      buildRiskSummary(scanResult),
+      "",
+      buildHighlightSummary(scanResult.highlight_targets),
+    ].join("\n");
   }
 
   if (
-    normalizedPrompt.includes("what") ||
-    normalizedPrompt.includes("check") ||
-    normalizedPrompt.includes("verify")
+    containsAny(normalizedPrompt, [
+      "무엇",
+      "뭘",
+      "먼저",
+      "확인",
+      "검토",
+      "조치",
+      "행동",
+      "check",
+      "verify",
+      "next",
+      "action",
+    ])
   ) {
-    const topAction = scanResult.recommended_actions[0];
-    if (topAction) {
-      return `가장 먼저 할 일은 ${topAction.action} 입니다. ${topAction.description}`;
-    }
+    return buildActionSummary(scanResult);
   }
 
-  if (normalizedPrompt.includes("score") || prompt.includes("점수")) {
-    const riskScore = scanResult.risk_score === null ? "--" : Math.round(scanResult.risk_score * 100);
-    return `현재 위험 점수는 ${riskScore}점이고, 위험도는 ${scanResult.risk_level ?? "unknown"} 입니다. 이 점수는 감지된 위험 문구와 권장 행동을 함께 반영한 결과예요.`;
+  if (
+    containsAny(normalizedPrompt, [
+      "하이라이트",
+      "문구",
+      "표현",
+      "근거",
+      "evidence",
+      "highlight",
+      "phrase",
+    ])
+  ) {
+    return buildHighlightSummary(scanResult.highlight_targets);
   }
 
-  return `현재 게시글 "${payload.page_title}" 기준으로 스캔 결과를 보고 있어요. 위험 문구, 판매자 정보, 권장 행동 중 어떤 부분이 궁금한지 더 구체적으로 물어보면 바로 정리해 드릴게요.`;
+  if (
+    containsAny(normalizedPrompt, [
+      "신뢰",
+      "지표",
+      "후기",
+      "별점",
+      "안심결제",
+      "단골",
+      "거래내역",
+      "trust",
+    ])
+  ) {
+    return buildTrustSignalSummary(payload.marketplace_signals);
+  }
+
+  if (
+    containsAny(normalizedPrompt, [
+      "외부",
+      "조회",
+      "더치트",
+      "경찰",
+      "계좌",
+      "전화번호",
+      "lookup",
+      "thecheat",
+      "police",
+    ])
+  ) {
+    return buildExternalLookupSummary(scanResult.external_lookup_results);
+  }
+
+  if (
+    containsAny(normalizedPrompt, [
+      "유사",
+      "사례",
+      "비슷",
+      "similar",
+      "case",
+    ])
+  ) {
+    return buildSimilarCaseSummary(scanResult.similar_cases);
+  }
+
+  if (
+    containsAny(normalizedPrompt, [
+      "점수",
+      "위험도",
+      "score",
+      "level",
+      "summary",
+      "요약",
+    ])
+  ) {
+    return buildRiskSummary(scanResult);
+  }
+
+  if (
+    containsAny(normalizedPrompt, [
+      "판매자",
+      "seller",
+      "가격",
+      "price",
+      "제목",
+      "title",
+      "상품",
+      "listing",
+    ])
+  ) {
+    return buildListingSummary(payload);
+  }
+
+  if (containsAny(normalizedPrompt, ["report", "dashboard", "리포트", "대시보드"])) {
+    return "패널의 Dashboard 버튼에서는 스캔 결과 흐름을, Report 버튼에서는 상세 결과 페이지를 열 수 있어요. 현재 스캔 결과를 기준으로 이어지는 화면입니다.";
+  }
+
+  if (containsAny(normalizedPrompt, ["사도", "구매", "buy", "safe"])) {
+    return [
+      buildRiskSummary(scanResult),
+      "",
+      "다만 이 결과만으로 거래 안전을 보장할 수는 없어요. 반드시 결제 방식, 판매자 정보, 신뢰지표, 하이라이트된 표현을 함께 확인해 주세요.",
+    ].join("\n");
+  }
+
+  return [
+    "현재 스캔 결과를 바탕으로 답변하고 있어요.",
+    "",
+    buildRiskSummary(scanResult),
+    "",
+    "예를 들어 이렇게 물어볼 수 있어요:",
+    '- "왜 위험한가요?"',
+    '- "무엇을 먼저 확인해야 하나요?"',
+    '- "신뢰지표를 요약해줘"',
+    '- "외부조회 결과를 알려줘"',
+  ].join("\n");
 }

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import {
+  buildChatRequestPayload,
+  requestRemoteChatReply,
+  type ChatConversationMessage,
+} from "../../shared/chat-api";
+import {
   enhanceJoongnaProductPayloadFromDocument,
   isReliableJoongnaProductPayload,
 } from "../../shared/joonggonara";
@@ -8,7 +13,7 @@ import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketp
 import { createScan, createScanSync, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
-import { buildAssistantReply, buildChatWelcomeMessage } from "./lib/chatbot";
+import { buildAssistantReply, buildChatWelcomeMessage, buildSuggestedPrompts } from "./lib/chatbot";
 import {
   PANEL_COLLAPSED_WIDTH,
   clampPanelRect,
@@ -177,6 +182,7 @@ async function persistLatestScan(pageUrl: string, scanId: string): Promise<void>
 export function App({ pageUrl }: AppProps) {
   const initialPanelStateRef = useRef<PanelPreferences | null>(null);
   const parseRequestIdRef = useRef(0);
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
 
   if (!initialPanelStateRef.current) {
     initialPanelStateRef.current = loadPanelPreferences();
@@ -194,8 +200,10 @@ export function App({ pageUrl }: AppProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatSource, setChatSource] = useState<"local" | "remote">("local");
   const [interaction, setInteraction] = useState<PanelInteraction | null>(null);
   const panelContent = buildPanelContent({ pageUrl: currentPageUrl, payload, scanResult, appliedHighlights });
+  const chatSuggestions = buildSuggestedPrompts(payload, scanResult);
 
   const parseCurrentPage = async (options?: { silent?: boolean }): Promise<boolean> => {
     const requestId = ++parseRequestIdRef.current;
@@ -279,28 +287,55 @@ export function App({ pageUrl }: AppProps) {
     }
   };
 
-  const handleChatSubmit = async () => {
-    const prompt = chatInput.trim();
+  const handleChatSubmit = async (promptOverride?: string) => {
+    const prompt = (promptOverride ?? chatInput).trim();
 
     if (!prompt || isChatLoading) {
       return;
     }
 
     setChatError(null);
-    setChatInput("");
+    if (!promptOverride) {
+      setChatInput("");
+    }
     setIsChatLoading(true);
     setChatMessages((current) => [...current, createMessage("user", prompt)]);
 
     try {
       await wait(450);
 
-      const reply = buildAssistantReply({
-        payload,
-        prompt,
-        scanResult,
-      });
+      const conversationMessages: ChatConversationMessage[] = [
+        ...chatMessages.map((message) => ({
+          role: message.role,
+          text: message.text,
+        })),
+        {
+          role: "user",
+          text: prompt,
+        },
+      ];
+
+      const remoteReply = await requestRemoteChatReply(
+        API_BASE_URL,
+        buildChatRequestPayload({
+          messages: conversationMessages,
+          pageUrl: currentPageUrl,
+          payload,
+          prompt,
+          scanResult,
+        }),
+      );
+
+      const reply =
+        remoteReply.reply ??
+        buildAssistantReply({
+          payload,
+          prompt,
+          scanResult,
+        });
 
       setChatMessages((current) => [...current, createMessage("assistant", reply)]);
+      setChatSource(remoteReply.source);
     } catch (nextError) {
       setChatError(nextError instanceof Error ? nextError.message : "Unknown chat error");
     } finally {
@@ -402,7 +437,18 @@ export function App({ pageUrl }: AppProps) {
     setChatError(null);
     setChatInput("");
     setIsChatLoading(false);
+    setChatSource("local");
   }, [payload, scanResult]);
+
+  useEffect(() => {
+    const chatLogElement = chatLogRef.current;
+
+    if (!chatLogElement) {
+      return;
+    }
+
+    chatLogElement.scrollTop = chatLogElement.scrollHeight;
+  }, [chatMessages, isChatLoading]);
 
   useEffect(() => {
     if (!scanResult || (scanResult.status !== "completed" && scanResult.status !== "partial")) {
@@ -668,9 +714,28 @@ export function App({ pageUrl }: AppProps) {
                   Ask follow-up questions based on the current scan result.
                 </p>
               </div>
+              <span className={`safe-ticket-badge ${chatSource === "remote" ? "ok" : "neutral"}`}>
+                {chatSource === "remote" ? "live" : "local"}
+              </span>
             </div>
 
-            <div className="safe-ticket-chat-log">
+            <div className="safe-ticket-chat-suggestions">
+              {chatSuggestions.map((suggestion) => (
+                <button
+                  className="safe-ticket-suggestion-chip"
+                  disabled={isChatLoading}
+                  key={suggestion}
+                  onClick={() => {
+                    void handleChatSubmit(suggestion);
+                  }}
+                  type="button"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+
+            <div className="safe-ticket-chat-log" ref={chatLogRef}>
               {chatMessages.map((message) => (
                 <article className={`safe-ticket-chat-bubble role-${message.role}`} key={message.id}>
                   <span className="safe-ticket-chat-role">{message.role === "assistant" ? "assistant" : "user"}</span>
@@ -694,8 +759,14 @@ export function App({ pageUrl }: AppProps) {
               }}
             >
               <textarea
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void handleChatSubmit();
+                  }
+                }}
                 onChange={(event) => setChatInput(event.target.value)}
-                placeholder="왜 위험한가요?"
+                placeholder="질문을 입력하세요. Enter로 전송, Shift+Enter로 줄바꿈"
                 rows={2}
                 value={chatInput}
               />
