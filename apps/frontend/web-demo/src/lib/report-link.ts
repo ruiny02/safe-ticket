@@ -1,14 +1,24 @@
+import { getSafeTicketFrontendBaseUrl } from "../../../shared/runtime-config";
+
 export interface LatestScanState {
   pageUrl: string;
   scanId: string;
 }
 
+export function buildDashboardBaseUrl(): string {
+  return `${getSafeTicketFrontendBaseUrl()}/report/#/dashboard`;
+}
+
+export function buildReportListUrl(): string {
+  return `${getSafeTicketFrontendBaseUrl()}/report/#/reports`;
+}
+
 export function buildDashboardPageUrl(scanId: string): string {
-  return `http://localhost:3000/report/#/dashboard?scanId=${encodeURIComponent(scanId)}`;
+  return `${buildDashboardBaseUrl()}?scanId=${encodeURIComponent(scanId)}`;
 }
 
 export function buildReportPageUrl(scanId: string): string {
-  return `http://localhost:3000/report/#/reports/${encodeURIComponent(scanId)}`;
+  return `${buildReportListUrl()}/${encodeURIComponent(scanId)}`;
 }
 
 export function getReportPageUrlForTab(

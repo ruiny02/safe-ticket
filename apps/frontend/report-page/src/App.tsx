@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
+import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
 import { getPipelineDebug, getScan } from "../../shared/scan-api";
 import type { PipelineExchangeResponse, ScanResultResponse } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
@@ -7,9 +8,10 @@ import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-em
 import { buildRouteHref, parseReportRoute, shouldRefreshReportData, type ReportView } from "./lib/navigation";
 import { buildReportBrief } from "./lib/report-brief";
 
-const API_BASE_URL = "http://localhost:8000";
-const DEMO_PAGE_URL = "http://localhost:3000/product/227242032.html";
-const HEALTHCHECK_URL = "http://localhost:8000/api/v1/health/live";
+const API_BASE_URL = getSafeTicketApiBaseUrl();
+const FRONTEND_BASE_URL = getSafeTicketFrontendBaseUrl();
+const DEMO_PAGE_URL = `${FRONTEND_BASE_URL}/product/227242032.html`;
+const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
 
 type ProfileMode = "general" | "newcomer" | "cautious";
 type Tone = "danger" | "warning" | "ok" | "neutral";

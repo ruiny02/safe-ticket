@@ -13,8 +13,10 @@
   "host_permissions": [
     "http://localhost:8000/*",
     "http://127.0.0.1:8000/*",
+    "http://54.180.226.121:8000/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
+    "http://54.180.226.121:3000/*",
     "https://web.joongna.com/*",
     "https://m.joongna.com/*",
     "https://m.bunjang.co.kr/*"
@@ -25,6 +27,7 @@
       "matches": [
         "http://localhost/*",
         "http://127.0.0.1/*",
+        "http://54.180.226.121/*",
         "https://web.joongna.com/*",
         "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"
@@ -36,6 +39,7 @@
       "matches": [
         "http://localhost:3000/*",
         "http://127.0.0.1:3000/*",
+        "http://54.180.226.121:3000/*",
         "https://web.joongna.com/*",
         "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"
