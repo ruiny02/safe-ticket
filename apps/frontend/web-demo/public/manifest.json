@@ -16,6 +16,7 @@
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
     "https://web.joongna.com/*",
+    "https://m.joongna.com/*",
     "https://m.bunjang.co.kr/*"
   ],
   "web_accessible_resources": [
@@ -25,6 +26,7 @@
         "http://localhost/*",
         "http://127.0.0.1/*",
         "https://web.joongna.com/*",
+        "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"
       ]
     }
@@ -35,6 +37,7 @@
         "http://localhost:3000/*",
         "http://127.0.0.1:3000/*",
         "https://web.joongna.com/*",
+        "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"
       ],
       "js": ["content.js"],

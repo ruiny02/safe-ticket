@@ -13,6 +13,17 @@
   --safe-ticket-scroll-track: rgba(132, 112, 255, 0.07);
 }
 
+body.safe-ticket-layout-shift > :not(#safe-ticket-extension-root) {
+  translate: calc(-1 * var(--safe-ticket-layout-offset, 0px)) 0 !important;
+  transition:
+    translate 220ms ease,
+    transform 220ms ease;
+}
+
+body.safe-ticket-layout-shift > #safe-ticket-extension-root {
+  translate: none !important;
+}
+
 .safe-ticket-panel {
   position: fixed;
   top: 16px;
@@ -204,7 +215,10 @@
 }
 
 .safe-ticket-hero.tone-warning {
-  background: linear-gradient(135deg, #8d78ff, #7260db);
+  background:
+    radial-gradient(circle at top right, rgba(255, 232, 166, 0.36), transparent 32%),
+    linear-gradient(135deg, #7a4dff 0%, #8057df 38%, #d46a2d 100%);
+  box-shadow: 0 18px 42px rgba(212, 106, 45, 0.22);
 }
 
 .safe-ticket-hero.tone-ok {
@@ -262,14 +276,41 @@
   line-height: 1;
 }
 
+.safe-ticket-hero.tone-warning .safe-ticket-hero-status {
+  background: rgba(255, 237, 184, 0.22);
+  color: #fff7da;
+}
+
+.safe-ticket-hero.tone-warning .safe-ticket-hero-score strong {
+  color: #fff7da;
+  text-shadow: 0 8px 18px rgba(99, 55, 12, 0.28);
+}
+
+.safe-ticket-hero.tone-danger .safe-ticket-hero-status {
+  background: rgba(255, 223, 230, 0.2);
+  color: #ffe8ee;
+}
+
+.safe-ticket-hero.tone-danger .safe-ticket-hero-score strong {
+  color: #ffe8ee;
+  text-shadow: 0 8px 18px rgba(95, 20, 46, 0.3);
+}
+
 .safe-ticket-tab-row {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 5px;
   border: 1px solid rgba(132, 112, 255, 0.12);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 248, 255, 0.92)),
+    rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 24px rgba(31, 32, 64, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .safe-ticket-tab {
@@ -611,8 +652,8 @@
 
 .safe-ticket-chatbot-expanded {
   display: grid;
-  min-height: min(520px, calc(100vh - 330px));
-  grid-template-rows: auto auto minmax(240px, 1fr) auto;
+  min-height: min(500px, calc(100vh - 350px));
+  grid-template-rows: auto auto minmax(180px, 1fr) auto;
 }
 
 .safe-ticket-chat-context {
@@ -649,8 +690,8 @@
   display: grid;
   align-content: start;
   gap: 8px;
-  min-height: 220px;
-  max-height: min(46vh, 420px);
+  min-height: 180px;
+  max-height: min(40vh, 360px);
   overflow: auto;
 }
 
@@ -699,10 +740,16 @@
 }
 
 .safe-ticket-chat-form {
+  position: sticky;
+  bottom: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   margin-top: 12px;
+  padding-top: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 36%),
+    rgba(255, 255, 255, 0.92);
 }
 
 .safe-ticket-chat-form input,

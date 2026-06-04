@@ -35,8 +35,6 @@ const CHAT_ENDPOINT_PATHS = [
   "/api/v1/assistant/chat",
 ];
 
-const REMOTE_TUNNEL_BASE_URL = "https://petite-sloths-cut.loca.lt";
-
 function hasExtensionRuntime(): boolean {
   const extensionApi = (globalThis as typeof globalThis & {
     chrome?: {
@@ -191,8 +189,6 @@ function buildBaseUrlCandidates(baseUrl: string): string[] {
   } else if (baseUrl.includes("localhost")) {
     candidates.push(baseUrl.replace("localhost", "127.0.0.1"));
   }
-
-  candidates.push(REMOTE_TUNNEL_BASE_URL);
 
   return Array.from(new Set(candidates));
 }

@@ -1,6 +1,7 @@
 const SUPPORTED_PATTERNS = [
+  /^https:\/\/(?:web|m)\.joongna\.com\/.*(?:product|products|item|articles?)\/[^/?#]+\/?(?:\?.*)?$/i,
   /^https:\/\/web\.joongna\.com\/product\/[^/?#]+\/?(?:\?.*)?$/i,
-  /^https:\/\/web\.joongna\.com\/.*(?:chat|message).*(?:\?.*)?$/i,
+  /^https:\/\/(?:web|m)\.joongna\.com\/.*(?:chat|message|talk).*(?:\?.*)?$/i,
   /^https:\/\/m\.bunjang\.co\.kr\/products\/[^/?#]+\/?(?:\?.*)?$/i,
   /^https:\/\/m\.bunjang\.co\.kr\/.*(?:talk|chat|message).*(?:\?.*)?$/i,
   /^http:\/\/localhost:\d+\/product\/[^/]+\.html$/i,

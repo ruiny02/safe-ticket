@@ -109,5 +109,11 @@ describe("chat-api helpers", () => {
 
     expect(result.source).toBe("local");
     expect(result.reply).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://example.com/api/v1/chat/reply",
+      "https://example.com/api/v1/chat",
+      "https://example.com/api/v1/assistant/chat",
+    ]);
   });
 });

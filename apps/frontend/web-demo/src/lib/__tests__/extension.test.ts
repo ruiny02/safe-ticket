@@ -13,7 +13,11 @@ describe("isSupportedMarketplacePage", () => {
     expect(isSupportedMarketplacePage("http://localhost:3000/joongna-chat.html")).toBe(true);
     expect(isSupportedMarketplacePage("http://localhost:3000/bunjang-chat.html")).toBe(true);
     expect(isSupportedMarketplacePage("https://web.joongna.com/product/227242032")).toBe(true);
+    expect(isSupportedMarketplacePage("https://m.joongna.com/product/227242032")).toBe(true);
+    expect(isSupportedMarketplacePage("https://web.joongna.com/products/227242032")).toBe(true);
+    expect(isSupportedMarketplacePage("https://web.joongna.com/articles/227242032?source=list")).toBe(true);
     expect(isSupportedMarketplacePage("https://web.joongna.com/chat/room-123")).toBe(true);
+    expect(isSupportedMarketplacePage("https://m.joongna.com/talk/room-123")).toBe(true);
     expect(isSupportedMarketplacePage("https://m.bunjang.co.kr/products/401504836")).toBe(true);
     expect(isSupportedMarketplacePage("https://m.bunjang.co.kr/talk/room/401504836")).toBe(true);
   });
