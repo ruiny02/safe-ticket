@@ -5,6 +5,7 @@ WORKDIR /app
 # Install the pipeline API runtime dependencies.
 COPY apps/pipeline/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN python -m playwright install --with-deps chromium
 
 # Copy the pipeline service source so the image can run without bind mounts.
 COPY apps/pipeline /app/apps/pipeline
