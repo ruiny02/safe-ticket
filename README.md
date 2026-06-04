@@ -34,6 +34,8 @@ DB_PORT=5433 docker compose up --build
 
 실행 후 접속 주소:
 - 데모 페이지: `http://localhost:3000/product/227242032.html`
+- 중고나라 채팅 데모: `http://localhost:3000/joongna-chat.html`
+- 번개장터 채팅 데모: `http://localhost:3000/bunjang-chat.html`
 - 백엔드 health: `http://localhost:8000/api/v1/health/live`
 - 더치트 로그인 브라우저: `http://localhost:6080`
 
@@ -69,8 +71,8 @@ pnpm --dir apps/frontend/web-demo build
 이미 로드한 상태에서 다시 빌드했으면 삭제 후 재설치할 필요는 없고 `Reload`만 하면 됩니다.
 
 ### 5. 동작 확인
-1. `http://localhost:3000/product/227242032.html` 열기
-2. 우측 상단 확장 패널에서 `백엔드로 전송` 클릭
+1. `http://localhost:3000/product/227242032.html` 또는 `http://localhost:3000/joongna-chat.html` 열기
+2. 우측 상단 확장 패널에서 `스캔 실행` 클릭
 3. 위험 요약 / 문제 이유 / 권장 확인 사항 / 본문 빨간 하이라이트 확인
 
 ### 6. backend 로그 보기

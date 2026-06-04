@@ -16,10 +16,10 @@
 
 ## 현재 MVP 구현
 - `apps/frontend/web-demo` 는 이제 standalone 웹페이지가 아니라 **Manifest V3 content script 확장 프로그램**이다.
-- 확장 프로그램은 `localhost` 데모 페이지와 실제 `web.joongna.com/product/*` 페이지를 대상으로 동작한다.
+- 확장 프로그램은 상품 상세 데모, 거래 채팅 데모, 실제 `web.joongna.com/product/*` 페이지를 대상으로 동작한다.
 - 파싱과 API payload 생성은 `apps/frontend/shared` 아래 공용 로직을 그대로 사용한다.
 - 현재 MVP 는 `scan panel` 기준으로 동작하고, `POST /api/v1/scans` 생성 후 `GET /api/v1/scans/{scan_id}` 결과를 polling 해서 표시한다.
-- `chat panel` 과 `report page` 는 다음 단계에서 확장할 방향으로 문서상 역할을 먼저 고정한다.
+- `chat panel` 은 현재 UI preview 형태로 포함되어 있고, 실제 대화 API 연결은 다음 단계로 둔다.
 
 ## 주요 동작
 - 허용한 사이트의 거래 게시글 페이지에서만 동작
@@ -66,8 +66,8 @@
 
 ## 메모
 - 확장 프로그램 UI에서 직접 백엔드를 호출할 경우, 백엔드 CORS allowlist 에 extension origin 을 포함해야 한다.
-- 현재 MVP 는 수동으로 `백엔드로 전송` 버튼을 눌러 스캔을 시작한다.
-- 향후에는 우측 고정 패널을 `chat panel` 로 전환하고, 별도 `scan panel` 을 분석 전용 패널로 분리한다.
+- 현재 MVP 는 수동으로 `스캔 실행` 버튼을 눌러 스캔을 시작한다.
+- 상품 상세 페이지와 거래 채팅 데모 페이지는 `apps/frontend/web-demo/dist` 통합 extension 하나로 처리한다.
 
 ## 로컬 실행
 1. 백엔드와 데모 페이지 서버 실행
@@ -80,10 +80,13 @@
 6. `apps/frontend/web-demo/dist` 디렉토리 선택
 7. 데모 페이지 접속
    - `http://localhost:3000/product/227242032.html`
+   - `http://localhost:3000/joongna-chat.html`
+   - `http://localhost:3000/bunjang-chat.html`
 
 ## 핵심 파일
 - `apps/frontend/web-demo/public/manifest.json`
 - `apps/frontend/web-demo/src/main.tsx`
 - `apps/frontend/web-demo/src/App.tsx`
 - `apps/frontend/shared/joonggonara.ts`
+- `apps/frontend/shared/trade-chat.ts`
 - `apps/frontend/shared/scan-api.ts`

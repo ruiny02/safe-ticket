@@ -1,6 +1,7 @@
 .env
 .env.local
 .env.*.local
+.local/
 
 __pycache__/
 *.py[cod]
@@ -50,3 +51,6 @@ apps/pipeline/venv/
 # python
 __pycache__/
 *.pyc
+
+
+.tmp
