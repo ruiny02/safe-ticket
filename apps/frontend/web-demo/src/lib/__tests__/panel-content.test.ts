@@ -69,7 +69,7 @@ describe("buildPanelContent", () => {
     });
 
     expect(content.tone).toBe("danger");
-    expect(content.headline).toContain("Immediate review");
+    expect(content.headline).toContain("즉시 확인");
     expect(content.reasons).toEqual([
       {
         title: "KakaoBank",
@@ -81,9 +81,9 @@ describe("buildPanelContent", () => {
       body: "Cross-check the seller name and deposit account holder.",
     });
     expect(content.externalLookups[0]).toEqual({
-      title: "Police lookup - account",
+      title: "경찰청 사이버사기 조회 · 계좌번호",
       body: "No recent report history was found.",
-      statusLabel: "no reports",
+      statusLabel: "신고 이력 없음",
       tone: "ok",
       keyword: "3355-28-8620726",
     });
@@ -98,11 +98,74 @@ describe("buildPanelContent", () => {
 
     expect(content.tone).toBe("ok");
     expect(content.statusLabel).toBe("ready");
-    expect(content.headline).toBe("Scan ready");
-    expect(content.summary).toContain("Scan");
+    expect(content.headline).toBe("스캔 준비");
+    expect(content.summary).toContain("스캔");
     expect(content.actions[0]).toEqual({
-      title: "Run scan",
+      title: "스캔 실행",
       body: "백엔드로 분석 요청을 보내고 위험 점수, 하이라이트, 권장 행동을 받아옵니다.",
     });
+  });
+
+  it("deduplicates repeated highlight reasons for the compact extension panel", () => {
+    const scanResult: ScanResultResponse = {
+      scan_id: "scan_456",
+      status: "completed",
+      risk_level: "high",
+      risk_score: 0.7,
+      summary: "High risk detected.",
+      risk_tags: ["ticket_transfer_risk"],
+      evidence_items: [],
+      highlight_targets: [
+        {
+          block_id: "title",
+          start: 0,
+          end: 2,
+          matched_text: "티켓",
+          reason_code: "ticket_transfer_risk",
+          reason: "The listing discusses ticket transfer, which is a common scam context.",
+          css_class: "safe-ticket-highlight-danger",
+        },
+        {
+          block_id: "chat-1",
+          start: 4,
+          end: 6,
+          matched_text: "티켓",
+          reason_code: "ticket_transfer_risk",
+          reason: "The listing discusses ticket transfer, which is a common scam context.",
+          css_class: "safe-ticket-highlight-danger",
+        },
+        {
+          block_id: "chat-2",
+          start: 0,
+          end: 5,
+          matched_text: "안심결제",
+          reason_code: "avoid_safe_payment",
+          reason: "The seller avoids platform-protected payment.",
+          css_class: "safe-ticket-highlight-danger",
+        },
+      ],
+      similar_cases: [],
+      recommended_actions: [],
+      external_lookup_results: [],
+      degraded: false,
+      report_url: "/report/scan_456",
+    };
+
+    const content = buildPanelContent({
+      pageUrl: payload.page_url,
+      payload,
+      scanResult,
+    });
+
+    expect(content.reasons).toEqual([
+      {
+        title: "티켓",
+        body: "The listing discusses ticket transfer, which is a common scam context.",
+      },
+      {
+        title: "안심결제",
+        body: "The seller avoids platform-protected payment.",
+      },
+    ]);
   });
 });

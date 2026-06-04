@@ -110,6 +110,7 @@ const pipelineDebug: PipelineExchangeResponse = {
         text: "입금 은행 : 카카오뱅크\n계좌 번호 : 3355-28-8620726",
       },
     ],
+    marketplace_signals: [],
   },
   inbound_payload: {
     risk_level: "high",

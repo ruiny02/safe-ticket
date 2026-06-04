@@ -95,14 +95,28 @@ function extractShippingText(html: string): string {
 }
 
 function extractBunjangMarketplaceSignals(html: string) {
+  const extractCount = (pattern: RegExp): string | undefined => html.match(pattern)?.[1];
+  const extractJsonNumber = (fieldName: string): string | undefined =>
+    html.match(new RegExp(`"${fieldName}"\\s*:\\s*"?(\\\\?\\d[\\d.,]*)"?`, "i"))?.[1]?.replace(/\\/g, "");
   const rating =
     html.match(/★\s*([0-9.]+)/)?.[1] ??
-    html.match(/(?:별점|평점)\s*([0-9.]+)/)?.[1];
-  const satisfactionCount = html.match(/만족후기\s*([0-9,]+)/)?.[1];
-  const reviewCount = html.match(/후기\s*([0-9,]+)/)?.[1];
+    html.match(/☆\s*([0-9.]+)/)?.[1] ??
+    html.match(/(?:별점|평점|rating)[\s:]*([0-9.]+)/i)?.[1] ??
+    html.match(/aria-label="(?:별점|평점|rating)\s*([0-9.]+)"/i)?.[1] ??
+    html.match(/<strong[^>]*>\s*([0-9.]+)\s*<\/strong>\s*<span[^>]*>\s*(?:별점|평점)/i)?.[1] ??
+    extractJsonNumber("sellerRating") ??
+    extractJsonNumber("rating") ??
+    extractJsonNumber("reviewAverage");
+  const satisfactionCount =
+    extractCount(/만족후기[\s:]*([0-9,]+)/) ??
+    extractCount(/만족 후기[\s:]*([0-9,]+)/);
+  const reviewCount =
+    extractCount(/(?:전체\s*)?후기[\s:]*([0-9,]+)/) ??
+    extractCount(/reviewCount"\s*:\s*"?(\\?\d[\d,]*)"?/i)?.replace(/\\/g, "");
   const transactionCount =
-    html.match(/거래(?:내역|횟수)\s*([0-9,]+)/)?.[1] ??
-    html.match(/지금까지\s*([0-9,]+)개의 상품을 판매했어요/)?.[1];
+    extractCount(/거래(?:내역|횟수)[\s:]*([0-9,]+)/) ??
+    extractCount(/지금까지\s*([0-9,]+)개의 상품을 판매했어요/) ??
+    extractCount(/transactionCount"\s*:\s*"?(\\?\d[\d,]*)"?/i)?.replace(/\\/g, "");
 
   return normalizeMarketplaceSignals([
     {
