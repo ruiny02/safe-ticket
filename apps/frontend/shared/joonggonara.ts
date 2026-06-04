@@ -1,10 +1,11 @@
-import type { ScanCreateRequest } from "./types";
+import type { ContentBlock, MarketplaceSignal, ScanCreateRequest } from "./types";
 import {
   buildFallbackSellerId,
   buildMarketplaceSignalsBlock,
   cleanMultiline,
   decodeFieldText,
   extractChatBlocks,
+  extractChatBlocksFromDocument,
   extractProductJsonLd,
   fallbackMatch,
   matchOrThrow,
@@ -14,16 +15,16 @@ import {
 } from "./parser-utils";
 
 const JOONGNA_SUSPICIOUS_SELLER_TOKENS = [
-  "\uacb0\uc81c \ud61c\ud0dd",
-  "\uac00\uac8c \uc815\ubcf4",
-  "\ucd5c\uadfc \ubcf8 \uc0c1\ud488",
-  "\ud30c\uc6cc\uc1fc\ud551",
-  "\ud30c\uc6cc\ub9c1\ud06c",
-  "\uc571 \ub2e4\uc6b4\ub85c\ub4dc",
-  "\uce74\ud14c\uace0\ub9ac",
-  "\ud310\ub9e4\ud558\uae30",
-  "\ucc44\ud305\ud558\uae30",
-  "\ub9c8\uc774",
+  "결제 혜택",
+  "가게 정보",
+  "최근 본 상품",
+  "파워쇼핑",
+  "파워링크",
+  "앱 다운로드",
+  "카테고리",
+  "판매하기",
+  "채팅하기",
+  "마이",
 ];
 
 function escapeRegExp(value: string): string {
@@ -38,14 +39,14 @@ function extractJoongnaString(source: string, fieldName: string): string | undef
 }
 
 function extractJoongnaNumber(source: string, fieldName: string): string | undefined {
-  const escapedPattern = new RegExp(String.raw`\\"${fieldName}\\":(\d+)`);
+  const escapedPattern = new RegExp(String.raw`\\"${fieldName}\\":(\\d+)`);
   const rawPattern = new RegExp(`"${fieldName}":(\\d+)`);
 
   return fallbackMatch(source, escapedPattern) ?? fallbackMatch(source, rawPattern);
 }
 
 function extractJoongnaVisiblePrice(html: string): string | undefined {
-  const won = "\uc6d0";
+  const won = "원";
   const titleHintRaw =
     fallbackMatch(html, /<title>([^<]+?) \| [^<]+<\/title>/) ??
     fallbackMatch(html, /<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
@@ -74,11 +75,15 @@ function extractJoongnaVisiblePrice(html: string): string | undefined {
   return (
     fallbackMatch(
       html,
-      new RegExp(`<h1[^>]*>[\\s\\S]*?<\\/h1>[\\s\\S]{0,1200}?<span[^>]*text-32 font-bold[^"]*"[^>]*>([\\d,]+)${won}<\\/span>`),
+      new RegExp(
+        `<h1[^>]*>[\\s\\S]*?<\\/h1>[\\s\\S]{0,1200}?<span[^>]*text-32 font-bold[^"]*"[^>]*>([\\d,]+)${won}<\\/span>`,
+      ),
     ) ??
     fallbackMatch(
       html,
-      new RegExp(`<h1[^>]*>[\\s\\S]*?<\\/h1>[\\s\\S]{0,1200}?<span[^>]*text-24 font-bold[^"]*"[^>]*>([\\d,]+)${won}<\\/span>`),
+      new RegExp(
+        `<h1[^>]*>[\\s\\S]*?<\\/h1>[\\s\\S]{0,1200}?<span[^>]*text-24 font-bold[^"]*"[^>]*>([\\d,]+)${won}<\\/span>`,
+      ),
     )
   );
 }
@@ -91,7 +96,7 @@ function extractJoongnaVisibleSeller(html: string): string | undefined {
     ) ??
     fallbackMatch(
       html,
-      new RegExp(`\\uac00\\uac8c \\uc815\\ubcf4[\\s\\S]{0,1200}?<span[^>]*text-gray-900[^"]*"[^>]*>([^<]+)<\\/span>`),
+      /가게 정보[\s\S]{0,1200}?<span[^>]*text-gray-900[^"]*"[^>]*>([^<]+)<\/span>/,
     )
   );
 }
@@ -112,48 +117,148 @@ function extractJoongnaSellerFromWatermark(source: string): string | undefined {
   }
 }
 
-function extractJoongnaMarketplaceSignals(html: string) {
+function extractJoongnaMarketplaceSignals(html: string): MarketplaceSignal[] {
+  const isDecorativeSignal = (value: string | undefined): boolean => {
+    if (!value) {
+      return true;
+    }
+
+    const normalizedValue = normalizeInlineText(value);
+    return /^[^\p{L}\p{N}]+$/u.test(normalizedValue);
+  };
+
+  const extractMetric = (labelEscaped: string, ariaPattern?: RegExp): string | undefined => {
+    if (ariaPattern) {
+      const ariaValue = fallbackMatch(html, ariaPattern);
+      if (ariaValue && !isDecorativeSignal(ariaValue)) {
+        return ariaValue;
+      }
+    }
+
+    const rawValue =
+      fallbackMatch(
+        html,
+        new RegExp(`${labelEscaped}[\\s\\S]{0,160}?<span[^>]*>([^<]+)<\\/span>`),
+      ) ??
+      fallbackMatch(
+        html,
+        new RegExp(`${labelEscaped}[\\s\\S]{0,160}?<div[^>]*>([^<]+)<\\/div>`),
+      ) ??
+      fallbackMatch(
+        html,
+        new RegExp(`${labelEscaped}[\\s\\S]{0,80}?>([\\d,]+|가능|불가)<`),
+      );
+
+    return isDecorativeSignal(rawValue) ? undefined : rawValue;
+  };
+
   const trustScore =
-    fallbackMatch(
-      html,
-      new RegExp(`\\uc2e0\\ub8b0\\uc9c0\\uc218<\\/span><span[^>]*aria-label="([^"]+)"`),
-    ) ??
-    fallbackMatch(html, new RegExp(`\\uc2e0\\ub8b0\\uc9c0\\uc218[\\s\\S]{0,120}?aria-label="([^"]+)"`));
-  const safePaymentCount = fallbackMatch(
-    html,
-    new RegExp(`\\uc548\\uc2ec\\uacb0\\uc81c<\\/span><span[^>]*>([^<]+)<\\/span>`),
-  );
-  const reviewCount = fallbackMatch(
-    html,
-    new RegExp(`\\uac70\\ub798\\ud6c4\\uae30<\\/span><span[^>]*>([^<]+)<\\/span>`),
-  );
-  const favoriteCount = fallbackMatch(
-    html,
-    new RegExp(`\\ub2e8\\uace8<\\/span><span[^>]*>([^<]+)<\\/span>`),
-  );
+    extractMetric("신뢰지수", /신뢰지수[\s\S]{0,120}?aria-label="([^"]+)"/) ??
+    fallbackMatch(html, /신뢰지수[\s\S]{0,120}?>([\d,]+)</);
+  const safePaymentCount = extractMetric("안심결제");
+  const reviewCount = extractMetric("거래후기");
+  const favoriteCount = extractMetric("단골");
 
   return normalizeMarketplaceSignals([
     {
       key: "trust_score",
-      label: "\uc2e0\ub8b0\uc9c0\uc218",
+      label: "신뢰지수",
       value: normalizeInlineText(trustScore ?? ""),
     },
     {
       key: "safe_payment_count",
-      label: "\uc548\uc2ec\uacb0\uc81c",
+      label: "안심결제",
       value: normalizeInlineText(safePaymentCount ?? ""),
     },
     {
       key: "review_count",
-      label: "\uac70\ub798\ud6c4\uae30",
+      label: "거래후기",
       value: normalizeInlineText(reviewCount ?? ""),
     },
     {
       key: "favorite_count",
-      label: "\ub2e8\uace8",
+      label: "단골",
       value: normalizeInlineText(favoriteCount ?? ""),
     },
   ]);
+}
+
+function extractSignalsFromVisibleText(text: string, platform: ScanCreateRequest["platform"]): MarketplaceSignal[] {
+  const normalizedText = normalizeInlineText(text);
+
+  if (!normalizedText) {
+    return [];
+  }
+
+  const pick = (pattern: RegExp) => normalizedText.match(pattern)?.[1]?.trim() ?? "";
+
+  if (platform === "joonggonara") {
+    return normalizeMarketplaceSignals([
+      { key: "trust_score", label: "신뢰지수", value: pick(/신뢰지수\s*([0-9,.]+)/) },
+      { key: "safe_payment_count", label: "안심결제", value: pick(/안심결제\s*([0-9,]+)/) },
+      { key: "review_count", label: "거래후기", value: pick(/거래후기\s*([0-9,]+)/) },
+      { key: "favorite_count", label: "단골", value: pick(/단골\s*([0-9,]+)/) },
+    ]);
+  }
+
+  return normalizeMarketplaceSignals([
+    {
+      key: "seller_rating",
+      label: "별점",
+      value:
+        pick(/(?:별점|평점)\s*([0-9.]+)/) ||
+        pick(/[⭐★☆]\s*([0-9.]+)/) ||
+        pick(/([0-9.]+)\s*[⭐★☆]+/) ||
+        pick(/([0-9.]+)\s*점\s*[⭐★☆]+/),
+    },
+    {
+      key: "satisfaction_count",
+      label: "만족후기",
+      value: pick(/만족후기\s*([0-9,]+)/) || pick(/([0-9]{1,3}%?)\s*만족후기/),
+    },
+    {
+      key: "review_count",
+      label: "후기",
+      value: pick(/(?:전체\s*)?후기\s*([0-9,]+)/),
+    },
+    {
+      key: "transaction_count",
+      label: "거래내역",
+      value:
+        pick(/거래(?:내역|횟수)\s*([0-9,]+)/) ||
+        pick(/지금까지\s*([0-9,]+)개의 상품을 판매했어요/),
+    },
+  ]);
+}
+
+function mergeMarketplaceSignals(currentSignals: MarketplaceSignal[], nextSignals: MarketplaceSignal[]): MarketplaceSignal[] {
+  const nextSignalMap = new Map(nextSignals.map((signal) => [signal.key, signal]));
+  const mergedSignals = currentSignals
+    .filter((signal) => !nextSignalMap.has(signal.key))
+    .concat(nextSignals);
+
+  return normalizeMarketplaceSignals(mergedSignals);
+}
+
+function syncMarketplaceSignalsBlock(payload: ScanCreateRequest): void {
+  const blockIndex = payload.content_blocks.findIndex((block) => block.block_id === "marketplace-signals");
+  const nextBlock = buildMarketplaceSignalsBlock(payload.marketplace_signals);
+
+  if (!nextBlock && blockIndex >= 0) {
+    payload.content_blocks.splice(blockIndex, 1);
+    return;
+  }
+
+  if (!nextBlock) {
+    return;
+  }
+
+  if (blockIndex >= 0) {
+    payload.content_blocks[blockIndex] = nextBlock;
+    return;
+  }
+
+  payload.content_blocks.push(nextBlock);
 }
 
 function isSuspiciousJoongnaSeller(value: string): boolean {
@@ -164,6 +269,23 @@ function isSuspiciousJoongnaSeller(value: string): boolean {
   }
 
   return JOONGNA_SUSPICIOUS_SELLER_TOKENS.some((token) => normalizedValue.includes(token));
+}
+
+function isChatPayload(payload: ScanCreateRequest): boolean {
+  return /\/(?:chat|message|messages|talk)(?:[/?#]|$)|[?&](room|chat)/i.test(payload.page_url);
+}
+
+function isChatBlockId(blockId: string): boolean {
+  return /^jn-chat-\d+$/i.test(blockId) || /^bg-chat-\d+$/i.test(blockId);
+}
+
+function syncChatBlocks(payload: ScanCreateRequest, chatBlocks: ContentBlock[]): void {
+  if (!chatBlocks.length) {
+    return;
+  }
+
+  const staticBlocks = payload.content_blocks.filter((block) => !isChatBlockId(block.block_id));
+  payload.content_blocks = [...staticBlocks, ...chatBlocks];
 }
 
 export function isJoongnaChatHtml(html: string, pageUrl: string): boolean {
@@ -203,9 +325,7 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
   const title = titleRaw
     ? cleanMultiline(decodeFieldText(titleRaw))
     : matchOrThrow(html, /<title>([^<]+)<\/title>/, "Joongna title");
-  const sellerNickname = sellerNicknameRaw
-    ? normalizeInlineText(decodeFieldText(sellerNicknameRaw))
-    : "unknown";
+  const sellerNickname = sellerNicknameRaw ? normalizeInlineText(decodeFieldText(sellerNicknameRaw)) : "unknown";
   const description = descriptionRaw ? cleanMultiline(decodeFieldText(descriptionRaw)) : "";
 
   if (!priceRaw) {
@@ -222,14 +342,8 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
       nickname: sellerNickname,
     },
     content_blocks: [
-      {
-        block_id: "title",
-        text: title,
-      },
-      {
-        block_id: "body-1",
-        text: description,
-      },
+      { block_id: "title", text: title },
+      { block_id: "body-1", text: description },
       ...(marketplaceSignalsBlock ? [marketplaceSignalsBlock] : []),
     ].filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,
@@ -240,10 +354,6 @@ export function enhanceJoongnaProductPayloadFromDocument(
   document: Document,
   payload: ScanCreateRequest,
 ): ScanCreateRequest {
-  if (payload.platform !== "joonggonara") {
-    return payload;
-  }
-
   const titleText = normalizeInlineText(document.querySelector("h1")?.textContent ?? "");
   const priceCandidates = Array.from(
     document.querySelectorAll(
@@ -251,15 +361,13 @@ export function enhanceJoongnaProductPayloadFromDocument(
     ),
   )
     .map((element) => normalizeInlineText(element.textContent ?? ""))
-    .filter((value) => /\d[\d,]*\s*원$/.test(value));
-  const sellerAnchor = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/store/"]')).find(
-    (anchor) => {
-      const nickname = normalizeInlineText(
-        anchor.querySelector("span.text-gray-900, span[class*='text-gray-900']")?.textContent ?? "",
-      );
-      return !isSuspiciousJoongnaSeller(nickname);
-    },
-  );
+    .filter((value) => /\d[\d,]*\s*원/.test(value));
+  const sellerAnchor = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/store/"]')).find((anchor) => {
+    const nickname = normalizeInlineText(
+      anchor.querySelector("span.text-gray-900, span[class*='text-gray-900']")?.textContent ?? "",
+    );
+    return !isSuspiciousJoongnaSeller(nickname);
+  });
   const sellerNickname = normalizeInlineText(
     sellerAnchor?.querySelector("span.text-gray-900, span[class*='text-gray-900']")?.textContent ?? "",
   );
@@ -272,9 +380,10 @@ export function enhanceJoongnaProductPayloadFromDocument(
       ...payload.seller,
     },
     content_blocks: payload.content_blocks.map((block) => ({ ...block })),
+    marketplace_signals: payload.marketplace_signals.map((signal) => ({ ...signal })),
   };
 
-  if (titleText.length > 3 && titleText !== payload.page_title) {
+  if (payload.platform === "joonggonara" && titleText.length > 3 && titleText !== payload.page_title) {
     nextPayload.page_title = titleText;
     const titleBlock = nextPayload.content_blocks.find((block) => block.block_id === "title");
     if (titleBlock) {
@@ -282,7 +391,7 @@ export function enhanceJoongnaProductPayloadFromDocument(
     }
   }
 
-  if (priceCandidates.length) {
+  if (payload.platform === "joonggonara" && priceCandidates.length) {
     const price = parseMoney(priceCandidates[0]);
     if (price > 0) {
       nextPayload.price = price;
@@ -290,9 +399,10 @@ export function enhanceJoongnaProductPayloadFromDocument(
   }
 
   const shouldReplaceSeller =
-    !nextPayload.seller.seller_id.trim() ||
-    nextPayload.seller.seller_id.includes("unknown") ||
-    isSuspiciousJoongnaSeller(nextPayload.seller.nickname);
+    payload.platform === "joonggonara" &&
+    (!nextPayload.seller.seller_id.trim() ||
+      nextPayload.seller.seller_id.includes("unknown") ||
+      isSuspiciousJoongnaSeller(nextPayload.seller.nickname));
 
   if (shouldReplaceSeller) {
     if (sellerId) {
@@ -303,6 +413,22 @@ export function enhanceJoongnaProductPayloadFromDocument(
       nextPayload.seller.nickname = sellerNickname;
     } else if (watermarkSeller && !isSuspiciousJoongnaSeller(watermarkSeller)) {
       nextPayload.seller.nickname = watermarkSeller;
+    }
+  }
+
+  const visibleSignals = extractSignalsFromVisibleText(document.body?.innerText ?? "", payload.platform);
+  if (visibleSignals.length) {
+    nextPayload.marketplace_signals = mergeMarketplaceSignals(nextPayload.marketplace_signals, visibleSignals);
+    syncMarketplaceSignalsBlock(nextPayload);
+  }
+
+  if (isChatPayload(nextPayload)) {
+    const liveChatBlocks = extractChatBlocksFromDocument(
+      document,
+      nextPayload.platform === "joonggonara" ? "jn-chat" : "bg-chat",
+    );
+    if (liveChatBlocks.length) {
+      syncChatBlocks(nextPayload, liveChatBlocks);
     }
   }
 
@@ -344,13 +470,7 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
   const priceText = normalizeInlineText(decodeFieldText(priceTextRaw));
   const tradeLocation = normalizeInlineText(decodeFieldText(tradeLocationRaw));
   const sellerNickname = normalizeInlineText(decodeFieldText(sellerNameRaw));
-  const marketplaceSignals = normalizeMarketplaceSignals([
-    {
-      key: "safe_payment",
-      label: "\uc548\uc2ec\uacb0\uc81c",
-      value: new RegExp(`\\uc548\\uc2ec\\uacb0\\uc81c`).test(html) ? "available" : "",
-    },
-  ]);
+  const marketplaceSignals = extractJoongnaMarketplaceSignals(html);
   const marketplaceSignalsBlock = buildMarketplaceSignalsBlock(marketplaceSignals);
 
   return {
@@ -363,14 +483,8 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
       nickname: sellerNickname,
     },
     content_blocks: [
-      {
-        block_id: "title",
-        text: title,
-      },
-      {
-        block_id: "product-summary",
-        text: [title, priceText, tradeLocation].filter(Boolean).join(" "),
-      },
+      { block_id: "title", text: title },
+      { block_id: "product-summary", text: [title, priceText, tradeLocation].filter(Boolean).join(" ") },
       ...(marketplaceSignalsBlock ? [marketplaceSignalsBlock] : []),
       ...chatBlocks,
     ].filter((block) => block.text.trim().length > 0),

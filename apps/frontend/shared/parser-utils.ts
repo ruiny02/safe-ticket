@@ -131,6 +131,65 @@ export function extractChatBlocks(html: string, prefix = "chat") {
     .filter((block): block is { block_id: string; text: string } => block !== null);
 }
 
+export function extractChatBlocksFromDocument(
+  documentRef: Document,
+  prefix = "chat",
+): Array<{ block_id: string; text: string }> {
+  const selector = [
+    "[data-chat-message]",
+    "[data-message-id]",
+    "[data-testid*='message']",
+    "[class*='bubble']",
+    "[class*='message']",
+    "[class*='msg']",
+  ].join(", ");
+  const allCandidates = Array.from(documentRef.querySelectorAll<HTMLElement>(selector));
+  const candidates = allCandidates.filter((element) => {
+    if (!element.isConnected) {
+      return false;
+    }
+
+    if (element.closest("#safe-ticket-extension-root")) {
+      return false;
+    }
+
+    if (element.querySelector(selector)) {
+      return false;
+    }
+
+    const text = normalizeInlineText(element.textContent ?? "");
+    if (!text || text.length < 2 || text.length > 280) {
+      return false;
+    }
+
+    if (/^(보내기|전송|입력|채팅하기|번개톡|중고나라|번개장터)$/u.test(text)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const seenTexts = new Set<string>();
+
+  return candidates
+    .map((element, index) => {
+      const text = normalizeInlineText(element.textContent ?? "");
+      if (!text || seenTexts.has(text)) {
+        return null;
+      }
+
+      seenTexts.add(text);
+      return {
+        block_id:
+          element.dataset.messageId ??
+          element.getAttribute("data-message-id") ??
+          `${prefix}-${String(index + 1).padStart(3, "0")}`,
+        text,
+      };
+    })
+    .filter((block): block is { block_id: string; text: string } => block !== null);
+}
+
 export function buildMarketplaceSignalsBlock(
   signals: MarketplaceSignal[],
 ): { block_id: string; text: string } | null {

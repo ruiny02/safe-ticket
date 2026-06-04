@@ -13,7 +13,7 @@ import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketp
 import { createScan, createScanSync, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
-import { buildAssistantReply, buildChatWelcomeMessage, buildSuggestedPrompts } from "./lib/chatbot";
+import { buildAssistantReply, buildSuggestedPrompts } from "./lib/chatbot";
 import {
   PANEL_COLLAPSED_WIDTH,
   clampPanelRect,
@@ -433,7 +433,46 @@ export function App({ pageUrl }: AppProps) {
   }, [currentPageUrl, payload]);
 
   useEffect(() => {
-    setChatMessages([createMessage("assistant", buildChatWelcomeMessage(payload, scanResult))]);
+    if (!payload || !document.body) {
+      return;
+    }
+
+    let scheduled = 0;
+
+    const syncVisibleDetails = () => {
+      const nextPayload = enhanceJoongnaProductPayloadFromDocument(document, payload);
+
+      if (JSON.stringify(nextPayload) !== JSON.stringify(payload)) {
+        setPayload(nextPayload);
+      }
+    };
+
+    const observer = new MutationObserver(() => {
+      if (scheduled) {
+        window.clearTimeout(scheduled);
+      }
+
+      scheduled = window.setTimeout(syncVisibleDetails, 180);
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    scheduled = window.setTimeout(syncVisibleDetails, 0);
+
+    return () => {
+      if (scheduled) {
+        window.clearTimeout(scheduled);
+      }
+      observer.disconnect();
+    };
+  }, [payload, currentPageUrl]);
+
+  useEffect(() => {
+    setChatMessages([]);
     setChatError(null);
     setChatInput("");
     setIsChatLoading(false);

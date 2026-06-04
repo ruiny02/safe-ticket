@@ -58,18 +58,38 @@ function describeSimilarCase(similarCase: SimilarCase): string {
   return `${similarCase.summary} (유사도 ${Math.round(similarCase.score * 100)}점)`;
 }
 
+function orderTrustSignals(signals: MarketplaceSignal[]): MarketplaceSignal[] {
+  const priority = new Map<string, number>([
+    ["seller_rating", 0],
+    ["trust_score", 1],
+    ["safe_payment", 2],
+    ["safe_payment_count", 3],
+    ["review_count", 4],
+    ["satisfaction_count", 5],
+    ["favorite_count", 6],
+    ["transaction_count", 7],
+  ]);
+
+  return [...signals].sort((left, right) => {
+    const leftPriority = priority.get(left.key) ?? 999;
+    const rightPriority = priority.get(right.key) ?? 999;
+    return leftPriority - rightPriority;
+  });
+}
+
 function buildListingSummary(payload: ScanCreateRequest): string {
   const summary = [
     `플랫폼: ${payload.platform === "joonggonara" ? "중고나라" : "번개장터"}`,
     `제목: ${payload.page_title}`,
     `가격: ${formatPrice(payload.price)}`,
     `판매자: ${payload.seller.nickname}`,
+    `판매자 ID: ${payload.seller.seller_id}`,
   ];
 
   if (payload.marketplace_signals.length) {
     summary.push(
-      `신뢰지표: ${payload.marketplace_signals
-        .slice(0, 4)
+      `신뢰지표: ${orderTrustSignals(payload.marketplace_signals)
+        .slice(0, 5)
         .map(formatSignal)
         .join(", ")}`,
     );
@@ -100,14 +120,23 @@ function buildRiskSummary(scanResult: ScanResultResponse): string {
 }
 
 function buildTrustSignalSummary(signals: MarketplaceSignal[]): string {
-  if (!signals.length) {
-    return "현재 페이지에서 읽은 신뢰지표는 아직 없습니다. 상품 상세나 채팅 화면에 노출된 별점, 거래후기, 안심결제, 단골 같은 정보가 보이는지 함께 확인해 주세요.";
+  const visibleSignals = signals.filter((signal) => signal.key !== "safe_payment");
+
+  if (!visibleSignals.length) {
+    return "현재 페이지에서 읽은 신뢰지표는 아직 없습니다. 상품 상세나 채팅 화면에 노출된 별점, 거래후기, 안심결제, 단골, 거래내역 같은 정보가 보이는지 함께 확인해 주세요.";
   }
 
-  return [
-    "현재 읽은 신뢰지표는 아래와 같습니다.",
-    ...signals.slice(0, 6).map((signal) => `- ${formatSignal(signal)}`),
-  ].join("\n");
+  const orderedSignals = orderTrustSignals(visibleSignals);
+  const ratingSignal = orderedSignals.find((signal) => signal.key === "seller_rating");
+  const lines = ["현재 읽은 신뢰지표는 아래와 같습니다."];
+
+  if (ratingSignal) {
+    lines.push(`- 대표 지표: ${formatSignal(ratingSignal)}`);
+  }
+
+  lines.push(...orderedSignals.slice(0, 6).map((signal) => `- ${formatSignal(signal)}`));
+
+  return lines.join("\n");
 }
 
 function buildHighlightSummary(highlights: ScanHighlightTarget[]): string {
@@ -224,7 +253,7 @@ export function buildAssistantReply(options: {
   }
 
   if (!scanResult) {
-    if (containsAny(normalizedPrompt, ["요약", "summary", "상품", "listing", "price", "seller"])) {
+    if (containsAny(normalizedPrompt, ["판매자", "seller", "가격", "price", "제목", "title", "상품", "listing", "요약", "summary"])) {
       return buildListingSummary(payload);
     }
 
@@ -252,6 +281,36 @@ export function buildAssistantReply(options: {
 
   if (scanResult.status === "failed") {
     return "이번 스캔은 실패 상태예요. 서버 연결이나 파이프라인 상태를 확인한 뒤 다시 Scan을 눌러 주세요.";
+  }
+
+  if (
+    containsAny(normalizedPrompt, [
+      "판매자",
+      "seller",
+      "가격",
+      "price",
+      "제목",
+      "title",
+      "상품",
+      "listing",
+    ])
+  ) {
+    return buildListingSummary(payload);
+  }
+
+  if (
+    containsAny(normalizedPrompt, [
+      "신뢰",
+      "지표",
+      "후기",
+      "별점",
+      "안심결제",
+      "단골",
+      "거래내역",
+      "trust",
+    ])
+  ) {
+    return buildTrustSignalSummary(payload.marketplace_signals);
   }
 
   if (
@@ -307,21 +366,6 @@ export function buildAssistantReply(options: {
 
   if (
     containsAny(normalizedPrompt, [
-      "신뢰",
-      "지표",
-      "후기",
-      "별점",
-      "안심결제",
-      "단골",
-      "거래내역",
-      "trust",
-    ])
-  ) {
-    return buildTrustSignalSummary(payload.marketplace_signals);
-  }
-
-  if (
-    containsAny(normalizedPrompt, [
       "외부",
       "조회",
       "더치트",
@@ -359,21 +403,6 @@ export function buildAssistantReply(options: {
     ])
   ) {
     return buildRiskSummary(scanResult);
-  }
-
-  if (
-    containsAny(normalizedPrompt, [
-      "판매자",
-      "seller",
-      "가격",
-      "price",
-      "제목",
-      "title",
-      "상품",
-      "listing",
-    ])
-  ) {
-    return buildListingSummary(payload);
   }
 
   if (containsAny(normalizedPrompt, ["report", "dashboard", "리포트", "대시보드"])) {
