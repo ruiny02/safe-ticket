@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0I1qNinNIWhrFNTa5/lhVoG3nMwqV0UXU5uWdXRL21AJB3GLOUdOCQOqHjp/mDb1VMvYkeFwFVtkvvq78/6TH05awQj3hzlEkNq5vk551h1BRopOFGOS5RPjtWTkEraOGC3f2vlbhM1d/a/eQGTyi8kUXY49viKjMM4pUlynAaMKXQPPvPVUC7P4R9GWjZ/gwyXH+BE5ushPau3nQYxht6hDYGOJ77zz2mw4bwMX9JBiRZjlK5EonzfVBxS/zV8yUGTwEvEbJ4ghDgpLpWY+R3UV0L1tQxotVvY+R8rvkZD1sbuCdyuiLhjE5RlW/54LYXmZNHU+hnWNT2ADEFxcawIDAQAB",
   "name": "safe-ticket",
   "version": "0.0.0",
   "description": "Parses Joongna and Bunjang product or chat pages and posts scan payloads to the safe-ticket backend.",
