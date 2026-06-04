@@ -1,0 +1,95 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - infra/aws-lightsail-deployment
+      # Add main here later when production deployment should follow main.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to deploy
+        required: true
+        default: infra/aws-lightsail-deployment
+
+concurrency:
+  group: deploy-aws-${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Docker Compose stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Prepare SSH key
+        env:
+          AWS_SSH_KEY: ${{ secrets.AWS_SSH_KEY }}
+          AWS_HOST: ${{ secrets.AWS_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$AWS_SSH_KEY"
+          test -n "$AWS_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$AWS_SSH_KEY" > ~/.ssh/safe-ticket-deploy-key
+          chmod 600 ~/.ssh/safe-ticket-deploy-key
+          ssh-keyscan -H "$AWS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on AWS server
+        env:
+          AWS_HOST: ${{ secrets.AWS_HOST }}
+          AWS_USER: ${{ secrets.AWS_USER }}
+          AWS_APP_DIR: ${{ secrets.AWS_APP_DIR }}
+          DEPLOY_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -n "$AWS_HOST"
+          test -n "$AWS_USER"
+          test -n "$AWS_APP_DIR"
+          test -n "$DEPLOY_REF"
+
+          ssh -i ~/.ssh/safe-ticket-deploy-key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$AWS_USER@$AWS_HOST" \
+            "AWS_APP_DIR='$AWS_APP_DIR' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          REPO_URL="https://github.com/ruiny02/safe-ticket.git"
+
+          trap 'echo "Deployment failed. Recent service status and logs:"; sudo docker compose ps || true; sudo docker compose logs --tail=120 backend frontend || true' ERR
+
+          if [ ! -d "$AWS_APP_DIR/.git" ]; then
+            mkdir -p "$(dirname "$AWS_APP_DIR")"
+            git clone "$REPO_URL" "$AWS_APP_DIR"
+          fi
+
+          cd "$AWS_APP_DIR"
+          git fetch origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
+          git reset --hard "origin/$DEPLOY_REF"
+
+          sudo docker compose up -d --build
+
+          wait_for_http() {
+            local url="$1"
+            local name="$2"
+            for attempt in $(seq 1 30); do
+              if curl -fsS "$url" >/dev/null; then
+                echo "$name is healthy"
+                return 0
+              fi
+              echo "Waiting for $name ($attempt/30)"
+              sleep 2
+            done
+            echo "$name health check failed: $url"
+            return 1
+          }
+
+          wait_for_http "http://localhost:8000/api/v1/health/live" "backend live endpoint"
+          wait_for_http "http://localhost:8000/api/v1/health/ready" "backend ready endpoint"
+          wait_for_http "http://localhost:3000/report/" "frontend report page"
+
+          sudo docker compose ps
+          REMOTE
