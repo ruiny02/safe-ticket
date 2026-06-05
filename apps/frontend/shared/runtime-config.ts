@@ -17,12 +17,27 @@ export function buildDefaultApiBaseUrl(): string {
   }
 
   const hostname = window.location.hostname || "127.0.0.1";
+  const isLocalPreviewHost =
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "54.180.226.121";
+
+  if (!isLocalPreviewHost) {
+    return LOCAL_API_BASE_URL;
+  }
+
   const protocol = window.location.protocol || "http:";
   return `${protocol}//${hostname}:8000`;
 }
 
 export function buildDefaultFrontendBaseUrl(): string {
   if (typeof window === "undefined") {
+    return LOCAL_FRONTEND_BASE_URL;
+  }
+
+  const hostname = window.location.hostname || "127.0.0.1";
+  const isLocalPreviewHost =
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "54.180.226.121";
+
+  if (!isLocalPreviewHost) {
     return LOCAL_FRONTEND_BASE_URL;
   }
 

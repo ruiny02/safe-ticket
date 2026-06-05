@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildChatRequestPayload,
@@ -14,9 +14,16 @@ import { getSafeTicketApiBaseUrl } from "../../shared/runtime-config";
 import { createScan, createScanSync, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { buildLocalChatHighlightTargets, mergeHighlightTargets } from "./lib/chat-rules";
-import { buildAssistantReply, buildChatWelcomeMessage, buildSuggestedPrompts } from "./lib/chatbot";
+import { buildAssistantReply, buildSuggestedPrompts } from "./lib/chatbot";
+import {
+  PANEL_COLLAPSED_WIDTH,
+  clampPanelRect,
+  createDefaultPanelRect,
+  movePanel,
+  resizePanel,
+  type PanelRect,
+} from "./lib/floating-panel";
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
-import { applyPanelLayout, clearPanelLayout } from "./lib/page-layout";
 import { buildPanelContent } from "./lib/panel-content";
 import { buildDashboardBaseUrl, buildDashboardPageUrl, buildReportListUrl, buildReportPageUrl } from "./lib/report-link";
 
@@ -29,6 +36,30 @@ interface AppProps {
 }
 
 type PanelTab = "analysis" | "chat";
+
+interface PanelPreferences {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+type PanelInteraction =
+  | {
+      type: "drag";
+      pointerId: number;
+      originX: number;
+      originY: number;
+      originRect: PanelRect;
+    }
+  | {
+      type: "resize";
+      pointerId: number;
+      originX: number;
+      originY: number;
+      originRect: PanelRect;
+    }
+  | null;
 
 interface ChatMessage {
   id: string;
@@ -52,11 +83,50 @@ function formatRiskScore(riskScore: number | null | undefined): string {
   return `${Math.round(riskScore * 100)}`;
 }
 
+function formatRiskLevelLabel(riskLevel: ScanResultResponse["risk_level"] | null | undefined): string {
+  if (riskLevel === "high") {
+    return "높은 위험도";
+  }
+
+  if (riskLevel === "medium") {
+    return "중간 위험도";
+  }
+
+  if (riskLevel === "low") {
+    return "낮은 위험도";
+  }
+
+  return "위험도 분석 대기";
+}
+
 function getHostLabel(pageUrl: string): string {
   try {
     return new URL(pageUrl).host;
   } catch {
     return pageUrl;
+  }
+}
+
+function loadPanelPreferences(): PanelRect {
+  try {
+    const raw = window.localStorage.getItem("safeTicketPanelRect");
+    if (!raw) {
+      return createDefaultPanelRect(window.innerWidth, window.innerHeight);
+    }
+
+    const parsed = JSON.parse(raw) as Partial<PanelPreferences>;
+    if (
+      typeof parsed.x !== "number" ||
+      typeof parsed.y !== "number" ||
+      typeof parsed.width !== "number" ||
+      typeof parsed.height !== "number"
+    ) {
+      return createDefaultPanelRect(window.innerWidth, window.innerHeight);
+    }
+
+    return clampPanelRect(parsed as PanelRect, window.innerWidth, window.innerHeight);
+  } catch {
+    return createDefaultPanelRect(window.innerWidth, window.innerHeight);
   }
 }
 
@@ -158,6 +228,7 @@ export function App({ pageUrl }: AppProps) {
   const parseRequestIdRef = useRef(0);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
 
   const [payload, setPayload] = useState<ScanCreateRequest | null>(null);
   const [currentPageUrl, setCurrentPageUrl] = useState(pageUrl);
@@ -165,7 +236,7 @@ export function App({ pageUrl }: AppProps) {
   const [localHighlightTargets, setLocalHighlightTargets] = useState<ScanHighlightTarget[]>([]);
   const [appliedHighlights, setAppliedHighlights] = useState<ScanHighlightTarget[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [activePanelTab, setActivePanelTab] = useState<PanelTab>("analysis");
   const [chatInput, setChatInput] = useState("");
@@ -173,6 +244,8 @@ export function App({ pageUrl }: AppProps) {
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatSource, setChatSource] = useState<"local" | "remote">("local");
+  const [panelRect, setPanelRect] = useState<PanelRect>(() => loadPanelPreferences());
+  const [panelInteraction, setPanelInteraction] = useState<PanelInteraction>(null);
 
   const visibleScanResult = useMemo<ScanResultResponse | null>(() => {
     if (!scanResult) {
@@ -195,8 +268,8 @@ export function App({ pageUrl }: AppProps) {
     reportUrl: buildReportListUrl(),
   });
   const chatSuggestions = buildSuggestedPrompts(payload, visibleScanResult);
-  const welcomeMessage = buildChatWelcomeMessage(payload, visibleScanResult);
-
+  const heroTitle = visibleScanResult ? "스캔 결과" : payload ? "스캔 준비" : "페이지 확인 중";
+  const heroRiskLabel = formatRiskLevelLabel(visibleScanResult?.risk_level ?? null);
   const parseCurrentPage = async (options?: { silent?: boolean }): Promise<boolean> => {
     const requestId = ++parseRequestIdRef.current;
     const activePageUrl = readCurrentPageUrl();
@@ -485,6 +558,60 @@ export function App({ pageUrl }: AppProps) {
   }, [chatMessages, isChatLoading]);
 
   useEffect(() => {
+    window.localStorage.setItem("safeTicketPanelRect", JSON.stringify(panelRect));
+  }, [panelRect]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setPanelRect((current) => clampPanelRect(current, window.innerWidth, window.innerHeight));
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!panelInteraction) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== panelInteraction.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - panelInteraction.originX;
+      const deltaY = event.clientY - panelInteraction.originY;
+
+      setPanelRect((current) =>
+        panelInteraction.type === "drag"
+          ? movePanel(panelInteraction.originRect, deltaX, deltaY, window.innerWidth, window.innerHeight)
+          : resizePanel(panelInteraction.originRect, deltaX, deltaY, window.innerWidth, window.innerHeight),
+      );
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (event.pointerId !== panelInteraction.pointerId) {
+        return;
+      }
+
+      setPanelInteraction(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [panelInteraction]);
+
+  useEffect(() => {
     if (!visibleScanResult || (visibleScanResult.status !== "completed" && visibleScanResult.status !== "partial")) {
       setAppliedHighlights([]);
       clearPageHighlights();
@@ -534,21 +661,75 @@ export function App({ pageUrl }: AppProps) {
     };
   }, [visibleScanResult]);
 
-  useEffect(() => {
-    applyPanelLayout(isCollapsed);
-    const handleResize = () => applyPanelLayout(isCollapsed);
-    window.addEventListener("resize", handleResize);
+  const handleHeaderPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (isCollapsed) {
+      return;
+    }
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      clearPanelLayout();
-    };
-  }, [isCollapsed]);
+    const target = event.target as HTMLElement;
+    if (target.closest("button")) {
+      return;
+    }
+
+    event.preventDefault();
+    setPanelInteraction({
+      type: "drag",
+      pointerId: event.pointerId,
+      originX: event.clientX,
+      originY: event.clientY,
+      originRect: panelRect,
+    });
+  };
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPanelInteraction({
+      type: "resize",
+      pointerId: event.pointerId,
+      originX: event.clientX,
+      originY: event.clientY,
+      originRect: panelRect,
+    });
+  };
+
+  const handleBrandPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!isCollapsed) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setPanelInteraction({
+      type: "drag",
+      pointerId: event.pointerId,
+      originX: event.clientX,
+      originY: event.clientY,
+      originRect: panelRect,
+    });
+  };
 
   return (
-    <aside className={`safe-ticket-panel ${isCollapsed ? "is-collapsed" : ""}`}>
-      <header className="safe-ticket-header">
-        <div className="safe-ticket-brand">
+    <aside
+      className={`safe-ticket-panel ${isCollapsed ? "is-collapsed" : ""} ${panelInteraction ? "is-interacting" : ""}`}
+      onPointerDown={isCollapsed ? handleHeaderPointerDown : undefined}
+      ref={panelRef}
+      style={{
+        left: `${panelRect.x}px`,
+        top: `${panelRect.y}px`,
+        width: isCollapsed ? `${PANEL_COLLAPSED_WIDTH}px` : `${panelRect.width}px`,
+        height: isCollapsed ? "auto" : `${panelRect.height}px`,
+      }}
+    >
+      <header className="safe-ticket-header" onPointerDown={handleHeaderPointerDown}>
+        <div
+          className="safe-ticket-brand"
+          onPointerDown={(event) => {
+            if (isCollapsed) {
+              handleBrandPointerDown(event);
+            }
+          }}
+        >
           <span
             aria-hidden="true"
             className="safe-ticket-brand-mark"
@@ -557,8 +738,7 @@ export function App({ pageUrl }: AppProps) {
             }}
           />
           <div>
-            <p className="safe-ticket-eyebrow">safe-ticket</p>
-            <h1>거래 스캔</h1>
+            <p className="safe-ticket-eyebrow">SAFE-TICKET</p>
           </div>
         </div>
         <button
@@ -576,13 +756,26 @@ export function App({ pageUrl }: AppProps) {
             <section className={`safe-ticket-hero tone-${panelContent.tone}`}>
               <div className="safe-ticket-hero-copy">
                 <p className="safe-ticket-hero-status">{panelContent.statusLabel}</p>
-                <h2>{panelContent.headline}</h2>
-                <p>{panelContent.summary}</p>
+                <h2>{visibleScanResult ? `${heroTitle}: ${heroRiskLabel}` : heroTitle}</h2>
               </div>
               <div className="safe-ticket-hero-score">
                 <span>risk</span>
                 <strong>{formatRiskScore(visibleScanResult?.risk_score)}</strong>
               </div>
+            </section>
+
+            <section className="safe-ticket-cta-row is-split">
+              <button
+                className="safe-ticket-primary"
+                disabled={!payload || isSending}
+                onClick={() => void handleSubmit()}
+                type="button"
+              >
+                {isSending ? "스캔 중..." : "Scan"}
+              </button>
+              <button className="safe-ticket-tertiary" onClick={handleParse} type="button">
+                Re-read
+              </button>
             </section>
 
             <section className="safe-ticket-cta-row is-split">
@@ -594,7 +787,7 @@ export function App({ pageUrl }: AppProps) {
                     rel="noreferrer"
                     target="_blank"
                   >
-                    대시보드 보기
+                    Dashboard
                   </a>
                   <a
                     className="safe-ticket-primary safe-ticket-link-button safe-ticket-report-cta"
@@ -602,7 +795,7 @@ export function App({ pageUrl }: AppProps) {
                     rel="noreferrer"
                     target="_blank"
                   >
-                    리포트 보기
+                    Report
                   </a>
                 </>
               ) : (
@@ -611,34 +804,17 @@ export function App({ pageUrl }: AppProps) {
                     aria-disabled="true"
                     className="safe-ticket-secondary safe-ticket-link-button safe-ticket-report-cta is-disabled"
                   >
-                    대시보드 보기
+                    Dashboard
                   </span>
                   <span
                     aria-disabled="true"
                     className="safe-ticket-primary safe-ticket-link-button safe-ticket-report-cta is-disabled"
                   >
-                    리포트 보기
+                    Report
                   </span>
                 </>
               )}
             </section>
-
-            <nav className="safe-ticket-tab-row" aria-label="safe-ticket panel tabs">
-              <button
-                className={`safe-ticket-tab ${activePanelTab === "analysis" ? "is-active" : ""}`}
-                onClick={() => setActivePanelTab("analysis")}
-                type="button"
-              >
-                분석
-              </button>
-              <button
-                className={`safe-ticket-tab ${activePanelTab === "chat" ? "is-active" : ""}`}
-                onClick={() => setActivePanelTab("chat")}
-                type="button"
-              >
-                AI 질문
-              </button>
-            </nav>
 
             {activePanelTab === "analysis" ? (
               <>
@@ -647,6 +823,8 @@ export function App({ pageUrl }: AppProps) {
                     <h2>외부 조회</h2>
                     {panelContent.externalLookups.length ? (
                       <span className="safe-ticket-badge ok">{panelContent.externalLookups.length} checks</span>
+                    ) : visibleScanResult ? (
+                      <span className="safe-ticket-badge neutral">not run</span>
                     ) : (
                       <span className="safe-ticket-badge ok">standby</span>
                     )}
@@ -668,7 +846,9 @@ export function App({ pageUrl }: AppProps) {
                       ))
                     ) : (
                       <p className="safe-ticket-empty">
-                        스캔 완료 후 경찰청/더치트 조회 결과가 여기에 표시됩니다.
+                        {visibleScanResult
+                          ? "이번 스캔에서는 계좌번호나 전화번호가 감지되지 않아 경찰청/더치트 외부 조회를 실행하지 않았습니다."
+                          : "스캔 완료 후 외부 조회 대상이 감지되면 경찰청/더치트 조회 결과가 여기에 표시됩니다."}
                       </p>
                     )}
                   </div>
@@ -689,10 +869,6 @@ export function App({ pageUrl }: AppProps) {
                       </div>
                       <div className="safe-ticket-summary-grid">
                         <div className="safe-ticket-summary-chip">
-                          <span>플랫폼</span>
-                          <strong>{payload.platform}</strong>
-                        </div>
-                        <div className="safe-ticket-summary-chip">
                           <span>가격</span>
                           <strong>{formatPrice(payload.price)}원</strong>
                         </div>
@@ -700,10 +876,21 @@ export function App({ pageUrl }: AppProps) {
                           <span>판매자</span>
                           <strong>{payload.seller.nickname}</strong>
                         </div>
-                        <div className="safe-ticket-summary-chip">
-                          <span>신뢰지표</span>
-                          <strong>{payload.marketplace_signals.length}</strong>
-                        </div>
+                      </div>
+                      <div className="safe-ticket-signal-summary">
+                        <span>신뢰 지표</span>
+                        {payload.marketplace_signals.length ? (
+                          <ul className="safe-ticket-signal-detail-list">
+                            {payload.marketplace_signals.map((signal) => (
+                              <li key={`${signal.key}:${signal.value}`}>
+                                <strong>{signal.label}</strong>
+                                <span>{signal.value}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="safe-ticket-empty">현재 읽은 신뢰 지표가 없습니다.</p>
+                        )}
                       </div>
                     </div>
                   ) : null}
@@ -768,12 +955,6 @@ export function App({ pageUrl }: AppProps) {
                   </span>
                 </div>
 
-                <div className="safe-ticket-chat-context">
-                  <span>현재 context</span>
-                  <strong>{panelContent.headline}</strong>
-                  <p>{welcomeMessage}</p>
-                </div>
-
                 <div className="safe-ticket-chat-suggestions">
                   {chatSuggestions.map((suggestion) => (
                     <button
@@ -830,21 +1011,32 @@ export function App({ pageUrl }: AppProps) {
 
           <footer className="safe-ticket-footer">
             <span>{getHostLabel(currentPageUrl)}</span>
-            <div className="safe-ticket-actions">
-              <button className="safe-ticket-tertiary" onClick={handleParse} type="button">
-                다시 읽기
-              </button>
+            <nav className="safe-ticket-tab-row safe-ticket-footer-tabs" aria-label="safe-ticket panel tabs">
               <button
-                className="safe-ticket-primary"
-                disabled={!payload || isSending}
-                onClick={() => void handleSubmit()}
+                className={`safe-ticket-tab ${activePanelTab === "analysis" ? "is-active" : ""}`}
+                onClick={() => setActivePanelTab("analysis")}
                 type="button"
               >
-                {isSending ? "스캔 중..." : "스캔 실행"}
+                Analysis
               </button>
-            </div>
+              <button
+                className={`safe-ticket-tab ${activePanelTab === "chat" ? "is-active" : ""}`}
+                onClick={() => setActivePanelTab("chat")}
+                type="button"
+              >
+                AI Chat
+              </button>
+            </nav>
           </footer>
         </>
+      ) : null}
+      {!isCollapsed ? (
+        <button
+          aria-label="Resize panel"
+          className="safe-ticket-resize-handle"
+          onPointerDown={handleResizePointerDown}
+          type="button"
+        />
       ) : null}
     </aside>
   );
