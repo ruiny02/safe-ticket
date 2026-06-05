@@ -1,6 +1,7 @@
 const SUPPORTED_PATTERNS = [
+  /^https:\/\/(?:web|m)\.joongna\.com\/.*(?:product|products|item|articles?)\/[^/?#]+\/?(?:\?.*)?$/i,
   /^https:\/\/web\.joongna\.com\/product\/[^/?#]+\/?(?:\?.*)?$/i,
-  /^https:\/\/web\.joongna\.com\/.*(?:chat|message).*(?:\?.*)?$/i,
+  /^https:\/\/(?:web|m)\.joongna\.com\/.*(?:chat|message|talk).*(?:\?.*)?$/i,
   /^https:\/\/m\.bunjang\.co\.kr\/products\/[^/?#]+\/?(?:\?.*)?$/i,
   /^https:\/\/m\.bunjang\.co\.kr\/.*(?:talk|chat|message).*(?:\?.*)?$/i,
   /^http:\/\/localhost:\d+\/product\/[^/]+\.html$/i,
@@ -9,6 +10,9 @@ const SUPPORTED_PATTERNS = [
   /^http:\/\/127\.0\.0\.1:\d+\/product\/[^/]+\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/joongna-chat\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/bunjang-chat\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/product\/[^/]+\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/joongna-chat\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/bunjang-chat\.html$/i,
 ];
 
 export function isSupportedMarketplacePage(url: string): boolean {
@@ -34,3 +38,5 @@ export function getSupportedMarketplacePageStatus(url: string): {
 
 export const isSupportedJoongnaPage = isSupportedMarketplacePage;
 export const getSupportedJoongnaPageStatus = getSupportedMarketplacePageStatus;
+export const isSupportedSafeTicketPage = isSupportedMarketplacePage;
+export const getSupportedSafeTicketPageStatus = getSupportedMarketplacePageStatus;

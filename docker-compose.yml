@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-safe_ticket}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/db/init:/docker-entrypoint-initdb.d:ro
@@ -35,9 +35,10 @@ services:
       GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.5-flash}
       GEMINI_ANALYSIS_MODEL: ${GEMINI_ANALYSIS_MODEL:-gemini-2.5-flash}
       GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
+      GEMINI_API_TIMEOUT_SECONDS: ${GEMINI_API_TIMEOUT_SECONDS:-30}
       PIPELINE_BASE_URL: http://pipeline:8010
       PIPELINE_ANALYZE_PATH: ${PIPELINE_ANALYZE_PATH:-api/v1/analyze}
-      PIPELINE_TIMEOUT_SECONDS: ${PIPELINE_TIMEOUT_SECONDS:-10}
+      PIPELINE_TIMEOUT_SECONDS: ${PIPELINE_TIMEOUT_SECONDS:-60}
       EXTERNAL_LOOKUP_ENABLED: ${EXTERNAL_LOOKUP_ENABLED:-true}
       SYNC_EXTERNAL_LOOKUP_ENABLED: ${SYNC_EXTERNAL_LOOKUP_ENABLED:-false}
       THECHEAT_CDP_URL: ${THECHEAT_CDP_URL:-http://lookup-browser:9223}
@@ -79,6 +80,9 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
+      args:
+        VITE_SAFE_TICKET_API_BASE_URL: http://54.180.226.121:8000
+        VITE_SAFE_TICKET_FRONTEND_BASE_URL: http://54.180.226.121:3000
     container_name: safe-ticket-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
@@ -97,7 +101,7 @@ services:
       GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
       SEED_PIPELINE_MEMORY: ${SEED_PIPELINE_MEMORY:-true}
     ports:
-      - "${PIPELINE_PORT:-8010}:8010"
+      - "127.0.0.1:${PIPELINE_PORT:-8010}:8010"
     volumes:
       - ./apps/pipeline:/app/apps/pipeline
     depends_on:

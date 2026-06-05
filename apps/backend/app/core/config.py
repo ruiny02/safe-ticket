@@ -3,8 +3,7 @@
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -29,7 +28,7 @@ class Settings(BaseSettings):
     # Pipeline integration settings control backend-to-pipeline HTTP calls.
     pipeline_base_url: str = Field(default="http://pipeline:8010", alias="PIPELINE_BASE_URL")
     pipeline_analyze_path: str = Field(default="api/v1/analyze", alias="PIPELINE_ANALYZE_PATH")
-    pipeline_timeout_seconds: float = Field(default=10.0, alias="PIPELINE_TIMEOUT_SECONDS")
+    pipeline_timeout_seconds: float = Field(default=60.0, alias="PIPELINE_TIMEOUT_SECONDS")
     pipeline_api_key: str = Field(default="", alias="PIPELINE_API_KEY")
 
     # Gemini API settings are role-specific so each AI task can move models independently.
@@ -37,6 +36,7 @@ class Settings(BaseSettings):
     gemini_chat_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_CHAT_MODEL")
     gemini_analysis_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_ANALYSIS_MODEL")
     gemini_embedding_model: str = Field(default="gemini-embedding-001", alias="GEMINI_EMBEDDING_MODEL")
+    gemini_api_timeout_seconds: float = Field(default=30.0, alias="GEMINI_API_TIMEOUT_SECONDS")
 
     # External lookup automation uses a user-created TheCheat browser session if available.
     external_lookup_enabled: bool = Field(default=True, alias="EXTERNAL_LOOKUP_ENABLED")

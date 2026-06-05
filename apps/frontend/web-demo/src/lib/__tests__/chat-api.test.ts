@@ -89,6 +89,28 @@ describe("chat-api helpers", () => {
     expect(result.endpoint).toContain("/api/v1/chat/reply");
   });
 
+  it("does not mark public server chat requests as private-network fetches", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({ reply: "백엔드 응답입니다." }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestRemoteChatReply("http://54.180.226.121:8000", {
+      prompt: "테스트",
+      page_url: payload.page_url,
+      scan_id: scanResult.scan_id,
+      listing: payload,
+      scan_result: scanResult,
+      messages: [],
+    });
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit & { targetAddressSpace?: string };
+    expect(requestInit.targetAddressSpace).toBeUndefined();
+  });
+
   it("falls back to local mode when the backend chat endpoint is unavailable", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -109,5 +131,11 @@ describe("chat-api helpers", () => {
 
     expect(result.source).toBe("local");
     expect(result.reply).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://example.com/api/v1/chat/reply",
+      "https://example.com/api/v1/chat",
+      "https://example.com/api/v1/assistant/chat",
+    ]);
   });
 });

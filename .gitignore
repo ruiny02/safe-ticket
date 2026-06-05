@@ -1,6 +1,8 @@
 .env
 .env.local
 .env.*.local
+.local/
+*.pem
 
 __pycache__/
 *.py[cod]
@@ -25,6 +27,7 @@ dist/
 build/
 site/
 node_modules/
+.pnpm-store/
 *.tsbuildinfo
 *.egg-info/
 .eggs/

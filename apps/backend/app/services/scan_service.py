@@ -105,7 +105,7 @@ class ScanService:
             return
 
         settings = get_settings()
-        external_lookup_results = []
+        external_lookup_results: list[ExternalLookupResponse] = []
         if settings.external_lookup_enabled and run_external_lookups:
             external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
 

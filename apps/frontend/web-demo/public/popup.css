@@ -7,6 +7,11 @@ body {
   color: #1f2040;
 }
 
+body {
+  scrollbar-color: rgba(132, 112, 255, 0.34) rgba(132, 112, 255, 0.07);
+  scrollbar-width: thin;
+}
+
 .popup-shell {
   width: 308px;
   padding: 18px;
@@ -20,14 +25,12 @@ body {
 }
 
 .popup-brand-mark {
-  display: grid;
-  place-items: center;
   width: 42px;
   height: 42px;
+  flex: 0 0 auto;
   border-radius: 14px;
-  background: linear-gradient(135deg, #8470ff, #a08dff);
-  color: #fff;
-  font-weight: 800;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(111, 92, 243, 0.22);
 }
 
 .popup-eyebrow {
@@ -41,7 +44,10 @@ body {
 
 h1 {
   margin: 0;
-  font-size: 22px;
+  color: #1f2040;
+  font-size: 20px;
+  font-weight: 950;
+  letter-spacing: -0.03em;
   line-height: 1.1;
 }
 
@@ -53,7 +59,7 @@ h1 {
   color: #352f72;
   font-size: 14px;
   line-height: 1.45;
-  font-weight: 700;
+  font-weight: 900;
 }
 
 .popup-status.is-inactive {
@@ -80,13 +86,19 @@ h1 {
   border-radius: 14px;
   padding: 12px 14px;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
 }
 
 #open-demo {
   background: linear-gradient(135deg, #8470ff, #7661f7);
   color: #fff;
+}
+
+#open-joongna-chat-demo,
+#open-bunjang-chat-demo {
+  background: #f4f2ff;
+  color: #4a3f9f;
 }
 
 #open-report {

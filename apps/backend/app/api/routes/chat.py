@@ -1,36 +1,48 @@
-"""Lightweight chat endpoints for frontend report testing."""
+"""Assistant chat endpoints."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
 from app.repositories.db_store import db_store
-from app.schemas.chat import ChatReplyResponse, ChatRequestPayload
+from app.schemas.chat import ChatReplyRequest, ChatReplyResponse
 from app.schemas.scan import RecommendedAction, ScanResultResponse, SimilarCase
-from app.services.gemini_chat_client import generate_chat_reply
+from app.services.gemini_chat import GeminiChatError, gemini_chat_service
 
 
 router = APIRouter()
 
 
 @router.post("/reply", response_model=ChatReplyResponse)
-def create_chat_reply(payload: ChatRequestPayload) -> ChatReplyResponse:
+def create_chat_reply(payload: ChatReplyRequest) -> ChatReplyResponse:
     """Return a Gemini reply when configured, otherwise use a deterministic helper reply."""
-    normalized_payload = _normalize_payload(payload)
-    gemini_reply = generate_chat_reply(normalized_payload)
-    if gemini_reply:
-        return ChatReplyResponse(reply=gemini_reply, source="gemini")
-    return ChatReplyResponse(reply=_build_reply(normalized_payload))
+    return _create_chat_reply(payload)
 
 
 @router.post("", response_model=ChatReplyResponse)
-def create_chat_reply_alias(payload: ChatRequestPayload) -> ChatReplyResponse:
-    """Support the frontend's secondary chat endpoint candidate."""
-    return create_chat_reply(payload)
+def create_chat(payload: ChatReplyRequest) -> ChatReplyResponse:
+    """Compatibility endpoint for frontend chat fallback candidates."""
+    return _create_chat_reply(payload)
 
 
-def _build_reply(payload: ChatRequestPayload) -> str:
-    """Generate a useful non-AI answer while the real assistant pipeline is not connected."""
+def _create_chat_reply(payload: ChatReplyRequest) -> ChatReplyResponse:
+    """Generate a chat response using persisted scan context when available."""
+    normalized_payload = _normalize_payload(payload)
+
+    try:
+        reply = gemini_chat_service.reply(normalized_payload)
+    except GeminiChatError:
+        return ChatReplyResponse(reply=_build_reply(normalized_payload), source="backend")
+
+    return ChatReplyResponse(
+        reply=reply,
+        source="gemini",
+        model=gemini_chat_service.model,
+    )
+
+
+def _build_reply(payload: ChatReplyRequest) -> str:
+    """Generate a useful non-AI answer when Gemini is unavailable."""
     scan_result = payload.scan_result
     if scan_result is None:
         return (
@@ -47,7 +59,7 @@ def _build_reply(payload: ChatRequestPayload) -> str:
     return " ".join(part for part in parts if part)
 
 
-def _normalize_payload(payload: ChatRequestPayload) -> ChatRequestPayload:
+def _normalize_payload(payload: ChatReplyRequest) -> ChatReplyRequest:
     """Prefer persisted scan data and ignore Swagger placeholder values."""
     if payload.scan_id:
         persisted_scan = db_store.get_scan(payload.scan_id)

@@ -4,6 +4,7 @@ import type {
   ScanQueuedResponse,
   ScanResultResponse,
 } from "./types";
+import { buildCorsRequestInit } from "./fetch-options";
 
 interface RelayResponse {
   ok: boolean;
@@ -12,8 +13,6 @@ interface RelayResponse {
   body?: string;
   error?: string;
 }
-
-const REMOTE_TUNNEL_BASE_URL = "https://petite-sloths-cut.loca.lt";
 
 function hasExtensionRuntime(): boolean {
   const extensionApi = (globalThis as typeof globalThis & {
@@ -87,12 +86,7 @@ async function requestText(url: string, init?: RequestInit): Promise<RelayRespon
   }
 
   try {
-    const directInit = {
-      ...init,
-      mode: "cors" as RequestMode,
-      targetAddressSpace: "local",
-    } as RequestInit & { targetAddressSpace?: "local" };
-    const response = await fetch(url, directInit);
+    const response = await fetch(url, buildCorsRequestInit(url, init));
     return {
       ok: response.ok,
       status: response.status,
@@ -132,7 +126,6 @@ export async function createScan(
   const fallbackUrl = primaryUrl.includes("127.0.0.1")
     ? primaryUrl.replace("127.0.0.1", "localhost")
     : primaryUrl.replace("localhost", "127.0.0.1");
-  const tunnelUrl = `${REMOTE_TUNNEL_BASE_URL}/api/v1/scans`;
 
   try {
     return await requestJson<ScanQueuedResponse>(
@@ -161,21 +154,11 @@ export async function createScan(
           "Scan request",
         );
       } catch {
-        // Fall through to tunnel fallback below.
+        // Fall through to the primary error below.
       }
     }
 
-    return requestJson<ScanQueuedResponse>(
-      tunnelUrl,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body,
-      },
-      "Scan request",
-    );
+    throw error;
   }
 }
 
@@ -188,7 +171,6 @@ export async function createScanSync(
   const fallbackUrl = primaryUrl.includes("127.0.0.1")
     ? primaryUrl.replace("127.0.0.1", "localhost")
     : primaryUrl.replace("localhost", "127.0.0.1");
-  const tunnelUrl = `${REMOTE_TUNNEL_BASE_URL}/api/v1/scans/sync`;
 
   try {
     return await requestJson<ScanResultResponse>(
@@ -217,21 +199,11 @@ export async function createScanSync(
           "Sync scan request",
         );
       } catch {
-        // Fall through to tunnel fallback below.
+        // Fall through to the primary error below.
       }
     }
 
-    return requestJson<ScanResultResponse>(
-      tunnelUrl,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body,
-      },
-      "Sync scan request",
-    );
+    throw error;
   }
 }
 
@@ -240,7 +212,6 @@ export async function getScan(baseUrl: string, scanId: string): Promise<ScanResu
   const fallbackUrl = primaryUrl.includes("127.0.0.1")
     ? primaryUrl.replace("127.0.0.1", "localhost")
     : primaryUrl.replace("localhost", "127.0.0.1");
-  const tunnelUrl = `${REMOTE_TUNNEL_BASE_URL}/api/v1/scans/${scanId}`;
 
   try {
     return await requestJson<ScanResultResponse>(
@@ -257,15 +228,11 @@ export async function getScan(baseUrl: string, scanId: string): Promise<ScanResu
           "Scan polling",
         );
       } catch {
-        // Fall through to tunnel fallback below.
+        // Fall through to the primary error below.
       }
     }
 
-    return requestJson<ScanResultResponse>(
-      tunnelUrl,
-      undefined,
-      "Scan polling",
-    );
+    throw error;
   }
 }
 

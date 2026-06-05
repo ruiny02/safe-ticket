@@ -89,7 +89,7 @@ export interface PipelineOutboundPayload {
   price: number;
   seller: SellerInfo;
   content_blocks: ContentBlock[];
-  marketplace_signals?: MarketplaceSignal[];
+  marketplace_signals: MarketplaceSignal[];
 }
 
 export interface PipelineInboundPayload {

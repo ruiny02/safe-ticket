@@ -1,4 +1,5 @@
 import type { ScanCreateRequest, ScanResultResponse } from "./types";
+import { buildCorsRequestInit } from "./fetch-options";
 
 interface RelayResponse {
   ok: boolean;
@@ -34,8 +35,6 @@ const CHAT_ENDPOINT_PATHS = [
   "/api/v1/chat",
   "/api/v1/assistant/chat",
 ];
-
-const REMOTE_TUNNEL_BASE_URL = "https://petite-sloths-cut.loca.lt";
 
 function hasExtensionRuntime(): boolean {
   const extensionApi = (globalThis as typeof globalThis & {
@@ -110,12 +109,7 @@ async function requestText(url: string, init?: RequestInit): Promise<RelayRespon
   }
 
   try {
-    const directInit = {
-      ...init,
-      mode: "cors" as RequestMode,
-      targetAddressSpace: "local",
-    } as RequestInit & { targetAddressSpace?: "local" };
-    const response = await fetch(url, directInit);
+    const response = await fetch(url, buildCorsRequestInit(url, init));
 
     return {
       ok: response.ok,
@@ -191,8 +185,6 @@ function buildBaseUrlCandidates(baseUrl: string): string[] {
   } else if (baseUrl.includes("localhost")) {
     candidates.push(baseUrl.replace("localhost", "127.0.0.1"));
   }
-
-  candidates.push(REMOTE_TUNNEL_BASE_URL);
 
   return Array.from(new Set(candidates));
 }

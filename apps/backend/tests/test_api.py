@@ -7,9 +7,11 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test_safe_ticket.db")
 from fastapi.testclient import TestClient
 import pytest
 
+from app.api.routes import chat as chat_route
 from app.db.base import Base
 from app.db.session import engine
 from app.main import app
+from app.repositories.db_store import db_store
 from app.schemas.scan import (
     EvidenceItem,
     PipelineInboundPayload,
@@ -18,9 +20,8 @@ from app.schemas.scan import (
     ScanResultResponse,
     SimilarCase,
 )
-from app.repositories.db_store import db_store
-from app.api.routes import chat as chat_route
 from app.services import pipeline_client as pipeline_client_module
+from app.services.gemini_chat import GeminiChatConfigurationError
 from app.services.pipeline_client import PipelineUnavailableError
 
 
@@ -49,6 +50,7 @@ def build_scan_payload() -> dict:
                 "text": "Please move to messenger for faster communication.",
             },
         ],
+        "marketplace_signals": [],
     }
 
 
@@ -201,8 +203,12 @@ def test_pipeline_health_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_chat_reply_endpoint_returns_frontend_compatible_shape(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure the frontend chat panel can receive a backend reply."""
-    monkeypatch.setattr(chat_route, "generate_chat_reply", lambda _payload: None)
+    """Ensure the frontend chat panel can receive a backend fallback reply."""
+
+    def mock_reply(_payload):
+        raise GeminiChatConfigurationError("missing key")
+
+    monkeypatch.setattr(chat_route.gemini_chat_service, "reply", mock_reply)
     payload = {
         "prompt": "What should I do next?",
         "page_url": "https://example.com/post/123",
@@ -251,7 +257,7 @@ def test_chat_reply_endpoint_returns_frontend_compatible_shape(monkeypatch: pyte
 
 def test_chat_reply_endpoint_can_return_gemini_reply(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the endpoint surfaces Gemini replies when the AI client is configured."""
-    monkeypatch.setattr(chat_route, "generate_chat_reply", lambda _payload: "Gemini says stay safe.")
+    monkeypatch.setattr(chat_route.gemini_chat_service, "reply", lambda _payload: "Gemini says stay safe.")
 
     response = client.post(
         "/api/v1/chat/reply",
@@ -266,15 +272,18 @@ def test_chat_reply_endpoint_can_return_gemini_reply(monkeypatch: pytest.MonkeyP
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "reply": "Gemini says stay safe.",
-        "source": "gemini",
-    }
+    body = response.json()
+    assert body["reply"] == "Gemini says stay safe."
+    assert body["source"] == "gemini"
 
 
 def test_chat_reply_uses_persisted_scan_when_scan_id_exists(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure API-doc placeholder scan_result values do not override real DB data."""
-    monkeypatch.setattr(chat_route, "generate_chat_reply", lambda _payload: None)
+
+    def mock_reply(_payload):
+        raise GeminiChatConfigurationError("missing key")
+
+    monkeypatch.setattr(chat_route.gemini_chat_service, "reply", mock_reply)
     pipeline_result = build_pipeline_result()
     db_store.create_scan(scan_id="scan_real", payload=ScanCreateRequest.model_validate(build_scan_payload()))
     db_store.save_scan(

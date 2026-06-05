@@ -1,6 +1,7 @@
 const supportedPatterns = [
+  /^https:\/\/(?:web|m)\.joongna\.com\/.*(?:product|products|item|articles?)\/[^/?#]+\/?(?:\?.*)?$/i,
   /^https:\/\/web\.joongna\.com\/product\/[^/?#]+\/?(?:\?.*)?$/i,
-  /^https:\/\/web\.joongna\.com\/.*(?:chat|message).*(?:\?.*)?$/i,
+  /^https:\/\/(?:web|m)\.joongna\.com\/.*(?:chat|message|talk).*(?:\?.*)?$/i,
   /^https:\/\/m\.bunjang\.co\.kr\/products\/[^/?#]+\/?(?:\?.*)?$/i,
   /^https:\/\/m\.bunjang\.co\.kr\/.*(?:talk|chat|message).*(?:\?.*)?$/i,
   /^http:\/\/localhost:\d+\/product\/[^/]+\.html$/i,
@@ -9,12 +10,37 @@ const supportedPatterns = [
   /^http:\/\/127\.0\.0\.1:\d+\/product\/[^/]+\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/joongna-chat\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/bunjang-chat\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/product\/[^/]+\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/joongna-chat\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/bunjang-chat\.html$/i,
 ];
 
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
+const DEFAULT_FRONTEND_BASE_URL = "http://54.180.226.121:3000";
 
-function buildReportPageUrl(scanId) {
-  return `http://localhost:3000/report/#/reports/${encodeURIComponent(scanId)}`;
+function getFrontendBaseUrl(currentUrl) {
+  try {
+    const parsedUrl = new URL(currentUrl);
+    if (parsedUrl.protocol === "http:" && /^(?:localhost|127\.0\.0\.1|54\.180\.226\.121)$/.test(parsedUrl.hostname)) {
+      return `${parsedUrl.protocol}//${parsedUrl.host}`;
+    }
+  } catch {
+    // Fall back to the deployed frontend.
+  }
+
+  return DEFAULT_FRONTEND_BASE_URL;
+}
+
+function buildReportPageUrl(scanId, frontendBaseUrl) {
+  return `${frontendBaseUrl}/report/#/reports/${encodeURIComponent(scanId)}`;
+}
+
+function getReportPageUrlForTab(currentUrl, latestScan) {
+  if (!latestScan || latestScan.pageUrl !== currentUrl) {
+    return null;
+  }
+
+  return buildReportPageUrl(latestScan.scanId, getFrontendBaseUrl(currentUrl));
 }
 
 function isSupportedMarketplacePage(url) {
@@ -25,7 +51,7 @@ function getStatus(url) {
   return isSupportedMarketplacePage(url)
     ? {
         supported: true,
-        label: "지원되는 페이지에서 패널이 동작하고 있습니다.",
+        label: "지원되는 페이지에서 safe-ticket 스캔이 동작합니다.",
       }
     : {
         supported: false,
@@ -33,21 +59,20 @@ function getStatus(url) {
       };
 }
 
-function getReportPageUrlForTab(currentUrl, latestScan) {
-  if (!latestScan || latestScan.pageUrl !== currentUrl) {
-    return null;
-  }
-
-  return buildReportPageUrl(latestScan.scanId);
+async function openTab(url) {
+  await chrome.tabs.create({ url });
 }
 
 async function run() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = tab?.url ?? "현재 탭 URL을 찾지 못했습니다.";
   const status = getStatus(url);
+
   const statusNode = document.getElementById("status");
   const currentUrlNode = document.getElementById("current-url");
   const openDemoButton = document.getElementById("open-demo");
+  const openJoongnaChatDemoButton = document.getElementById("open-joongna-chat-demo");
+  const openBunjangChatDemoButton = document.getElementById("open-bunjang-chat-demo");
   const openReportButton = document.getElementById("open-report");
 
   if (statusNode) {
@@ -61,12 +86,24 @@ async function run() {
     currentUrlNode.textContent = url;
   }
 
-  if (openDemoButton) {
-    openDemoButton.hidden = true;
-  }
+  openDemoButton?.addEventListener("click", () => {
+    void openTab(`${getFrontendBaseUrl(url)}/product/227242032.html`);
+  });
+
+  openJoongnaChatDemoButton?.addEventListener("click", () => {
+    void openTab(`${getFrontendBaseUrl(url)}/joongna-chat.html`);
+  });
+
+  openBunjangChatDemoButton?.addEventListener("click", () => {
+    void openTab(`${getFrontendBaseUrl(url)}/bunjang-chat.html`);
+  });
 
   const storageApi = chrome.storage?.local;
   if (!storageApi) {
+    if (statusNode) {
+      statusNode.classList.add("is-inactive");
+      statusNode.textContent = "저장소 권한이 없어 최근 스캔 상태를 불러오지 못했습니다.";
+    }
     return;
   }
 
@@ -76,8 +113,8 @@ async function run() {
 
   if (openReportButton && reportUrl) {
     openReportButton.hidden = false;
-    openReportButton.addEventListener("click", async () => {
-      await chrome.tabs.create({ url: reportUrl });
+    openReportButton.addEventListener("click", () => {
+      void openTab(reportUrl);
     });
   }
 }
