@@ -38,6 +38,7 @@ test-results/
 artifacts/
 .references/
 bi-weekly-report/
+docs/plans/
 
 .DS_Store
 Thumbs.db

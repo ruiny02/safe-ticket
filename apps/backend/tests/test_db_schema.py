@@ -25,6 +25,12 @@ def test_case_chunks_uses_pgvector_embedding() -> None:
     assert isinstance(case_chunks.c.embedding.type, VECTOR)
 
 
+def test_cases_include_umap_risk_metadata() -> None:
+    cases = Base.metadata.tables["cases"]
+
+    assert {"risk_level", "risk_score", "risk_flags_json"}.issubset(cases.c.keys())
+
+
 def test_child_tables_reference_expected_parents() -> None:
     table_foreign_keys = {
         "case_chunks": {"cases"},

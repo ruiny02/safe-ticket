@@ -40,6 +40,9 @@ class Case(Base):
     label: Mapped[str | None] = mapped_column(String(32), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     platform_hint: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    risk_level: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    risk_flags_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
