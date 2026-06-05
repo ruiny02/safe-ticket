@@ -27,6 +27,11 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
 
     steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
+
       - name: Prepare SSH key
         env:
           AWS_SSH_KEY: ${{ secrets.AWS_SSH_KEY }}
@@ -40,6 +45,32 @@ jobs:
           printf '%s\n' "$AWS_SSH_KEY" > ~/.ssh/safe-ticket-deploy-key
           chmod 600 ~/.ssh/safe-ticket-deploy-key
           ssh-keyscan -H "$AWS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Package release source
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude='.git' \
+            --exclude='.tmp' \
+            --exclude='.local' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='build' \
+            -czf /tmp/safe-ticket-release.tar.gz .
+
+      - name: Upload release source
+        env:
+          AWS_HOST: ${{ secrets.AWS_HOST }}
+          AWS_USER: ${{ secrets.AWS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$AWS_HOST"
+          test -n "$AWS_USER"
+          scp -i ~/.ssh/safe-ticket-deploy-key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            /tmp/safe-ticket-release.tar.gz \
+            "$AWS_USER@$AWS_HOST:/tmp/safe-ticket-release.tar.gz"
 
       - name: Deploy on AWS server
         env:
@@ -61,20 +92,38 @@ jobs:
             "AWS_APP_DIR='$AWS_APP_DIR' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
           set -euo pipefail
 
-          REPO_URL="https://github.com/ruiny02/safe-ticket.git"
+          DEPLOY_DIR="${AWS_APP_DIR}-deploy"
+          RELEASE_DIR="${DEPLOY_DIR}/current"
+          COMPOSE_PROJECT_NAME="safe-ticket"
 
-          trap 'echo "Deployment failed. Recent service status and logs:"; sudo docker compose ps || true; sudo docker compose logs --tail=120 backend frontend || true' ERR
+          trap 'echo "Deployment failed. Recent service status and logs:"; cd "$RELEASE_DIR" 2>/dev/null && sudo docker compose -p "$COMPOSE_PROJECT_NAME" ps || true; cd "$RELEASE_DIR" 2>/dev/null && sudo docker compose -p "$COMPOSE_PROJECT_NAME" logs --tail=120 backend frontend || true' ERR
 
-          if [ ! -d "$AWS_APP_DIR/.git" ]; then
-            mkdir -p "$(dirname "$AWS_APP_DIR")"
-            git clone "$REPO_URL" "$AWS_APP_DIR"
+          case "$RELEASE_DIR" in
+            /home/*/safe-ticket-deploy/current|/home/*/safe-ticket-*-deploy/current) ;;
+            *)
+              echo "Refusing to remove unexpected release path: $RELEASE_DIR"
+              exit 1
+              ;;
+          esac
+
+          mkdir -p "$DEPLOY_DIR"
+          sudo rm -rf "$RELEASE_DIR"
+          mkdir -p "$RELEASE_DIR"
+          tar -xzf /tmp/safe-ticket-release.tar.gz -C "$RELEASE_DIR"
+          rm -f /tmp/safe-ticket-release.tar.gz
+
+          if [ -f "$DEPLOY_DIR/.env" ]; then
+            cp "$DEPLOY_DIR/.env" "$RELEASE_DIR/.env"
+          elif [ -f "$AWS_APP_DIR/.env" ]; then
+            cp "$AWS_APP_DIR/.env" "$RELEASE_DIR/.env"
+          else
+            echo "No .env found in $DEPLOY_DIR or $AWS_APP_DIR; continuing with compose defaults."
           fi
 
-          cd "$AWS_APP_DIR"
-          git fetch origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
-          git reset --hard "origin/$DEPLOY_REF"
+          cd "$RELEASE_DIR"
+          echo "Deploying $DEPLOY_REF from $RELEASE_DIR"
 
-          sudo docker compose up -d --build
+          sudo docker compose -p "$COMPOSE_PROJECT_NAME" up -d --build
 
           wait_for_http() {
             local url="$1"
@@ -95,5 +144,5 @@ jobs:
           wait_for_http "http://localhost:8000/api/v1/health/ready" "backend ready endpoint"
           wait_for_http "http://localhost:3000/report/" "frontend report page"
 
-          sudo docker compose ps
+          sudo docker compose -p "$COMPOSE_PROJECT_NAME" ps
           REMOTE
