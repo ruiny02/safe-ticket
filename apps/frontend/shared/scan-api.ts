@@ -4,6 +4,7 @@ import type {
   ScanQueuedResponse,
   ScanResultResponse,
 } from "./types";
+import { buildCorsRequestInit } from "./fetch-options";
 
 interface RelayResponse {
   ok: boolean;
@@ -85,12 +86,7 @@ async function requestText(url: string, init?: RequestInit): Promise<RelayRespon
   }
 
   try {
-    const directInit = {
-      ...init,
-      mode: "cors" as RequestMode,
-      targetAddressSpace: "local",
-    } as RequestInit & { targetAddressSpace?: "local" };
-    const response = await fetch(url, directInit);
+    const response = await fetch(url, buildCorsRequestInit(url, init));
     return {
       ok: response.ok,
       status: response.status,
