@@ -88,7 +88,7 @@ const pipelineDebug: PipelineExchangeResponse = {
 
 describe("buildReportBrief", () => {
   it("builds concise narrative sections from the active scan context", () => {
-    const dashboard = buildDashboardModel({ scanResult, pipelineDebug });
+    const dashboard = buildDashboardModel({ scanResult, pipelineDebug, caseUmap: null });
     const brief = buildReportBrief({ scanResult, dashboard, pipelineDebug });
 
     expect(brief.sections.map((section) => section.title)).toEqual([
