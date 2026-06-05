@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     external_lookup_timeout_ms: int = Field(default=15000, alias="EXTERNAL_LOOKUP_TIMEOUT_MS")
     thecheat_cdp_url: str = Field(default="", alias="THECHEAT_CDP_URL")
 
+    # Gemini chat is used by the extension's lightweight AI question panel.
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_chat_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_CHAT_MODEL")
+    gemini_api_timeout_seconds: float = Field(default=8.0, alias="GEMINI_API_TIMEOUT_SECONDS")
+
     # Pipeline integration settings control backend-to-pipeline HTTP calls.
     pipeline_base_url: str = Field(default="http://pipeline:8010", alias="PIPELINE_BASE_URL")
     pipeline_analyze_path: str = Field(default="/api/v1/analyze", alias="PIPELINE_ANALYZE_PATH")
