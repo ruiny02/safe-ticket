@@ -38,6 +38,15 @@
   "content_scripts": [
     {
       "matches": [
+        "http://localhost:3000/product/*",
+        "http://localhost:3000/joongna-chat.html",
+        "http://localhost:3000/bunjang-chat.html",
+        "http://127.0.0.1:3000/product/*",
+        "http://127.0.0.1:3000/joongna-chat.html",
+        "http://127.0.0.1:3000/bunjang-chat.html",
+        "http://54.180.226.121:3000/product/*",
+        "http://54.180.226.121:3000/joongna-chat.html",
+        "http://54.180.226.121:3000/bunjang-chat.html",
         "https://web.joongna.com/*",
         "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"
