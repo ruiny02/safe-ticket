@@ -1,10 +1,15 @@
-"""Schemas for scan creation, results, real pipeline data, and feedback."""
+"""Schemas for scan creation, results, and real pipeline data."""
 
 from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
+
+from app.schemas.external_lookup import ExternalLookupResponse
+
+
+ScanStatus = Literal["queued", "processing", "completed", "partial", "failed"]
 
 
 class SellerInfo(BaseModel):
@@ -23,6 +28,14 @@ class ContentBlock(BaseModel):
     text: str
 
 
+class MarketplaceSignal(BaseModel):
+    """A marketplace trust or reputation signal extracted from the page."""
+
+    key: str
+    label: str
+    value: str
+
+
 class ScanCreateRequest(BaseModel):
     """Payload accepted when the frontend asks the backend to analyze a listing."""
 
@@ -33,6 +46,7 @@ class ScanCreateRequest(BaseModel):
     price: int = Field(ge=0)
     seller: SellerInfo
     content_blocks: list[ContentBlock]
+    marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
 
 
 class ScanCreateResponse(BaseModel):
@@ -81,6 +95,7 @@ class PipelineOutboundPayload(BaseModel):
     price: int
     seller: SellerInfo
     content_blocks: list[ContentBlock]
+    marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
 
 
 class PipelineInboundPayload(BaseModel):
@@ -115,12 +130,34 @@ class PipelineExchangeResponse(BaseModel):
     pipeline_error: PipelineErrorInfo | None = None
 
 
+class ScanListItemResponse(BaseModel):
+    """Compact scan summary used by list views and quick backend inspection."""
+
+    scan_id: str
+    status: ScanStatus
+    platform: str
+    page_title: str
+    price: int
+    risk_level: Literal["low", "medium", "high"] | None = None
+    risk_score: float | None = None
+    summary: str | None = None
+
+
+class ScanListResponse(BaseModel):
+    """Paginated response containing recent scan jobs."""
+
+    items: list[ScanListItemResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class ScanResultResponse(BaseModel):
     """Polling response for scan status and final analysis result."""
 
     # The first fields are always present, even before processing finishes.
     scan_id: str
-    status: Literal["queued", "processing", "completed", "partial", "failed"]
+    status: ScanStatus
 
     # The remaining fields appear once the pipeline has produced a result.
     risk_level: Literal["low", "medium", "high"] | None = None
@@ -131,12 +168,7 @@ class ScanResultResponse(BaseModel):
     highlight_targets: list[EvidenceItem] = Field(default_factory=list)
     similar_cases: list[SimilarCase] = Field(default_factory=list)
     recommended_actions: list[RecommendedAction] = Field(default_factory=list)
+    external_lookup_results: list[ExternalLookupResponse] = Field(default_factory=list)
     degraded: bool = False
     report_url: str | None = None
 
-
-class FeedbackRequest(BaseModel):
-    """User feedback that can later improve rules or model behavior."""
-
-    feedback_type: Literal["false_positive", "false_negative", "helpful", "not_helpful"]
-    comment: str | None = None

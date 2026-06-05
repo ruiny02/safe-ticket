@@ -1,0 +1,218 @@
+export interface ProductJsonLd {
+  name?: string;
+  description?: string;
+  offers?: {
+    price?: number | string;
+    seller?: {
+      name?: string;
+    };
+  };
+}
+
+export interface MarketplaceSignal {
+  key: string;
+  label: string;
+  value: string;
+}
+
+export function cleanMultiline(value: string): string {
+  return value
+    .replace(/\\\\r\\\\n/g, "\n")
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+}
+
+export function normalizeInlineText(value: string): string {
+  return cleanMultiline(value).replace(/\s+/g, " ").trim();
+}
+
+export function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+export function stripMarkup(value: string): string {
+  return decodeHtmlEntities(value)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
+export function decodeFieldText(value: string): string {
+  const decoded = value.includes('\\"')
+    ? (JSON.parse(`"${value.replace(/"/g, '\\"')}"`) as string)
+    : value;
+  return cleanMultiline(stripMarkup(decoded));
+}
+
+export function parseMoney(value: string | undefined): number {
+  const digits = String(value ?? "").replace(/[^\d]/g, "");
+  return digits ? Number(digits) : 0;
+}
+
+export function fallbackMatch(source: string, pattern: RegExp): string | undefined {
+  return source.match(pattern)?.[1];
+}
+
+export function matchOrThrow(source: string, pattern: RegExp, fieldName: string): string {
+  const match = source.match(pattern);
+  if (!match?.[1]) {
+    throw new Error(`Failed to extract ${fieldName}`);
+  }
+
+  return match[1];
+}
+
+export function extractAttr(source: string, name: string): string | null {
+  return source.match(new RegExp(`${name}="([^"]+)"`, "i"))?.[1] ?? null;
+}
+
+export function readMetaContent(html: string, attrName: "property" | "name", attrValue: string): string | undefined {
+  return fallbackMatch(
+    html,
+    new RegExp(`<meta[^>]+${attrName}="${attrValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]+content="([^"]+)"`, "i"),
+  );
+}
+
+export function extractProductJsonLd(html: string): ProductJsonLd | null {
+  const scriptMatches = html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
+
+  for (const match of scriptMatches) {
+    const rawValue = match[1]?.trim();
+    if (!rawValue) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue) as ProductJsonLd | ProductJsonLd[];
+      const candidates = Array.isArray(parsed) ? parsed : [parsed];
+      const productCandidate = candidates.find((candidate) => typeof candidate?.name === "string");
+
+      if (productCandidate) {
+        return productCandidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+export function buildFallbackSellerId(prefix: string, nickname: string): string {
+  const safeNickname = nickname.trim() ? encodeURIComponent(nickname.trim()) : "unknown";
+  return `${prefix}-${safeNickname}`;
+}
+
+export function extractChatBlocks(html: string, prefix = "chat") {
+  const matches = html.matchAll(/<([a-z0-9]+)([^>]*data-chat-message[^>]*)>([\s\S]*?)<\/\1>/gi);
+
+  return Array.from(matches)
+    .map((match, index) => {
+      const attrs = match[2] ?? "";
+      const text = normalizeInlineText(stripMarkup(match[3] ?? ""));
+      if (!text) {
+        return null;
+      }
+
+      return {
+        block_id: extractAttr(attrs, "data-message-id") ?? `${prefix}-${String(index + 1).padStart(3, "0")}`,
+        text,
+      };
+    })
+    .filter((block): block is { block_id: string; text: string } => block !== null);
+}
+
+export function extractChatBlocksFromDocument(
+  documentRef: Document,
+  prefix = "chat",
+): Array<{ block_id: string; text: string }> {
+  const selector = [
+    "[data-chat-message]",
+    "[data-message-id]",
+    "[data-testid*='message']",
+    "[class*='bubble']",
+    "[class*='message']",
+    "[class*='msg']",
+  ].join(", ");
+  const allCandidates = Array.from(documentRef.querySelectorAll<HTMLElement>(selector));
+  const candidates = allCandidates.filter((element) => {
+    if (!element.isConnected) {
+      return false;
+    }
+
+    if (element.closest("#safe-ticket-extension-root")) {
+      return false;
+    }
+
+    if (element.querySelector(selector)) {
+      return false;
+    }
+
+    const text = normalizeInlineText(element.textContent ?? "");
+    if (!text || text.length < 2 || text.length > 280) {
+      return false;
+    }
+
+    if (/^(보내기|전송|입력|채팅하기|번개톡|중고나라|번개장터)$/u.test(text)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const seenTexts = new Set<string>();
+
+  return candidates
+    .map((element, index) => {
+      const text = normalizeInlineText(element.textContent ?? "");
+      if (!text || seenTexts.has(text)) {
+        return null;
+      }
+
+      seenTexts.add(text);
+      return {
+        block_id:
+          element.dataset.messageId ??
+          element.getAttribute("data-message-id") ??
+          `${prefix}-${String(index + 1).padStart(3, "0")}`,
+        text,
+      };
+    })
+    .filter((block): block is { block_id: string; text: string } => block !== null);
+}
+
+export function buildMarketplaceSignalsBlock(
+  signals: MarketplaceSignal[],
+): { block_id: string; text: string } | null {
+  if (!signals.length) {
+    return null;
+  }
+
+  return {
+    block_id: "marketplace-signals",
+    text: signals.map((signal) => `${signal.label}: ${signal.value}`).join("\n"),
+  };
+}
+
+export function normalizeMarketplaceSignals(signals: MarketplaceSignal[]): MarketplaceSignal[] {
+  const seen = new Set<string>();
+
+  return signals.filter((signal) => {
+    const key = `${signal.key}:${signal.value.trim()}`;
+    if (!signal.value.trim() || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}

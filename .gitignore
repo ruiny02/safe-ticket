@@ -16,6 +16,10 @@ env/
 .coverage
 .coverage.*
 htmlcov/
+safe_ticket.db
+test_safe_ticket.db
+*.sqlite
+*.sqlite3
 
 dist/
 build/
@@ -29,8 +33,20 @@ playwright-report/
 test-results/
 .playwright-mcp/
 .artifacts/
+.references/
+bi-weekly-report/
 
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+__pycache__/
+*.pyc
+
+# pipeline
+apps/pipeline/data/
+apps/pipeline/venv/
+
+# python
+__pycache__/
+*.pyc

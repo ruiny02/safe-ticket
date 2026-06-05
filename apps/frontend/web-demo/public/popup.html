@@ -8,40 +8,22 @@
   </head>
   <body>
     <main class="popup-shell">
-      <p class="popup-eyebrow">safe-ticket extension</p>
-      <h1>데모 스캔 상태</h1>
+      <div class="popup-brand">
+        <span class="popup-brand-mark">S</span>
+        <div>
+          <p class="popup-eyebrow">safe-ticket</p>
+          <h1>거래 스캔</h1>
+        </div>
+      </div>
       <p id="status" class="popup-status">현재 탭을 확인 중입니다.</p>
-
-      <section class="popup-card">
-        <h2>무엇을 보여주나요</h2>
-        <ul class="popup-list">
-          <li>위험 문구와 계좌/은행 패턴을 패널에 정리합니다.</li>
-          <li>응답 근거를 받아 페이지 본문에 바로 빨간 하이라이트를 입힙니다.</li>
-          <li>로컬 데모 환경 정보와 현재 탭 상태를 함께 보여줍니다.</li>
-        </ul>
-      </section>
-
-      <dl class="popup-meta popup-card">
-        <h2>연결 정보</h2>
-        <div>
-          <dt>현재 탭</dt>
-          <dd id="current-url">확인 중...</dd>
-        </div>
-        <div>
-          <dt>백엔드</dt>
-          <dd>http://localhost:8000</dd>
-        </div>
-        <div>
-          <dt>데모 페이지</dt>
-          <dd>http://localhost:3000/product/227242032.html</dd>
-        </div>
-      </dl>
+      <p id="current-url" class="popup-url">확인 중...</p>
 
       <div class="popup-actions">
-        <button id="open-demo" type="button">데모 페이지 열기</button>
+        <button id="open-demo" type="button">데모 열기</button>
+        <button id="open-report" type="button" hidden>최근 결과 보기</button>
       </div>
     </main>
 
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

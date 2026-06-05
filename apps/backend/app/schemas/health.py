@@ -8,3 +8,10 @@ class HealthResponse(BaseModel):
 
     # The status string is intentionally tiny for simple monitoring.
     status: str
+
+
+class PipelineHealthResponse(BaseModel):
+    """Health-check response for backend-to-pipeline connectivity."""
+
+    status: str
+    pipeline_reachable: bool

@@ -23,16 +23,26 @@ export function extractHighlightTargets(result: ScanResultResponse): PageHighlig
   }));
 }
 
-export function applyPageHighlights(targets: ScanHighlightTarget[], documentRef: Document = document): void {
+export function applyPageHighlights(
+  targets: ScanHighlightTarget[],
+  documentRef: Document = document,
+): ScanHighlightTarget[] {
   clearPageHighlights(documentRef);
 
-  for (const target of targets) {
+  const appliedTargets: ScanHighlightTarget[] = [];
+  const sortedTargets = [...targets].sort((left, right) => right.matched_text.length - left.matched_text.length);
+
+  for (const target of sortedTargets) {
     if (!target.matched_text.trim()) {
       continue;
     }
 
-    highlightFirstMatch(target, documentRef);
+    if (highlightAllMatches(target, documentRef) > 0) {
+      appliedTargets.push(target);
+    }
   }
+
+  return appliedTargets;
 }
 
 export function clearPageHighlights(documentRef: Document = document): void {
@@ -48,44 +58,66 @@ export function clearPageHighlights(documentRef: Document = document): void {
   }
 }
 
-function highlightFirstMatch(target: ScanHighlightTarget, documentRef: Document): void {
-  const textNode = findTextNodeWithMatch(documentRef.body, target.matched_text);
-  if (!textNode) {
-    return;
+function highlightAllMatches(target: ScanHighlightTarget, documentRef: Document): number {
+  const textNodes = findTextNodesWithMatch(documentRef.body, target.matched_text);
+  let appliedCount = 0;
+
+  for (const textNode of textNodes) {
+    appliedCount += highlightMatchesInTextNode(textNode, target, documentRef);
   }
 
+  return appliedCount;
+}
+
+function highlightMatchesInTextNode(
+  textNode: Text,
+  target: ScanHighlightTarget,
+  documentRef: Document,
+): number {
   const originalText = textNode.nodeValue ?? "";
-  const matchIndex = originalText.indexOf(target.matched_text);
-  if (matchIndex < 0) {
-    return;
+  const ranges = findAllMatchRanges(originalText, target.matched_text);
+
+  if (!ranges.length) {
+    return 0;
   }
-
-  const before = originalText.slice(0, matchIndex);
-  const match = originalText.slice(matchIndex, matchIndex + target.matched_text.length);
-  const after = originalText.slice(matchIndex + target.matched_text.length);
-
-  const wrapper = documentRef.createElement("mark");
-  wrapper.className = target.css_class;
-  wrapper.dataset.safeTicketHighlight = "true";
-  wrapper.dataset.reasonCode = target.reason_code;
-  wrapper.title = target.reason;
-  wrapper.textContent = match;
 
   const fragment = documentRef.createDocumentFragment();
-  if (before) {
-    fragment.appendChild(documentRef.createTextNode(before));
+  let cursor = 0;
+
+  for (const range of ranges) {
+    if (range.index < cursor) {
+      continue;
+    }
+
+    if (range.index > cursor) {
+      fragment.appendChild(documentRef.createTextNode(originalText.slice(cursor, range.index)));
+    }
+
+    const wrapper = documentRef.createElement("mark");
+    wrapper.className = target.css_class;
+    wrapper.dataset.safeTicketHighlight = "true";
+    wrapper.dataset.reasonCode = target.reason_code;
+    wrapper.title = target.reason;
+    wrapper.textContent = originalText.slice(range.index, range.index + range.length);
+    fragment.appendChild(wrapper);
+
+    cursor = range.index + range.length;
   }
-  fragment.appendChild(wrapper);
-  if (after) {
-    fragment.appendChild(documentRef.createTextNode(after));
+
+  if (cursor < originalText.length) {
+    fragment.appendChild(documentRef.createTextNode(originalText.slice(cursor)));
   }
 
   textNode.parentNode?.replaceChild(fragment, textNode);
+  return ranges.length;
 }
 
-function findTextNodeWithMatch(root: HTMLElement | null, matchedText: string): Text | null {
+function findTextNodesWithMatch(
+  root: HTMLElement | null,
+  matchedText: string,
+): Text[] {
   if (!root) {
-    return null;
+    return [];
   }
 
   const documentRef = root.ownerDocument;
@@ -95,7 +127,7 @@ function findTextNodeWithMatch(root: HTMLElement | null, matchedText: string): T
     {
       acceptNode(node) {
         const text = node.nodeValue ?? "";
-        if (!text.includes(matchedText)) {
+        if (!findAllMatchRanges(text, matchedText).length) {
           return NodeFilter.FILTER_SKIP;
         }
 
@@ -122,5 +154,84 @@ function findTextNodeWithMatch(root: HTMLElement | null, matchedText: string): T
     },
   );
 
-  return walker.nextNode() as Text | null;
+  const matches: Text[] = [];
+  let currentNode = walker.nextNode() as Text | null;
+  while (currentNode) {
+    matches.push(currentNode);
+    currentNode = walker.nextNode() as Text | null;
+  }
+
+  return matches;
+}
+
+function findAllMatchRanges(text: string, matchedText: string): Array<{ index: number; length: number }> {
+  const directMatches: Array<{ index: number; length: number }> = [];
+  let directCursor = 0;
+
+  while (directCursor < text.length) {
+    const directIndex = text.indexOf(matchedText, directCursor);
+    if (directIndex < 0) {
+      break;
+    }
+
+    directMatches.push({
+      index: directIndex,
+      length: matchedText.length,
+    });
+    directCursor = directIndex + Math.max(1, matchedText.length);
+  }
+
+  if (directMatches.length) {
+    return directMatches;
+  }
+
+  const normalizedNeedle = normalizeWhitespace(matchedText);
+  if (!normalizedNeedle) {
+    return [];
+  }
+
+  const regex = buildWhitespaceTolerantRegex(matchedText);
+  if (!regex) {
+    return [];
+  }
+
+  const matches: Array<{ index: number; length: number }> = [];
+  const globalRegex = new RegExp(regex.source, "g");
+  let match = globalRegex.exec(text);
+
+  while (match && match.index >= 0) {
+    const matchedSegment = match[0];
+    if (normalizeWhitespace(matchedSegment) === normalizedNeedle) {
+      matches.push({
+        index: match.index,
+        length: matchedSegment.length,
+      });
+    }
+
+    if (matchedSegment.length === 0) {
+      globalRegex.lastIndex += 1;
+    }
+
+    match = globalRegex.exec(text);
+  }
+
+  return matches;
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function buildWhitespaceTolerantRegex(value: string): RegExp | null {
+  const parts = normalizeWhitespace(value)
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!parts.length) {
+    return null;
+  }
+
+  const escaped = parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(escaped.join("\\s+"));
 }

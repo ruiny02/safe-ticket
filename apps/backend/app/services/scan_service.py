@@ -5,16 +5,28 @@ from __future__ import annotations
 from uuid import uuid4
 
 from app.core.config import get_settings
-from app.repositories.in_memory import store
+from app.repositories.db_store import db_store
+from app.schemas.external_lookup import ExternalLookupProvider, ExternalLookupResponse
 from app.schemas.scan import (
-    FeedbackRequest,
+    ContentBlock,
     PipelineErrorInfo,
     PipelineExchangeResponse,
     ScanCreateRequest,
     ScanCreateResponse,
+    ScanListResponse,
     ScanResultResponse,
 )
+from app.services.external_lookup import (
+    POLICE_PAGE_URL,
+    THECHEAT_SEARCH_URL,
+    ExternalLookupError,
+    external_lookup_service,
+)
 from app.services.pipeline_client import PipelineClientError, pipeline_client
+from app.services.rules.external_lookup_candidates import ExternalLookupCandidate, extract_external_lookup_candidates
+
+
+EXTERNAL_LOOKUP_PROVIDERS: tuple[ExternalLookupProvider, ...] = ("police", "thecheat")
 
 
 class ScanService:
@@ -25,13 +37,7 @@ class ScanService:
         scan_id = f"scan_{uuid4().hex[:8]}"
         settings = get_settings()
 
-        # The initial record contains only queue metadata because processing has not started yet.
-        store.save_scan(
-            ScanResultResponse(
-                scan_id=scan_id,
-                status="queued",
-            )
-        )
+        db_store.create_scan(scan_id=scan_id, payload=payload)
 
         return ScanCreateResponse(
             scan_id=scan_id,
@@ -39,16 +45,34 @@ class ScanService:
             poll_after_ms=settings.scan_poll_interval_ms,
         )
 
-    def process_scan(self, scan_id: str) -> None:
+    def enqueue_scan(self, payload: ScanCreateRequest) -> ScanCreateResponse:
+        """Create the scan and record the outbound pipeline request in one safe step."""
+        created_scan = self.create_scan(payload)
+        self.attach_pipeline_request(created_scan.scan_id, payload)
+        return created_scan
+
+    def run_scan_sync(self, payload: ScanCreateRequest) -> ScanResultResponse:
+        """Create, process, and return a scan result in one request for local frontend testing."""
+        created_scan = self.enqueue_scan(payload)
+        settings = get_settings()
+        self.process_scan(
+            created_scan.scan_id,
+            run_external_lookups=settings.sync_external_lookup_enabled,
+        )
+        scan = self.get_scan(created_scan.scan_id)
+        if scan is None:
+            raise RuntimeError("scan not found after synchronous processing")
+        return scan
+
+    def process_scan(self, scan_id: str, run_external_lookups: bool = True) -> None:
         """Send the saved payload to the pipeline and translate the outcome into scan status."""
-        existing_scan = store.get_scan(scan_id)
-        if existing_scan is None:
+        if db_store.get_scan(scan_id) is None:
             return
 
         # Move the job into processing so polling clients can observe progress.
-        store.save_scan(existing_scan.model_copy(update={"status": "processing"}))
+        db_store.update_scan_status(scan_id=scan_id, status="processing")
 
-        exchange = store.get_pipeline_exchange(scan_id)
+        exchange = db_store.get_pipeline_exchange(scan_id)
         if exchange is None:
             self._mark_scan_failed(
                 scan_id=scan_id,
@@ -69,7 +93,7 @@ class ScanService:
                 retryable=exc.retryable,
                 status_code=exc.status_code,
             )
-            store.save_pipeline_exchange(
+            db_store.save_pipeline_exchange(
                 PipelineExchangeResponse(
                     scan_id=scan_id,
                     outbound_payload=exchange.outbound_payload,
@@ -79,6 +103,11 @@ class ScanService:
             )
             self._mark_scan_failed(scan_id=scan_id, error_info=error_info)
             return
+
+        settings = get_settings()
+        external_lookup_results = []
+        if settings.external_lookup_enabled and run_external_lookups:
+            external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
 
         # Save the final completed scan in the format consumed by the frontend.
         final_scan = ScanResultResponse(
@@ -92,11 +121,12 @@ class ScanService:
             highlight_targets=inbound_payload.highlight_targets,
             similar_cases=inbound_payload.similar_cases,
             recommended_actions=inbound_payload.recommended_actions,
+            external_lookup_results=external_lookup_results,
             degraded=inbound_payload.degraded,
-            report_url=f"/report/{scan_id}",
+            report_url=self._build_report_url(scan_id),
         )
-        store.save_scan(final_scan)
-        store.save_pipeline_exchange(
+        db_store.save_scan(final_scan)
+        db_store.save_pipeline_exchange(
             PipelineExchangeResponse(
                 scan_id=scan_id,
                 outbound_payload=exchange.outbound_payload,
@@ -107,24 +137,20 @@ class ScanService:
 
     def get_scan(self, scan_id: str) -> ScanResultResponse | None:
         """Return the current scan state."""
-        return store.get_scan(scan_id)
+        return db_store.get_scan(scan_id)
 
-    def save_feedback(self, scan_id: str, payload: FeedbackRequest) -> bool:
-        """Store feedback only when the scan exists."""
-        scan = store.get_scan(scan_id)
-        if scan is None:
-            return False
-        store.save_feedback(scan_id, payload)
-        return True
+    def list_scans(self, limit: int, offset: int) -> ScanListResponse:
+        """Return recent scans for backend checks and future frontend list views."""
+        return db_store.list_scans(limit=limit, offset=offset)
 
     def get_pipeline_exchange(self, scan_id: str) -> PipelineExchangeResponse | None:
         """Return the recorded backend-to-pipeline exchange."""
-        return store.get_pipeline_exchange(scan_id)
+        return db_store.get_pipeline_exchange(scan_id)
 
     def attach_pipeline_request(self, scan_id: str, payload: ScanCreateRequest) -> None:
         """Capture the outbound payload before the background task runs."""
         outbound_payload = pipeline_client.build_outbound_payload(scan_id=scan_id, payload=payload)
-        store.save_pipeline_exchange(
+        db_store.save_pipeline_exchange(
             PipelineExchangeResponse(
                 scan_id=scan_id,
                 outbound_payload=outbound_payload,
@@ -135,13 +161,44 @@ class ScanService:
 
     def _mark_scan_failed(self, scan_id: str, error_info: PipelineErrorInfo) -> None:
         """Persist a stable failed scan result without leaking transport-layer details."""
-        store.save_scan(
-            ScanResultResponse(
-                scan_id=scan_id,
-                status="failed",
-                summary=error_info.message,
-            )
+        db_store.update_scan_status(scan_id=scan_id, status="failed", summary=error_info.message)
+
+    def _run_external_lookups(self, content_blocks: list[ContentBlock]) -> list[ExternalLookupResponse]:
+        """Run police and TheCheat lookups for parsed phone/account candidates."""
+        lookup_results: list[ExternalLookupResponse] = []
+
+        for candidate in extract_external_lookup_candidates(content_blocks):
+            for provider in EXTERNAL_LOOKUP_PROVIDERS:
+                try:
+                    lookup_results.append(external_lookup_service.lookup(candidate.to_request(provider)))
+                except Exception as exc:
+                    lookup_results.append(self._build_failed_external_lookup(provider, candidate, exc))
+
+        return lookup_results
+
+    def _build_failed_external_lookup(
+        self,
+        provider: ExternalLookupProvider,
+        candidate: ExternalLookupCandidate,
+        exc: Exception,
+    ) -> ExternalLookupResponse:
+        """Convert an external-provider failure into scan metadata instead of failing the scan."""
+        message = str(exc) if isinstance(exc, ExternalLookupError) else f"External lookup failed: {exc}"
+        source_url = POLICE_PAGE_URL if provider == "police" else THECHEAT_SEARCH_URL
+
+        return ExternalLookupResponse(
+            provider=provider,
+            kind=candidate.kind,
+            keyword=candidate.keyword,
+            status="failed",
+            message=message,
+            source_url=source_url,
         )
+
+    def _build_report_url(self, scan_id: str) -> str:
+        """Build the frontend report URL stored with completed scan results."""
+        base_url = get_settings().frontend_report_base_url.rstrip("/")
+        return f"{base_url}/{scan_id}"
 
 
 # A module-level service instance keeps route imports small.

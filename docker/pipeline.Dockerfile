@@ -2,11 +2,13 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Stage-0 placeholder image.
-# When pipeline scaffold code is added, enable dependency installation like below:
-# COPY apps/pipeline/requirements.txt /tmp/requirements.txt
-# RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# Install the pipeline API runtime dependencies.
+COPY apps/pipeline/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy the pipeline service source so the image can run without bind mounts.
+COPY apps/pipeline /app/apps/pipeline
 
 EXPOSE 8010
 
-CMD ["python", "-m", "http.server", "8010", "--directory", "/app/apps/pipeline"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010", "--app-dir", "/app/apps/pipeline"]

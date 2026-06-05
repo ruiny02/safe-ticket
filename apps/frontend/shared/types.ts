@@ -1,3 +1,5 @@
+export type MarketplacePlatform = "joonggonara" | "bunjang";
+
 export interface SellerInfo {
   seller_id: string;
   nickname: string;
@@ -8,13 +10,20 @@ export interface ContentBlock {
   text: string;
 }
 
+export interface MarketplaceSignal {
+  key: string;
+  label: string;
+  value: string;
+}
+
 export interface ScanCreateRequest {
-  platform: "joonggonara";
+  platform: MarketplacePlatform;
   page_url: string;
   page_title: string;
   price: number;
   seller: SellerInfo;
   content_blocks: ContentBlock[];
+  marketplace_signals: MarketplaceSignal[];
 }
 
 export interface ScanQueuedResponse {
@@ -44,6 +53,18 @@ export interface SimilarCase {
   summary: string;
 }
 
+export interface ExternalLookupResult {
+  provider: "police" | "thecheat";
+  kind: "phone" | "account";
+  keyword: string;
+  status: "completed" | "login_required" | "failed";
+  message: string;
+  source_url: string;
+  report_count: number | null;
+  risk_found: boolean | null;
+  result_text: string | null;
+}
+
 export interface ScanResultResponse {
   scan_id: string;
   status: "queued" | "processing" | "completed" | "partial" | "failed";
@@ -55,6 +76,36 @@ export interface ScanResultResponse {
   highlight_targets: ScanHighlightTarget[];
   similar_cases: SimilarCase[];
   recommended_actions: RecommendedAction[];
+  external_lookup_results?: ExternalLookupResult[];
   degraded: boolean;
   report_url: string | null;
+}
+
+export interface PipelineOutboundPayload {
+  scan_id: string;
+  platform: string;
+  page_url: string;
+  page_title: string;
+  price: number;
+  seller: SellerInfo;
+  content_blocks: ContentBlock[];
+  marketplace_signals?: MarketplaceSignal[];
+}
+
+export interface PipelineInboundPayload {
+  risk_level: "low" | "medium" | "high";
+  risk_score: number;
+  summary: string;
+  risk_tags: string[];
+  evidence_items: ScanHighlightTarget[];
+  highlight_targets: ScanHighlightTarget[];
+  similar_cases: SimilarCase[];
+  recommended_actions: RecommendedAction[];
+  degraded: boolean;
+}
+
+export interface PipelineExchangeResponse {
+  scan_id: string;
+  outbound_payload: PipelineOutboundPayload;
+  inbound_payload: PipelineInboundPayload;
 }

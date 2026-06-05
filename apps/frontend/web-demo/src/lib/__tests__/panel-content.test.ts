@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPanelContent } from "../panel-content";
 import type { ScanCreateRequest, ScanResultResponse } from "../../../../shared/types";
+import { buildPanelContent } from "../panel-content";
 
 const payload: ScanCreateRequest = {
   platform: "joonggonara",
   page_url: "http://localhost:3000/product/227242032.html",
-  page_title: "tuki. 츠키 아시아투어콘서트 정가*~-",
+  page_title: "tuki. Asia tour concert ticket",
   price: 163000,
   seller: {
     seller_id: "4099087",
-    nickname: "낭닥SJ",
+    nickname: "sellerSJ",
   },
   content_blocks: [],
+  marketplace_signals: [],
 };
 
 describe("buildPanelContent", () => {
@@ -22,7 +23,7 @@ describe("buildPanelContent", () => {
       status: "completed",
       risk_level: "high",
       risk_score: 0.87,
-      summary: "은행명과 계좌번호 패턴이 함께 잡혔습니다.",
+      summary: "Multiple payment-inducing phrases were detected.",
       risk_tags: ["bank_account_pattern"],
       evidence_items: [],
       highlight_targets: [
@@ -30,9 +31,9 @@ describe("buildPanelContent", () => {
           block_id: "body-1",
           start: 10,
           end: 15,
-          matched_text: "카카오뱅크",
+          matched_text: "KakaoBank",
           reason_code: "bank_name_detected",
-          reason: "모니터링 대상 은행명입니다.",
+          reason: "This matches a bank account transfer phrase.",
           css_class: "safe-ticket-highlight-danger",
         },
       ],
@@ -40,7 +41,20 @@ describe("buildPanelContent", () => {
       recommended_actions: [
         {
           action: "verify_identity",
-          description: "판매자 실명과 계좌 예금주를 교차 확인하세요.",
+          description: "Cross-check the seller name and deposit account holder.",
+        },
+      ],
+      external_lookup_results: [
+        {
+          provider: "police",
+          kind: "account",
+          keyword: "3355288620726",
+          status: "completed",
+          message: "No recent report history was found.",
+          source_url: "https://www.police.go.kr/www/security/cyber/cyber04.jsp#none",
+          report_count: 0,
+          risk_found: false,
+          result_text: null,
         },
       ],
       degraded: false,
@@ -51,19 +65,27 @@ describe("buildPanelContent", () => {
       pageUrl: payload.page_url,
       payload,
       scanResult,
+      appliedHighlights: scanResult.highlight_targets,
     });
 
     expect(content.tone).toBe("danger");
-    expect(content.headline).toContain("즉시 확인");
+    expect(content.headline).toContain("Immediate review");
     expect(content.reasons).toEqual([
       {
-        title: "카카오뱅크",
-        body: "모니터링 대상 은행명입니다.",
+        title: "KakaoBank",
+        body: "This matches a bank account transfer phrase.",
       },
     ]);
     expect(content.actions[0]).toEqual({
       title: "verify_identity",
-      body: "판매자 실명과 계좌 예금주를 교차 확인하세요.",
+      body: "Cross-check the seller name and deposit account holder.",
+    });
+    expect(content.externalLookups[0]).toEqual({
+      title: "Police lookup - account",
+      body: "No recent report history was found.",
+      statusLabel: "no reports",
+      tone: "ok",
+      keyword: "3355-28-8620726",
     });
   });
 
@@ -76,6 +98,11 @@ describe("buildPanelContent", () => {
 
     expect(content.tone).toBe("ok");
     expect(content.statusLabel).toBe("ready");
-    expect(content.summary).toContain("거래 페이지 텍스트를 파싱했습니다");
+    expect(content.headline).toBe("Scan ready");
+    expect(content.summary).toContain("Scan");
+    expect(content.actions[0]).toEqual({
+      title: "Run scan",
+      body: "백엔드로 분석 요청을 보내고 위험 점수, 하이라이트, 권장 행동을 받아옵니다.",
+    });
   });
 });
