@@ -738,8 +738,7 @@ export function App({ pageUrl }: AppProps) {
             }}
           />
           <div>
-            <p className="safe-ticket-eyebrow">safe-ticket</p>
-            <h1>거래 스캔</h1>
+            <p className="safe-ticket-eyebrow">SAFE-TICKET</p>
           </div>
         </div>
         <button
@@ -824,6 +823,8 @@ export function App({ pageUrl }: AppProps) {
                     <h2>외부 조회</h2>
                     {panelContent.externalLookups.length ? (
                       <span className="safe-ticket-badge ok">{panelContent.externalLookups.length} checks</span>
+                    ) : visibleScanResult ? (
+                      <span className="safe-ticket-badge neutral">not run</span>
                     ) : (
                       <span className="safe-ticket-badge ok">standby</span>
                     )}
@@ -845,7 +846,9 @@ export function App({ pageUrl }: AppProps) {
                       ))
                     ) : (
                       <p className="safe-ticket-empty">
-                        스캔 완료 후 경찰청/더치트 조회 결과가 여기에 표시됩니다.
+                        {visibleScanResult
+                          ? "이번 스캔에서는 계좌번호나 전화번호가 감지되지 않아 경찰청/더치트 외부 조회를 실행하지 않았습니다."
+                          : "스캔 완료 후 외부 조회 대상이 감지되면 경찰청/더치트 조회 결과가 여기에 표시됩니다."}
                       </p>
                     )}
                   </div>
