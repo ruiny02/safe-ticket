@@ -10,12 +10,29 @@ const supportedPatterns = [
   /^http:\/\/127\.0\.0\.1:\d+\/product\/[^/]+\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/joongna-chat\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/bunjang-chat\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/product\/[^/]+\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/joongna-chat\.html$/i,
+  /^http:\/\/54\.180\.226\.121:\d+\/bunjang-chat\.html$/i,
 ];
 
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
+const DEFAULT_FRONTEND_BASE_URL = "http://54.180.226.121:3000";
 
-function buildReportPageUrl(scanId) {
-  return `http://localhost:3000/report/#/reports/${encodeURIComponent(scanId)}`;
+function getFrontendBaseUrl(currentUrl) {
+  try {
+    const parsedUrl = new URL(currentUrl);
+    if (parsedUrl.protocol === "http:" && /^(?:localhost|127\.0\.0\.1|54\.180\.226\.121)$/.test(parsedUrl.hostname)) {
+      return `${parsedUrl.protocol}//${parsedUrl.host}`;
+    }
+  } catch {
+    // Fall back to the deployed frontend.
+  }
+
+  return DEFAULT_FRONTEND_BASE_URL;
+}
+
+function buildReportPageUrl(scanId, frontendBaseUrl) {
+  return `${frontendBaseUrl}/report/#/reports/${encodeURIComponent(scanId)}`;
 }
 
 function getReportPageUrlForTab(currentUrl, latestScan) {
@@ -23,7 +40,7 @@ function getReportPageUrlForTab(currentUrl, latestScan) {
     return null;
   }
 
-  return buildReportPageUrl(latestScan.scanId);
+  return buildReportPageUrl(latestScan.scanId, getFrontendBaseUrl(currentUrl));
 }
 
 function isSupportedMarketplacePage(url) {
@@ -70,15 +87,15 @@ async function run() {
   }
 
   openDemoButton?.addEventListener("click", () => {
-    void openTab("http://localhost:3000/product/227242032.html");
+    void openTab(`${getFrontendBaseUrl(url)}/product/227242032.html`);
   });
 
   openJoongnaChatDemoButton?.addEventListener("click", () => {
-    void openTab("http://localhost:3000/joongna-chat.html");
+    void openTab(`${getFrontendBaseUrl(url)}/joongna-chat.html`);
   });
 
   openBunjangChatDemoButton?.addEventListener("click", () => {
-    void openTab("http://localhost:3000/bunjang-chat.html");
+    void openTab(`${getFrontendBaseUrl(url)}/bunjang-chat.html`);
   });
 
   const storageApi = chrome.storage?.local;

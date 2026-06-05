@@ -95,14 +95,25 @@ export function buildPanelContent(options: {
   payload: ScanCreateRequest | null;
   scanResult: ScanResultResponse | null;
   appliedHighlights?: ScanHighlightTarget[];
+  apiBaseUrl?: string;
+  dashboardUrl?: string;
+  reportUrl?: string;
 }): PanelContent {
-  const { pageUrl, payload, scanResult, appliedHighlights = [] } = options;
+  const {
+    pageUrl,
+    payload,
+    scanResult,
+    appliedHighlights = [],
+    apiBaseUrl = "http://localhost:8000",
+    dashboardUrl = "http://localhost:3000/report/#/dashboard",
+    reportUrl = "http://localhost:3000/report/#/reports",
+  } = options;
 
   const meta: PanelMetaItem[] = [
     { label: "현재 페이지", value: pageUrl },
-    { label: "백엔드", value: "http://localhost:8000" },
-    { label: "대시보드", value: "http://localhost:3000/report/#/dashboard" },
-    { label: "리포트", value: "http://localhost:3000/report/#/reports" },
+    { label: "백엔드", value: apiBaseUrl },
+    { label: "대시보드", value: dashboardUrl },
+    { label: "리포트", value: reportUrl },
   ];
 
   if (!scanResult) {

@@ -22,6 +22,21 @@ afterEach(() => {
 });
 
 describe("scan-api helpers", () => {
+  it("does not mark public server requests as private-network fetches", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      statusText: "Accepted",
+      text: async () => JSON.stringify({ scan_id: "scan_123", status: "queued", poll_after_ms: 1000 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createScan("http://54.180.226.121:8000", payload);
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit & { targetAddressSpace?: string };
+    expect(requestInit.targetAddressSpace).toBeUndefined();
+  });
+
   it("does not fall back to a hard-coded remote tunnel when local scan requests fail", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);

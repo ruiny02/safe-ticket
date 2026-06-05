@@ -10,6 +10,7 @@ import {
   isReliableJoongnaProductPayload,
 } from "../../shared/joonggonara";
 import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
+import { getSafeTicketApiBaseUrl } from "../../shared/runtime-config";
 import { createScan, createScanSync, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { buildLocalChatHighlightTargets, mergeHighlightTargets } from "./lib/chat-rules";
@@ -17,9 +18,9 @@ import { buildAssistantReply, buildChatWelcomeMessage, buildSuggestedPrompts } f
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
 import { applyPanelLayout, clearPanelLayout } from "./lib/page-layout";
 import { buildPanelContent } from "./lib/panel-content";
-import { buildDashboardPageUrl, buildReportPageUrl } from "./lib/report-link";
+import { buildDashboardBaseUrl, buildDashboardPageUrl, buildReportListUrl, buildReportPageUrl } from "./lib/report-link";
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = getSafeTicketApiBaseUrl();
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
 const SAFE_TICKET_ICON_PATH = "icons/safe-ticket-icon-128.png";
 
@@ -189,6 +190,9 @@ export function App({ pageUrl }: AppProps) {
     payload,
     scanResult: visibleScanResult,
     appliedHighlights,
+    apiBaseUrl: API_BASE_URL,
+    dashboardUrl: buildDashboardBaseUrl(),
+    reportUrl: buildReportListUrl(),
   });
   const chatSuggestions = buildSuggestedPrompts(payload, visibleScanResult);
   const welcomeMessage = buildChatWelcomeMessage(payload, visibleScanResult);
