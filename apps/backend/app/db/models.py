@@ -38,6 +38,9 @@ class Case(Base):
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     label: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    risk_level: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    risk_score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    risk_flags_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     platform_hint: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -264,7 +267,38 @@ class SellerObservation(Base):
     )
 
 
+class RawPost(Base):
+    __tablename__ = "raw_posts"
+
+    raw_post_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    seller_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    raw_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rendered_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    ingest_source: Mapped[str] = mapped_column(String(64), nullable=False, default="pipeline")
+    source_file: Mapped[str | None] = mapped_column(Text, nullable=True)
+    crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=TIMESTAMP_DEFAULT,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=TIMESTAMP_DEFAULT,
+        onupdate=datetime.utcnow,
+    )
+
+
 Index("ix_cases_source_type_created_at", Case.source_type, Case.created_at)
 Index("ix_case_entities_case_id_entity_type", CaseEntity.case_id, CaseEntity.entity_type)
 Index("ix_scans_platform_created_at", Scan.platform, Scan.created_at)
 Index("ix_seller_observations_platform_seller_id", SellerObservation.platform, SellerObservation.seller_id)
+Index("ix_raw_posts_platform_crawled_at", RawPost.platform, RawPost.crawled_at)
+Index("ix_raw_posts_source_url", RawPost.source_url)
