@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
-import { getPipelineDebug, getScan } from "../../shared/scan-api";
-import type { PipelineExchangeResponse, ScanResultResponse } from "../../shared/types";
+import { getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
+import type { CaseUmapResponse, PipelineExchangeResponse, ScanResultResponse } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
 import { buildRouteHref, parseReportRoute, shouldRefreshReportData, type ReportView } from "./lib/navigation";
@@ -419,6 +419,7 @@ export function App() {
   const [route, setRoute] = useState(initialRoute);
   const [scanResult, setScanResult] = useState<ScanResultResponse | null>(null);
   const [pipelineDebug, setPipelineDebug] = useState<PipelineExchangeResponse | null>(null);
+  const [caseUmap, setCaseUmap] = useState<CaseUmapResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [profileMode, setProfileMode] = useState<ProfileMode>("cautious");
   const [account, setAccount] = useState<AccountState | null>(null);
@@ -442,6 +443,7 @@ export function App() {
           setError(null);
           setScanResult(null);
           setPipelineDebug(null);
+          setCaseUmap(null);
         }
         return nextRoute;
       });
@@ -459,6 +461,7 @@ export function App() {
     if (route.view === "settings" || !route.scanId) {
       setScanResult(null);
       setPipelineDebug(null);
+      setCaseUmap(null);
       setError(null);
       return;
     }
@@ -470,11 +473,13 @@ export function App() {
       setError(null);
       setScanResult(null);
       setPipelineDebug(null);
+      setCaseUmap(null);
 
       try {
-        const [result, debug] = await Promise.all([
+        const [result, debug, umap] = await Promise.all([
           pollScanResult(scanId),
           getPipelineDebug(API_BASE_URL, scanId),
+          getCaseUmap(API_BASE_URL, scanId).catch(() => null),
         ]);
 
         if (cancelled) {
@@ -483,6 +488,7 @@ export function App() {
 
         setScanResult(result);
         setPipelineDebug(debug);
+        setCaseUmap(umap);
       } catch (nextError) {
         if (cancelled) {
           return;
@@ -507,8 +513,9 @@ export function App() {
     return buildDashboardModel({
       scanResult,
       pipelineDebug,
+      caseUmap,
     });
-  }, [pipelineDebug, scanResult]);
+  }, [caseUmap, pipelineDebug, scanResult]);
   const reportBrief = useMemo(() => {
     if (!scanResult || !dashboard) {
       return null;

@@ -1,4 +1,5 @@
 import type {
+  CaseUmapResponse,
   PipelineExchangeResponse,
   ScanCreateRequest,
   ScanQueuedResponse,
@@ -244,5 +245,24 @@ export async function getPipelineDebug(
     `${baseUrl}/api/v1/scans/${scanId}/pipeline-debug`,
     undefined,
     "Pipeline debug request",
+  );
+}
+
+export async function getCaseUmap(
+  baseUrl: string,
+  scanId: string | null,
+): Promise<CaseUmapResponse> {
+  const params = new URLSearchParams({
+    limit: "500",
+    refresh: "true",
+  });
+  if (scanId) {
+    params.set("scan_id", scanId);
+  }
+
+  return requestJson<CaseUmapResponse>(
+    `${baseUrl}/api/v1/cases/umap?${params.toString()}`,
+    undefined,
+    "Case UMAP request",
   );
 }
