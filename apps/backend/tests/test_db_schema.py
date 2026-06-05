@@ -14,6 +14,7 @@ def test_metadata_contains_documented_tables() -> None:
         "scan_similar_cases",
         "pipeline_exchanges",
         "seller_observations",
+        "raw_posts",
     }
 
     assert expected_tables.issubset(Base.metadata.tables.keys())
@@ -39,3 +40,11 @@ def test_child_tables_reference_expected_parents() -> None:
         table = Base.metadata.tables[table_name]
         target_tables = {fk.column.table.name for fk in table.foreign_keys}
         assert expected_targets.issubset(target_tables)
+
+
+def test_cases_expose_risk_labels_for_visualization() -> None:
+    cases = Base.metadata.tables["cases"]
+
+    assert "risk_level" in cases.c
+    assert "risk_score" in cases.c
+    assert "risk_flags_json" in cases.c
