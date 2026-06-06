@@ -140,7 +140,7 @@ describe("buildDashboardModel", () => {
       "Protected buyers",
       "Manual review",
     ]);
-    expect(model.embedding.pipeline).toBe("Raw embedding -> PCA(50) -> UMAP(2)");
+    expect(model.embedding.pipeline).toBe("Raw embedding -> PCA(50) -> UMAP(3)");
     expect(model.embedding.points.length).toBeGreaterThanOrEqual(60);
     expect(model.embedding.points.some((point) => point.variant === "current")).toBe(true);
     expect(model.embedding.points.some((point) => point.variant === "fraud")).toBe(true);
@@ -199,6 +199,7 @@ describe("buildDashboardModel", () => {
             label: "High risk ticket post",
             x: 20,
             y: 30,
+            z: 42,
             variant: "fraud",
             risk_level: "high",
             risk_score: 0.9,
@@ -212,6 +213,7 @@ describe("buildDashboardModel", () => {
             label: "Low risk ticket post",
             x: 80,
             y: 70,
+            z: 64,
             variant: "safe",
             risk_level: "low",
             risk_score: 0.1,
@@ -225,6 +227,7 @@ describe("buildDashboardModel", () => {
             label: "현재 scan",
             x: 22,
             y: 31,
+            z: 43,
             variant: "current",
             risk_level: null,
             risk_score: null,
@@ -241,7 +244,7 @@ describe("buildDashboardModel", () => {
           borderline: 0,
         },
         projection: {
-          pipeline: "case_chunks.embedding mean -> PCA(<=50) -> UMAP(2)",
+          pipeline: "case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)",
           source_embedding: "case_chunks.embedding",
           pca_components: 4,
           umap_neighbors: null,
@@ -259,13 +262,14 @@ describe("buildDashboardModel", () => {
       },
     });
 
-    expect(model.embedding.pipeline).toBe("case_chunks.embedding mean -> PCA(<=50) -> UMAP(2)");
+    expect(model.embedding.pipeline).toBe("case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)");
     expect(model.embedding.points).toHaveLength(3);
     expect(model.embedding.points[0]).toEqual({
       id: "case_high",
       label: "High risk ticket post",
       x: 20,
       y: 30,
+      z: 42,
       variant: "fraud",
     });
     expect(model.embedding.summary).toEqual({

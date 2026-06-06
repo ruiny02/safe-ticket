@@ -56,7 +56,7 @@ def test_build_case_umap_returns_risk_colored_projection_points() -> None:
 
     assert result.total_cases == 4
     assert result.risk_counts == {"fraud": 1, "borderline": 2, "safe": 1}
-    assert result.projection.pipeline == "case_chunks.embedding mean -> PCA(<=50) -> UMAP(2)"
+    assert result.projection.pipeline == "case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)"
 
     high_point = next(point for point in result.points if point.case_id == "case_high")
     assert high_point.label == "case_high ticket sale"
@@ -66,7 +66,8 @@ def test_build_case_umap_returns_risk_colored_projection_points() -> None:
     assert high_point.risk_flags == ["ticket_delivery_risk", "refund_denial"]
     assert isinstance(high_point.x, float)
     assert isinstance(high_point.y, float)
-    assert all(8 <= point.x <= 92 and 8 <= point.y <= 92 for point in result.points)
+    assert isinstance(high_point.z, float)
+    assert all(8 <= point.x <= 92 and 8 <= point.y <= 92 and 8 <= point.z <= 92 for point in result.points)
 
 
 def test_build_case_umap_excludes_cases_without_embeddings() -> None:
@@ -116,4 +117,6 @@ def test_build_case_umap_adds_current_scan_overlay_from_similar_cases() -> None:
     assert result.total_cases == 2
     assert result.current_scan is not None
     assert result.current_scan.nearest_cluster == "fraud"
-    assert any(point.case_id == "scan_current" and point.variant == "current" for point in result.points)
+    current_point = next(point for point in result.points if point.case_id == "scan_current")
+    assert current_point.variant == "current"
+    assert isinstance(current_point.z, float)

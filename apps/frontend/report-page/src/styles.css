@@ -741,11 +741,247 @@ svg {
   align-items: center;
 }
 
+.dashboard-embedding-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dashboard-embedding-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-embedding-toolbar strong,
+.dashboard-embedding-toolbar span {
+  display: block;
+}
+
+.dashboard-embedding-toolbar strong {
+  color: var(--gray-900);
+  font-size: 14px;
+}
+
+.dashboard-embedding-toolbar span {
+  margin-top: 3px;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.dashboard-embedding-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow-xs);
+}
+
+.dashboard-embedding-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-embedding-tabs button.is-active {
+  background: linear-gradient(135deg, var(--violet-500), #9c8cff);
+  color: #fff;
+}
+
 .dashboard-embedding {
   width: 100%;
   height: 320px;
   border-radius: 16px;
   background: #fcfcfe;
+}
+
+.dashboard-embedding-3d-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-embedding-3d-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.dashboard-embedding-3d-meta span {
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #fff;
+}
+
+.dashboard-embedding-3d-meta button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--gray-900);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-embedding-3d {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  overflow: hidden;
+  border: 1px solid rgba(132, 112, 255, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 75% 12%, rgba(132, 112, 255, 0.16), transparent 32%),
+    linear-gradient(180deg, #ffffff, #f8f8ff);
+  cursor: grab;
+  perspective: 820px;
+  touch-action: none;
+}
+
+.dashboard-embedding-3d.is-dragging {
+  cursor: grabbing;
+}
+
+.dashboard-embedding-3d::before {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  border-radius: 16px;
+  background-image:
+    linear-gradient(rgba(191, 196, 205, 0.23) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(191, 196, 205, 0.23) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+}
+
+.dashboard-embedding-3d-scene {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform-style: preserve-3d;
+  transition: transform 120ms ease-out;
+}
+
+.dashboard-embedding-3d.is-dragging .dashboard-embedding-3d-scene {
+  transition: none;
+}
+
+.dashboard-embedding-3d-plane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 260px;
+  height: 260px;
+  border: 1px solid rgba(132, 112, 255, 0.18);
+  background-image:
+    linear-gradient(rgba(132, 112, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(132, 112, 255, 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+  border-radius: 16px;
+  transform: translate3d(-50%, -50%, -120px) rotateX(90deg);
+}
+
+.dashboard-embedding-3d-axis {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 260px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(107, 114, 128, 0.36);
+  transform-origin: left center;
+}
+
+.dashboard-embedding-3d-axis.is-x {
+  transform: translate3d(-130px, 0, 0);
+}
+
+.dashboard-embedding-3d-axis.is-y {
+  transform: translate3d(0, -130px, 0) rotateZ(90deg);
+}
+
+.dashboard-embedding-3d-axis.is-z {
+  background: rgba(132, 112, 255, 0.48);
+  transform: translate3d(0, 0, -130px) rotateY(90deg);
+}
+
+.dashboard-embedding-3d-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.1);
+  transform-style: preserve-3d;
+}
+
+.dashboard-embedding-3d-label.is-x {
+  transform: translate3d(135px, -11px, 0);
+}
+
+.dashboard-embedding-3d-label.is-y {
+  transform: translate3d(-11px, -145px, 0);
+}
+
+.dashboard-embedding-3d-label.is-z {
+  color: var(--violet-600);
+  transform: translate3d(-11px, -11px, 145px);
+}
+
+.dashboard-embedding-3d-point {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--point-size);
+  height: var(--point-size);
+  margin-top: -4px;
+  margin-left: -4px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 10px 18px rgba(17, 24, 39, 0.18);
+  transform-style: preserve-3d;
+}
+
+.dashboard-embedding-3d-point.fraud {
+  background: var(--red-600);
+}
+
+.dashboard-embedding-3d-point.safe {
+  background: var(--green-600);
+}
+
+.dashboard-embedding-3d-point.borderline {
+  background: var(--yellow-500);
+}
+
+.dashboard-embedding-3d-point.current {
+  background: var(--gray-900);
+  border-color: #fff;
+  margin-top: -7px;
+  margin-left: -7px;
+  box-shadow: 0 0 0 3px rgba(132, 112, 255, 0.28), 0 14px 28px rgba(17, 24, 39, 0.28);
 }
 
 .dashboard-embedding rect {

@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type PointerEvent,
+  type ReactNode,
+  type WheelEvent,
+} from "react";
 
 import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
 import { getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
@@ -15,6 +25,7 @@ const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
 
 type ProfileMode = "general" | "newcomer" | "cautious";
 type Tone = "danger" | "warning" | "ok" | "neutral";
+type EmbeddingViewMode = "2d" | "3d";
 
 type PreferencesState = {
   emailAlerts: boolean;
@@ -252,6 +263,156 @@ function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
         </g>
       ))}
     </svg>
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatDistance(value: number | undefined) {
+  return typeof value === "number" ? value.toFixed(3) : "-";
+}
+
+function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
+  const [viewMode, setViewMode] = useState<EmbeddingViewMode>("2d");
+
+  return (
+    <div className="dashboard-embedding-panel">
+      <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
+        <div>
+          <strong>Embedding map</strong>
+          <span>2D overview와 3D orbit view를 전환합니다.</span>
+        </div>
+        <div className="dashboard-embedding-tabs" role="tablist" aria-label="Embedding projection mode">
+          {(["2d", "3d"] as const).map((mode) => (
+            <button
+              aria-selected={viewMode === mode}
+              className={viewMode === mode ? "is-active" : ""}
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              role="tab"
+              type="button"
+            >
+              {mode.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+      {viewMode === "2d" ? <EmbeddingMap points={points} /> : <EmbeddingMap3D points={points} />}
+    </div>
+  );
+}
+
+function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
+  const [rotation, setRotation] = useState({ x: -58, y: -34 });
+  const [zoom, setZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ pointerX: number; pointerY: number; rotationX: number; rotationY: number } | null>(
+    null,
+  );
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStartRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      rotationX: rotation.x,
+      rotationY: rotation.y,
+    };
+    setIsDragging(true);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const dragStart = dragStartRef.current;
+    if (!dragStart) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragStart.pointerX;
+    const deltaY = event.clientY - dragStart.pointerY;
+    setRotation({
+      x: clamp(dragStart.rotationX - deltaY * 0.32, -82, 18),
+      y: dragStart.rotationY + deltaX * 0.36,
+    });
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragStartRef.current = null;
+    setIsDragging(false);
+  };
+
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setZoom((current) => clamp(current + (event.deltaY > 0 ? -0.08 : 0.08), 0.72, 1.85));
+  };
+
+  return (
+    <div className="dashboard-embedding-3d-shell">
+      <div className="dashboard-embedding-3d-meta">
+        <span>Drag to rotate</span>
+        <span>Wheel to zoom</span>
+        <button
+          onClick={() => {
+            setRotation({ x: -58, y: -34 });
+            setZoom(1);
+          }}
+          type="button"
+        >
+          Reset
+        </button>
+      </div>
+      <div
+        aria-label="3D embedding map. Drag to rotate and use mouse wheel to zoom."
+        className={`dashboard-embedding-3d${isDragging ? " is-dragging" : ""}`}
+        onPointerDown={handlePointerDown}
+        onPointerLeave={handlePointerUp}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onWheel={handleWheel}
+        role="img"
+      >
+        <div
+          className="dashboard-embedding-3d-scene"
+          style={{
+            transform: `translate(-50%, -50%) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale(${zoom})`,
+          }}
+        >
+          <span className="dashboard-embedding-3d-plane is-floor" />
+          <span className="dashboard-embedding-3d-axis is-x" />
+          <span className="dashboard-embedding-3d-axis is-y" />
+          <span className="dashboard-embedding-3d-axis is-z" />
+          <span className="dashboard-embedding-3d-label is-x">x</span>
+          <span className="dashboard-embedding-3d-label is-y">y</span>
+          <span className="dashboard-embedding-3d-label is-z">z</span>
+          {points.map((point) => {
+            const x = (point.x - 50) * 3.2;
+            const y = (point.y - 50) * 3.2;
+            const z = ((point.z ?? 50) - 50) * 3.2;
+            const size = point.variant === "current" ? 14 : 8;
+            return (
+              <span
+                className={`dashboard-embedding-3d-point ${point.variant}`}
+                key={point.id}
+                style={
+                  {
+                    "--point-size": `${size}px`,
+                    transform: `translate3d(${x}px, ${y}px, ${z}px)`,
+                  } as CSSProperties
+                }
+                title={`${point.label} (${point.variant})`}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -665,13 +826,13 @@ export function App() {
                   <span className="dashboard-pill is-warning">{dashboard.embedding.pipeline}</span>
                 </header>
                 <div className="dashboard-card-body dashboard-embedding-wrap">
-                  <EmbeddingMap points={dashboard.embedding.points} />
+                  <EmbeddingMapExplorer points={dashboard.embedding.points} />
                   <div className="dashboard-embedding-copy">
-                    <p>현재 게시글은 <strong>{dashboard.embedding.summary.nearestCluster}</strong> cluster에 가장 가깝게 놓여 있습니다.</p>
+                    <p>현재 게시글은 <strong>{dashboard.embedding.summary.nearestCluster}</strong> label group 중심에 가장 가깝게 놓여 있습니다.</p>
                     <ul>
-                      <li>Fraud cluster 거리: {dashboard.embedding.summary.distances.fraud}</li>
-                      <li>Borderline cluster 거리: {dashboard.embedding.summary.distances.borderline}</li>
-                      <li>Safe cluster 거리: {dashboard.embedding.summary.distances.safe}</li>
+                      <li>Fraud group center 거리: {formatDistance(dashboard.embedding.summary.distances.fraud)}</li>
+                      <li>Borderline group center 거리: {formatDistance(dashboard.embedding.summary.distances.borderline)}</li>
+                      <li>Safe group center 거리: {formatDistance(dashboard.embedding.summary.distances.safe)}</li>
                     </ul>
                   </div>
                 </div>
@@ -796,12 +957,12 @@ export function App() {
               <header className="dashboard-card-header">
                 <div>
                   <h3>Embedding map</h3>
-                  <p>원본 임베딩을 PCA(50)와 UMAP(2)로 축소한 뒤, 현재 게시글이 어느 군집에 가까운지 2차원에서 직접 보여줍니다.</p>
+                  <p>원본 임베딩을 PCA(50)와 UMAP(3)로 축소한 뒤, 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
                 </div>
                 <span className="dashboard-pill is-neutral">{dashboardEmbedding.pipeline}</span>
               </header>
               <div className="dashboard-card-body dashboard-embedding-wrap">
-                <EmbeddingMap points={dashboardEmbedding.points} />
+                <EmbeddingMapExplorer points={dashboardEmbedding.points} />
                 <div className="dashboard-embedding-copy">
                   <p>현재 게시글은 <strong>{dashboardEmbedding.summary.nearestCluster}</strong> cluster에 가장 가깝습니다.</p>
                   <ul>
