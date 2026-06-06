@@ -58,7 +58,7 @@ jobs:
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             "$AWS_USER@$AWS_HOST" \
-            "AWS_APP_DIR='$AWS_APP_DIR' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
+            "AWS_APP_DIR='$AWS_APP_DIR' DEPLOY_REF='$DEPLOY_REF' AWS_HOST='$AWS_HOST' bash -s" <<'REMOTE'
           set -euo pipefail
 
           REPO_URL="https://github.com/ruiny02/safe-ticket.git"
@@ -74,7 +74,13 @@ jobs:
           git fetch origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
           git reset --hard "origin/$DEPLOY_REF"
 
-          sudo docker compose up -d --build
+          VITE_SAFE_TICKET_API_BASE_URL="${VITE_SAFE_TICKET_API_BASE_URL:-http://${AWS_HOST}:8000}"
+          VITE_SAFE_TICKET_FRONTEND_BASE_URL="${VITE_SAFE_TICKET_FRONTEND_BASE_URL:-http://${AWS_HOST}:3000}"
+
+          sudo env \
+            VITE_SAFE_TICKET_API_BASE_URL="$VITE_SAFE_TICKET_API_BASE_URL" \
+            VITE_SAFE_TICKET_FRONTEND_BASE_URL="$VITE_SAFE_TICKET_FRONTEND_BASE_URL" \
+            docker compose up -d --build
 
           wait_for_http() {
             local url="$1"

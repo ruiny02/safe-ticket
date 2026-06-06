@@ -13,6 +13,9 @@ class CaseUmapPoint(BaseModel):
     x: float
     y: float
     z: float
+    x_3d: float | None = None
+    y_3d: float | None = None
+    z_3d: float | None = None
     variant: str
     summary: str | None = None
     source_url: str | None = None
@@ -38,6 +41,10 @@ class CaseUmapProjection(BaseModel):
     pca_components: int
     umap_neighbors: int | None = None
     umap_min_dist: float | None = None
+    umap_dimensions: list[int] = Field(default_factory=lambda: [2, 3])
+    umap_target: str | None = "risk_score_ordinal"
+    umap_target_metric: str | None = "l2"
+    umap_target_weight: float | None = None
 
 
 class CaseUmapResponse(BaseModel):

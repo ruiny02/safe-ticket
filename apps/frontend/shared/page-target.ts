@@ -10,9 +10,9 @@ const SUPPORTED_PATTERNS = [
   /^http:\/\/127\.0\.0\.1:\d+\/product\/[^/]+\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/joongna-chat\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/bunjang-chat\.html$/i,
-  /^http:\/\/54\.180\.226\.121:\d+\/product\/[^/]+\.html$/i,
-  /^http:\/\/54\.180\.226\.121:\d+\/joongna-chat\.html$/i,
-  /^http:\/\/54\.180\.226\.121:\d+\/bunjang-chat\.html$/i,
+  /^http:\/\/[^/?#]+:3000\/product\/[^/]+\.html$/i,
+  /^http:\/\/[^/?#]+:3000\/joongna-chat\.html$/i,
+  /^http:\/\/[^/?#]+:3000\/bunjang-chat\.html$/i,
 ];
 
 export function isSupportedMarketplacePage(url: string): boolean {

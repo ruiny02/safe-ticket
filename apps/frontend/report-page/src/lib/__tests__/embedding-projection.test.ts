@@ -42,4 +42,23 @@ describe("embedding 3D projection", () => {
 
     expect(projected.map((point) => point.id)).toEqual(["back", "front"]);
   });
+
+  it("uses dedicated 3D coordinates when backend provides separate UMAP(3) values", () => {
+    const projected = projectEmbeddingPoint3D(
+      {
+        ...currentPoint,
+        x: 10,
+        y: 10,
+        z: 8,
+        x3d: 90,
+        y3d: 70,
+        z3d: 92,
+      },
+      { pitch: 0, yaw: 0, zoom: 1 },
+    );
+
+    expect(projected.screenX).toBe(76.4);
+    expect(projected.screenY).toBe(63.2);
+    expect(projected.depth).toBe(0.84);
+  });
 });

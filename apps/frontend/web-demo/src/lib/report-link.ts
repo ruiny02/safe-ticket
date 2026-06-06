@@ -3,6 +3,7 @@ import { getSafeTicketFrontendBaseUrl } from "../../../shared/runtime-config";
 export interface LatestScanState {
   pageUrl: string;
   scanId: string;
+  frontendBaseUrl?: string;
 }
 
 export function buildDashboardBaseUrl(): string {

@@ -6,6 +6,9 @@ export interface EmbeddingProjectionPoint {
   x: number;
   y: number;
   z: number;
+  x3d?: number;
+  y3d?: number;
+  z3d?: number;
   variant: EmbeddingProjectionVariant;
 }
 
@@ -42,9 +45,9 @@ export function projectEmbeddingPoint3D(
   const pitch = degreesToRadians(camera.pitch);
   const yaw = degreesToRadians(camera.yaw);
   const zoom = camera.zoom;
-  const centeredX = normalizeCoordinate(point.x);
-  const centeredY = normalizeCoordinate(point.y);
-  const centeredZ = normalizeCoordinate(point.z);
+  const centeredX = normalizeCoordinate(point.x3d ?? point.x);
+  const centeredY = normalizeCoordinate(point.y3d ?? point.y);
+  const centeredZ = normalizeCoordinate(point.z3d ?? point.z);
 
   const yawX = centeredX * Math.cos(yaw) + centeredZ * Math.sin(yaw);
   const yawZ = -centeredX * Math.sin(yaw) + centeredZ * Math.cos(yaw);

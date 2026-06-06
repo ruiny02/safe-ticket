@@ -118,6 +118,9 @@ export interface CaseUmapPoint {
   x: number;
   y: number;
   z: number;
+  x_3d: number | null;
+  y_3d: number | null;
+  z_3d: number | null;
   variant: CaseUmapVariant;
   risk_level: "low" | "medium" | "high" | null;
   risk_score: number | null;
@@ -143,6 +146,10 @@ export interface CaseUmapResponse {
     pca_components: number;
     umap_neighbors: number | null;
     umap_min_dist: number | null;
+    umap_dimensions: number[];
+    umap_target: string | null;
+    umap_target_metric: string | null;
+    umap_target_weight: number | null;
   };
   current_scan: CaseUmapCurrentScan | null;
 }

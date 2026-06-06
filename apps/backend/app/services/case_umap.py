@@ -18,8 +18,12 @@ from app.db.session import SessionLocal
 from app.schemas.case_umap import CaseUmapCurrentScan, CaseUmapPoint, CaseUmapProjection, CaseUmapResponse
 
 
-PROJECTION_PIPELINE = "case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)"
+PROJECTION_PIPELINE = "case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)"
 MIN_UMAP_CASES = 10
+UMAP_MIN_DIST = 0.3
+UMAP_TARGET = "risk_score_ordinal"
+UMAP_TARGET_METRIC = "l2"
+UMAP_TARGET_WEIGHT = 0.25
 
 
 @dataclass(frozen=True)
@@ -28,15 +32,38 @@ class _CaseEmbedding:
     embedding: list[float]
 
 
+@dataclass(frozen=True)
+class _RiskInfo:
+    risk_level: str
+    risk_score: float
+    variant: str
+
+
+@dataclass(frozen=True)
+class _ProjectedEmbeddings:
+    two_d: list[tuple[float, float, float]]
+    three_d: list[tuple[float, float, float]]
+
+
 def build_case_umap(limit: int = 500, scan_id: str | None = None, refresh: bool = False) -> CaseUmapResponse:
-    """Return 2D case points with risk metadata for frontend UMAP visualization."""
+    """Return label-guided 2D and 3D case points with risk metadata."""
     del refresh  # Projection is recomputed from DB state; kept for client cache-busting compatibility.
     case_embeddings = _load_case_embeddings(limit=limit)
-    coordinates = _normalize_coordinates(_project_embeddings([item.embedding for item in case_embeddings]))
+    risk_info = [_risk_for_case(item.case) for item in case_embeddings]
+    projected = _project_embeddings(
+        [item.embedding for item in case_embeddings],
+        risk_targets=[_ordinal_risk_target(risk.variant) for risk in risk_info],
+    )
+    coordinates_2d = _normalize_coordinates(projected.two_d)
+    coordinates_3d = _normalize_coordinates(projected.three_d)
 
     points: list[CaseUmapPoint] = []
-    for item, (x, y, z) in zip(case_embeddings, coordinates):
-        risk_level, risk_score, variant = _risk_for_case(item.case)
+    for item, risk, (x, y, z), (x_3d, y_3d, z_3d) in zip(
+        case_embeddings,
+        risk_info,
+        coordinates_2d,
+        coordinates_3d,
+    ):
         points.append(
             CaseUmapPoint(
                 case_id=item.case.case_id,
@@ -44,12 +71,15 @@ def build_case_umap(limit: int = 500, scan_id: str | None = None, refresh: bool 
                 x=round(float(x), 6),
                 y=round(float(y), 6),
                 z=round(float(z), 6),
-                variant=variant,
+                x_3d=round(float(x_3d), 6),
+                y_3d=round(float(y_3d), 6),
+                z_3d=round(float(z_3d), 6),
+                variant=risk.variant,
                 summary=item.case.summary,
                 source_url=item.case.source_url,
                 platform_hint=item.case.platform_hint,
-                risk_level=risk_level,
-                risk_score=risk_score,
+                risk_level=risk.risk_level,
+                risk_score=risk.risk_score,
                 risk_flags=_coerce_flags(item.case.risk_flags_json),
             )
         )
@@ -65,7 +95,10 @@ def build_case_umap(limit: int = 500, scan_id: str | None = None, refresh: bool 
             pipeline=PROJECTION_PIPELINE,
             pca_components=_pca_component_count([item.embedding for item in case_embeddings]),
             umap_neighbors=_umap_neighbor_count(len(case_embeddings)),
-            umap_min_dist=0.12 if len(case_embeddings) >= MIN_UMAP_CASES else None,
+            umap_min_dist=UMAP_MIN_DIST if len(case_embeddings) >= MIN_UMAP_CASES else None,
+            umap_target=UMAP_TARGET,
+            umap_target_metric=UMAP_TARGET_METRIC,
+            umap_target_weight=UMAP_TARGET_WEIGHT if len(case_embeddings) >= MIN_UMAP_CASES else None,
         ),
         current_scan=current_scan,
     )
@@ -134,39 +167,66 @@ def _mean_embedding(embeddings: list[list[float]]) -> list[float] | None:
     return np.asarray(aligned, dtype=float).mean(axis=0).tolist()
 
 
-def _project_embeddings(embeddings: list[list[float]]) -> list[tuple[float, float, float]]:
+def _project_embeddings(embeddings: list[list[float]], risk_targets: list[float]) -> _ProjectedEmbeddings:
     if not embeddings:
-        return []
+        return _ProjectedEmbeddings(two_d=[], three_d=[])
 
     if len(embeddings) == 1:
-        return [(0.0, 0.0, 0.0)]
+        single = [(0.0, 0.0, 0.0)]
+        return _ProjectedEmbeddings(two_d=single, three_d=single)
 
     if len(embeddings) == 2:
-        return [(-0.5, 0.0, 0.0), (0.5, 0.0, 0.0)]
+        pair = [(-0.5, 0.0, 0.0), (0.5, 0.0, 0.0)]
+        return _ProjectedEmbeddings(two_d=pair, three_d=pair)
 
     matrix = np.asarray(embeddings, dtype=float)
     pca_components = _pca_component_count(embeddings)
     pca_matrix = PCA(n_components=pca_components).fit_transform(matrix)
 
     if len(embeddings) < MIN_UMAP_CASES:
-        projected = _fallback_projection(pca_matrix)
-        return [(float(x), float(y), float(z)) for x, y, z in projected]
+        projected_2d = _fallback_projection(pca_matrix, dimensions=2)
+        projected_3d = _fallback_projection(pca_matrix, dimensions=3)
+        return _ProjectedEmbeddings(
+            two_d=_as_coordinate_tuples(projected_2d),
+            three_d=_as_coordinate_tuples(projected_3d),
+        )
 
     try:
-        from umap import UMAP
-
-        projected = UMAP(
-            n_components=3,
-            n_neighbors=_umap_neighbor_count(len(embeddings)),
-            min_dist=0.12,
-            metric="euclidean",
-            init="random",
-            random_state=42,
-        ).fit_transform(pca_matrix)
+        projected_2d = _run_supervised_umap(pca_matrix, risk_targets=risk_targets, dimensions=2)
+        projected_3d = _run_supervised_umap(pca_matrix, risk_targets=risk_targets, dimensions=3)
     except Exception:
-        projected = _fallback_projection(pca_matrix)
+        projected_2d = _fallback_projection(pca_matrix, dimensions=2)
+        projected_3d = _fallback_projection(pca_matrix, dimensions=3)
 
-    return [(float(x), float(y), float(z)) for x, y, z in projected]
+    return _ProjectedEmbeddings(
+        two_d=_as_coordinate_tuples(projected_2d),
+        three_d=_as_coordinate_tuples(projected_3d),
+    )
+
+
+def _run_supervised_umap(matrix: np.ndarray, risk_targets: list[float], dimensions: int) -> np.ndarray:
+    from umap import UMAP
+
+    target = np.asarray(risk_targets, dtype=float)
+    projected = UMAP(
+        n_components=dimensions,
+        n_neighbors=_umap_neighbor_count(len(risk_targets)),
+        min_dist=UMAP_MIN_DIST,
+        metric="euclidean",
+        target_metric=UMAP_TARGET_METRIC,
+        target_weight=UMAP_TARGET_WEIGHT,
+        init="random",
+        random_state=42,
+    ).fit_transform(matrix, y=target)
+    return _fallback_projection(np.asarray(projected, dtype=float), dimensions=3)
+
+
+def _ordinal_risk_target(variant: str) -> float:
+    return {"fraud": 1.0, "borderline": 0.5, "safe": 0.0}.get(variant, 0.5)
+
+
+def _as_coordinate_tuples(matrix: np.ndarray) -> list[tuple[float, float, float]]:
+    return [(float(x), float(y), float(z)) for x, y, z in matrix]
 
 
 def _normalize_coordinates(coordinates: list[tuple[float, float, float]]) -> list[tuple[float, float, float]]:
@@ -222,9 +282,12 @@ def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> Cas
     current_x = sum(point.x * weight for point, weight in weighted) / total_weight
     current_y = sum(point.y * weight for point, weight in weighted) / total_weight
     current_z = sum(point.z * weight for point, weight in weighted) / total_weight
+    current_x_3d = sum(_point_3d(point)[0] * weight for point, weight in weighted) / total_weight
+    current_y_3d = sum(_point_3d(point)[1] * weight for point, weight in weighted) / total_weight
+    current_z_3d = sum(_point_3d(point)[2] * weight for point, weight in weighted) / total_weight
     centroids = _cluster_centroids(points)
     distances = {
-        variant: round(math.dist((current_x, current_y, current_z), centroid), 3)
+        variant: round(math.dist((current_x_3d, current_y_3d, current_z_3d), centroid), 3)
         for variant, centroid in centroids.items()
     }
     nearest = min(distances, key=distances.get) if distances else "fraud"
@@ -236,6 +299,9 @@ def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> Cas
             x=round(current_x, 6),
             y=round(current_y, 6),
             z=round(current_z, 6),
+            x_3d=round(current_x_3d, 6),
+            y_3d=round(current_y_3d, 6),
+            z_3d=round(current_z_3d, 6),
             variant="current",
             summary="현재 게시글의 유사 사례 가중 중심점입니다.",
         )
@@ -243,12 +309,18 @@ def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> Cas
     return CaseUmapCurrentScan(scan_id=scan_id, nearest_cluster=nearest, distances=distances)
 
 
-def _fallback_projection(matrix: np.ndarray) -> np.ndarray:
-    if matrix.shape[1] >= 3:
-        return matrix[:, :3]
+def _fallback_projection(matrix: np.ndarray, dimensions: int) -> np.ndarray:
+    if matrix.shape[1] >= dimensions:
+        projected = matrix[:, :dimensions]
+    else:
+        zeros = np.zeros((matrix.shape[0], dimensions - matrix.shape[1]))
+        projected = np.hstack([matrix, zeros])
 
-    zeros = np.zeros((matrix.shape[0], 3 - matrix.shape[1]))
-    return np.hstack([matrix, zeros])
+    if dimensions >= 3:
+        return projected[:, :3]
+
+    zeros = np.zeros((matrix.shape[0], 3 - dimensions))
+    return np.hstack([projected[:, :dimensions], zeros])
 
 
 def _pca_component_count(embeddings: list[list[float]]) -> int:
@@ -260,7 +332,7 @@ def _pca_component_count(embeddings: list[list[float]]) -> int:
 def _umap_neighbor_count(case_count: int) -> int | None:
     if case_count < MIN_UMAP_CASES:
         return None
-    return max(2, min(15, case_count - 1))
+    return max(2, min(35, case_count - 1))
 
 
 def _coerce_flags(value: object | None) -> list[str]:
@@ -302,28 +374,36 @@ def _cluster_centroids(points: list[CaseUmapPoint]) -> dict[str, tuple[float, fl
         if not cluster:
             continue
         centroids[variant] = (
-            sum(point.x for point in cluster) / len(cluster),
-            sum(point.y for point in cluster) / len(cluster),
-            sum(point.z for point in cluster) / len(cluster),
+            sum(_point_3d(point)[0] for point in cluster) / len(cluster),
+            sum(_point_3d(point)[1] for point in cluster) / len(cluster),
+            sum(_point_3d(point)[2] for point in cluster) / len(cluster),
         )
     return centroids
 
 
-def _risk_for_case(case: Case) -> tuple[str, float, str]:
+def _point_3d(point: CaseUmapPoint) -> tuple[float, float, float]:
+    return (
+        point.x_3d if point.x_3d is not None else point.x,
+        point.y_3d if point.y_3d is not None else point.y,
+        point.z_3d if point.z_3d is not None else point.z,
+    )
+
+
+def _risk_for_case(case: Case) -> _RiskInfo:
     if case.risk_level in {"high", "medium", "low"}:
         default_score = {"high": 0.85, "medium": 0.5, "low": 0.15}[case.risk_level]
-        return (
-            case.risk_level,
-            case.risk_score if case.risk_score is not None else default_score,
-            _variant_from_risk_level(case.risk_level),
+        return _RiskInfo(
+            risk_level=case.risk_level,
+            risk_score=case.risk_score if case.risk_score is not None else default_score,
+            variant=_variant_from_risk_level(case.risk_level),
         )
 
     label = case.label or ""
     if "fraud" in label:
-        return "high", 0.85, "fraud"
+        return _RiskInfo(risk_level="high", risk_score=0.85, variant="fraud")
     if label == "unlabeled":
-        return "low", 0.15, "safe"
-    return "medium", 0.5, "borderline"
+        return _RiskInfo(risk_level="low", risk_score=0.15, variant="safe")
+    return _RiskInfo(risk_level="medium", risk_score=0.5, variant="borderline")
 
 
 def _variant_from_risk_level(risk_level: str) -> str:

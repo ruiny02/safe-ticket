@@ -73,8 +73,8 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
       args:
-        VITE_SAFE_TICKET_API_BASE_URL: http://54.180.226.121:8000
-        VITE_SAFE_TICKET_FRONTEND_BASE_URL: http://54.180.226.121:3000
+        VITE_SAFE_TICKET_API_BASE_URL: ${VITE_SAFE_TICKET_API_BASE_URL:-http://localhost:8000}
+        VITE_SAFE_TICKET_FRONTEND_BASE_URL: ${VITE_SAFE_TICKET_FRONTEND_BASE_URL:-http://localhost:3000}
     container_name: safe-ticket-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"

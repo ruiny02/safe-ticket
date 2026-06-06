@@ -15,3 +15,4 @@
 ## dev
 - Docker, 브랜치 전략
 - 임시 산출물 관리 규칙: `docs/dev/artifacts.md`
+- 로컬 Docker와 서버 배포 코드 작성 기준: `docs/dev/local-vs-server.md`

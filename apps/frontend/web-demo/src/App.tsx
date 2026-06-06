@@ -10,7 +10,7 @@ import {
   isReliableJoongnaProductPayload,
 } from "../../shared/joonggonara";
 import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
-import { getSafeTicketApiBaseUrl } from "../../shared/runtime-config";
+import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
 import { createScan, createScanSync, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { buildLocalChatHighlightTargets, mergeHighlightTargets } from "./lib/chat-rules";
@@ -28,6 +28,7 @@ import { buildPanelContent } from "./lib/panel-content";
 import { buildDashboardBaseUrl, buildDashboardPageUrl, buildReportListUrl, buildReportPageUrl } from "./lib/report-link";
 
 const API_BASE_URL = getSafeTicketApiBaseUrl();
+const FRONTEND_BASE_URL = getSafeTicketFrontendBaseUrl();
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
 const SAFE_TICKET_ICON_PATH = "icons/safe-ticket-icon-128.png";
 
@@ -220,6 +221,7 @@ async function persistLatestScan(pageUrl: string, scanId: string): Promise<void>
     [LATEST_SCAN_STORAGE_KEY]: {
       pageUrl,
       scanId,
+      frontendBaseUrl: FRONTEND_BASE_URL,
     },
   });
 }

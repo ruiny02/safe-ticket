@@ -540,7 +540,7 @@ function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
       <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
         <div>
           <strong>Embedding projection studio</strong>
-          <span>UMAP(3) 좌표를 2D slice와 orthographic 3D orbit으로 분석합니다.</span>
+          <span>위험도 순서형 target으로 완만하게 조정한 Supervised UMAP(2/3)을 분석합니다.</span>
         </div>
         <ClusterLegend />
       </div>
@@ -548,14 +548,14 @@ function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
         <section className="dashboard-embedding-view-card is-2d">
           <div className="dashboard-embedding-view-head">
             <strong>2D density slice</strong>
-            <span>x/y projection</span>
+            <span>Supervised UMAP(2)</span>
           </div>
           <EmbeddingMap points={points} />
         </section>
         <section className="dashboard-embedding-view-card is-3d">
           <div className="dashboard-embedding-view-head">
             <strong>3D orbit field</strong>
-            <span>fixed-radius points</span>
+            <span>Supervised UMAP(3)</span>
           </div>
           <EmbeddingMap3D points={points} />
         </section>
@@ -1123,7 +1123,7 @@ export function App() {
               <header className="dashboard-card-header">
                 <div>
                   <h3>Embedding map</h3>
-                  <p>원본 임베딩을 PCA(50)와 UMAP(3)로 축소한 뒤, 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
+                  <p>원본 임베딩을 PCA(50)와 supervised UMAP으로 축소한 뒤, 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
                 </div>
                 <span className="dashboard-pill is-neutral">{dashboardEmbedding.pipeline}</span>
               </header>

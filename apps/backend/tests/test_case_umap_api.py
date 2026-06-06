@@ -69,9 +69,12 @@ def test_cases_umap_endpoint_returns_visualization_ready_points() -> None:
     assert body["total_cases"] == 4
     assert body["risk_counts"] == {"fraud": 1, "borderline": 2, "safe": 1}
     assert body["projection"]["source_embedding"] == "case_chunks.embedding"
+    assert body["projection"]["umap_dimensions"] == [2, 3]
+    assert body["projection"]["umap_target"] == "risk_score_ordinal"
+    assert body["projection"]["umap_target_metric"] == "l2"
 
     first_point = body["points"][0]
-    assert {"case_id", "label", "x", "y", "variant", "risk_level", "risk_score", "risk_flags"}.issubset(
+    assert {"case_id", "label", "x", "y", "z", "x_3d", "y_3d", "z_3d", "variant", "risk_level", "risk_score", "risk_flags"}.issubset(
         first_point.keys()
     )
     assert first_point["risk_flags"] == ["ticket_delivery_risk"]

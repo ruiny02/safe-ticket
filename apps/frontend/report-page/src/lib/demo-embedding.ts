@@ -9,6 +9,9 @@ export interface DemoEmbeddingPoint {
   x: number;
   y: number;
   z: number;
+  x3d?: number;
+  y3d?: number;
+  z3d?: number;
   variant: DemoEmbeddingVariant;
 }
 
