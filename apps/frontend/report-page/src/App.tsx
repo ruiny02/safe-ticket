@@ -25,7 +25,6 @@ const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
 
 type ProfileMode = "general" | "newcomer" | "cautious";
 type Tone = "danger" | "warning" | "ok" | "neutral";
-type EmbeddingViewMode = "2d" | "3d";
 
 type PreferencesState = {
   emailAlerts: boolean;
@@ -275,31 +274,30 @@ function formatDistance(value: number | undefined) {
 }
 
 function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
-  const [viewMode, setViewMode] = useState<EmbeddingViewMode>("2d");
-
   return (
     <div className="dashboard-embedding-panel">
       <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
         <div>
           <strong>Embedding map</strong>
-          <span>2D overview와 3D orbit view를 전환합니다.</span>
-        </div>
-        <div className="dashboard-embedding-tabs" role="tablist" aria-label="Embedding projection mode">
-          {(["2d", "3d"] as const).map((mode) => (
-            <button
-              aria-selected={viewMode === mode}
-              className={viewMode === mode ? "is-active" : ""}
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              role="tab"
-              type="button"
-            >
-              {mode.toUpperCase()}
-            </button>
-          ))}
+          <span>UMAP(3) 좌표를 2D x/y slice와 3D orbit view로 동시에 보여줍니다.</span>
         </div>
       </div>
-      {viewMode === "2d" ? <EmbeddingMap points={points} /> : <EmbeddingMap3D points={points} />}
+      <div className="dashboard-embedding-views">
+        <section className="dashboard-embedding-view-card">
+          <div className="dashboard-embedding-view-head">
+            <strong>2D slice</strong>
+            <span>x/y 평면</span>
+          </div>
+          <EmbeddingMap points={points} />
+        </section>
+        <section className="dashboard-embedding-view-card">
+          <div className="dashboard-embedding-view-head">
+            <strong>3D orbit</strong>
+            <span>x/y/z 공간</span>
+          </div>
+          <EmbeddingMap3D points={points} />
+        </section>
+      </div>
     </div>
   );
 }
@@ -392,9 +390,9 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
           <span className="dashboard-embedding-3d-label is-y">y</span>
           <span className="dashboard-embedding-3d-label is-z">z</span>
           {points.map((point) => {
-            const x = (point.x - 50) * 3.2;
-            const y = (point.y - 50) * 3.2;
-            const z = ((point.z ?? 50) - 50) * 3.2;
+            const x = (point.x - 50) * 4;
+            const y = (point.y - 50) * 4;
+            const z = ((point.z ?? 50) - 50) * 4;
             const size = point.variant === "current" ? 14 : 8;
             return (
               <span
@@ -817,7 +815,7 @@ export function App() {
                 </div>
               </article>
 
-              <article className="dashboard-card dashboard-col-8">
+              <article className="dashboard-card dashboard-col-12 dashboard-embedding-card">
                 <header className="dashboard-card-header">
                   <div>
                     <h3>{dashboard.embedding.title}</h3>
@@ -825,16 +823,26 @@ export function App() {
                   </div>
                   <span className="dashboard-pill is-warning">{dashboard.embedding.pipeline}</span>
                 </header>
-                <div className="dashboard-card-body dashboard-embedding-wrap">
-                  <EmbeddingMapExplorer points={dashboard.embedding.points} />
-                  <div className="dashboard-embedding-copy">
-                    <p>현재 게시글은 <strong>{dashboard.embedding.summary.nearestCluster}</strong> label group 중심에 가장 가깝게 놓여 있습니다.</p>
-                    <ul>
-                      <li>Fraud group center 거리: {formatDistance(dashboard.embedding.summary.distances.fraud)}</li>
-                      <li>Borderline group center 거리: {formatDistance(dashboard.embedding.summary.distances.borderline)}</li>
-                      <li>Safe group center 거리: {formatDistance(dashboard.embedding.summary.distances.safe)}</li>
-                    </ul>
+                <div className="dashboard-card-body">
+                  <div className="dashboard-embedding-summary-strip">
+                    <div>
+                      <span>nearest label group</span>
+                      <strong>{dashboard.embedding.summary.nearestCluster}</strong>
+                    </div>
+                    <div>
+                      <span>fraud center</span>
+                      <strong>{formatDistance(dashboard.embedding.summary.distances.fraud)}</strong>
+                    </div>
+                    <div>
+                      <span>borderline center</span>
+                      <strong>{formatDistance(dashboard.embedding.summary.distances.borderline)}</strong>
+                    </div>
+                    <div>
+                      <span>safe center</span>
+                      <strong>{formatDistance(dashboard.embedding.summary.distances.safe)}</strong>
+                    </div>
                   </div>
+                  <EmbeddingMapExplorer points={dashboard.embedding.points} />
                 </div>
               </article>
 
