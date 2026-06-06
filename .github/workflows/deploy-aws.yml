@@ -45,25 +45,27 @@ jobs:
         env:
           AWS_HOST: ${{ secrets.AWS_HOST }}
           AWS_USER: ${{ secrets.AWS_USER }}
-          AWS_APP_DIR: ${{ secrets.AWS_APP_DIR }}
+          AWS_APP_DIR: /srv/safe-ticket
+          COMPOSE_PROJECT_NAME: safe-ticket
           DEPLOY_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_branch || 'main' }}
         run: |
           set -euo pipefail
           test -n "$AWS_HOST"
           test -n "$AWS_USER"
           test -n "$AWS_APP_DIR"
+          test -n "$COMPOSE_PROJECT_NAME"
           test -n "$DEPLOY_REF"
 
           ssh -i ~/.ssh/safe-ticket-deploy-key \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             "$AWS_USER@$AWS_HOST" \
-            "AWS_APP_DIR='$AWS_APP_DIR' DEPLOY_REF='$DEPLOY_REF' AWS_HOST='$AWS_HOST' bash -s" <<'REMOTE'
+            "AWS_APP_DIR='$AWS_APP_DIR' COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
           set -euo pipefail
 
           REPO_URL="https://github.com/ruiny02/safe-ticket.git"
 
-          trap 'echo "Deployment failed. Recent service status and logs:"; sudo docker compose ps || true; sudo docker compose logs --tail=120 backend frontend || true' ERR
+          trap 'echo "Deployment failed. Recent service status and logs:"; sudo docker compose -p "$COMPOSE_PROJECT_NAME" ps || true; sudo docker compose -p "$COMPOSE_PROJECT_NAME" logs --tail=120 backend frontend || true' ERR
 
           if [ ! -d "$AWS_APP_DIR/.git" ]; then
             mkdir -p "$(dirname "$AWS_APP_DIR")"
@@ -72,15 +74,11 @@ jobs:
 
           cd "$AWS_APP_DIR"
           git fetch origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
+          git clean -fd
           git reset --hard "origin/$DEPLOY_REF"
+          git clean -fd
 
-          VITE_SAFE_TICKET_API_BASE_URL="${VITE_SAFE_TICKET_API_BASE_URL:-http://${AWS_HOST}:8000}"
-          VITE_SAFE_TICKET_FRONTEND_BASE_URL="${VITE_SAFE_TICKET_FRONTEND_BASE_URL:-http://${AWS_HOST}:3000}"
-
-          sudo env \
-            VITE_SAFE_TICKET_API_BASE_URL="$VITE_SAFE_TICKET_API_BASE_URL" \
-            VITE_SAFE_TICKET_FRONTEND_BASE_URL="$VITE_SAFE_TICKET_FRONTEND_BASE_URL" \
-            docker compose up -d --build
+          sudo docker compose -p "$COMPOSE_PROJECT_NAME" up -d --build
 
           wait_for_http() {
             local url="$1"
@@ -101,5 +99,5 @@ jobs:
           wait_for_http "http://localhost:8000/api/v1/health/ready" "backend ready endpoint"
           wait_for_http "http://localhost:3000/report/" "frontend report page"
 
-          sudo docker compose ps
+          sudo docker compose -p "$COMPOSE_PROJECT_NAME" ps
           REMOTE
