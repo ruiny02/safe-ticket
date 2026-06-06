@@ -176,6 +176,9 @@ function buildEmbeddingModel({
     x: point.x,
     y: point.y,
     z: point.z,
+    x3d: point.x_3d ?? point.x,
+    y3d: point.y_3d ?? point.y,
+    z3d: point.z_3d ?? point.z,
     variant: point.variant,
   }));
   const fallbackNearest =
@@ -185,7 +188,7 @@ function buildEmbeddingModel({
   return {
     title: "임베딩 공간 시각화",
     description:
-      "backend에 저장된 case chunk 임베딩을 case 단위로 평균낸 뒤 PCA와 UMAP으로 축소해 사기 / 정상 / 경계 군집과 현재 게시글의 위치를 보여줍니다.",
+      "backend에 저장된 case chunk 임베딩을 case 단위로 평균낸 뒤 PCA와 supervised UMAP으로 축소해 라벨 기반 위험군 구조와 현재 게시글의 위치를 보여줍니다.",
     pipeline: caseUmap.projection.pipeline,
     points,
     summary: {

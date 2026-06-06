@@ -49,4 +49,19 @@ describe("scan-api helpers", () => {
       "http://localhost:8000/api/v1/scans",
     ]);
   });
+
+  it("does not mark loopback compose requests as local-address-space fetches", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      statusText: "Accepted",
+      text: async () => JSON.stringify({ scan_id: "scan_123", status: "queued", poll_after_ms: 1000 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createScan("http://localhost:8000", payload);
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit & { targetAddressSpace?: string };
+    expect(requestInit.targetAddressSpace).toBeUndefined();
+  });
 });

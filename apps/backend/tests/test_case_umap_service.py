@@ -56,7 +56,7 @@ def test_build_case_umap_returns_risk_colored_projection_points() -> None:
 
     assert result.total_cases == 4
     assert result.risk_counts == {"fraud": 1, "borderline": 2, "safe": 1}
-    assert result.projection.pipeline == "case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)"
+    assert result.projection.pipeline == "case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)"
 
     high_point = next(point for point in result.points if point.case_id == "case_high")
     assert high_point.label == "case_high ticket sale"
@@ -68,6 +68,34 @@ def test_build_case_umap_returns_risk_colored_projection_points() -> None:
     assert isinstance(high_point.y, float)
     assert isinstance(high_point.z, float)
     assert all(8 <= point.x <= 92 and 8 <= point.y <= 92 and 8 <= point.z <= 92 for point in result.points)
+
+
+def test_build_case_umap_returns_supervised_2d_and_3d_projection_points() -> None:
+    for index in range(12):
+        if index < 4:
+            risk_level, score, center = "high", 0.86, [2.0, 0.1, 0.1, 0.0, 0.2]
+        elif index < 8:
+            risk_level, score, center = "medium", 0.48, [0.1, 2.0, 0.1, 0.2, 0.0]
+        else:
+            risk_level, score, center = "low", 0.08, [0.1, 0.1, 2.0, 0.0, 0.2]
+
+        embedding = [value + index * 0.01 for value in center]
+        seed_case(f"case_{index:02d}", risk_level, score, embedding)
+
+    result = build_case_umap(limit=20)
+
+    assert result.projection.pipeline == "case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)"
+    assert result.projection.umap_dimensions == [2, 3]
+    assert result.projection.umap_target == "risk_score_ordinal"
+    assert result.projection.umap_target_metric == "l2"
+    assert result.projection.umap_target_weight == 0.25
+    assert result.projection.umap_min_dist == 0.3
+    assert result.projection.umap_neighbors == 11
+
+    assert len(result.points) == 12
+    assert all(point.x_3d is not None and point.y_3d is not None and point.z_3d is not None for point in result.points)
+    assert all(8 <= point.x <= 92 and 8 <= point.y <= 92 and point.z == 50 for point in result.points)
+    assert all(8 <= point.x_3d <= 92 and 8 <= point.y_3d <= 92 and 8 <= point.z_3d <= 92 for point in result.points)
 
 
 def test_build_case_umap_excludes_cases_without_embeddings() -> None:

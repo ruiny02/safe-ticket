@@ -200,6 +200,9 @@ describe("buildDashboardModel", () => {
             x: 20,
             y: 30,
             z: 42,
+            x_3d: 21,
+            y_3d: 32,
+            z_3d: 44,
             variant: "fraud",
             risk_level: "high",
             risk_score: 0.9,
@@ -214,6 +217,9 @@ describe("buildDashboardModel", () => {
             x: 80,
             y: 70,
             z: 64,
+            x_3d: 81,
+            y_3d: 72,
+            z_3d: 66,
             variant: "safe",
             risk_level: "low",
             risk_score: 0.1,
@@ -228,6 +234,9 @@ describe("buildDashboardModel", () => {
             x: 22,
             y: 31,
             z: 43,
+            x_3d: 23,
+            y_3d: 33,
+            z_3d: 45,
             variant: "current",
             risk_level: null,
             risk_score: null,
@@ -244,11 +253,15 @@ describe("buildDashboardModel", () => {
           borderline: 0,
         },
         projection: {
-          pipeline: "case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)",
+          pipeline: "case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)",
           source_embedding: "case_chunks.embedding",
           pca_components: 4,
           umap_neighbors: null,
           umap_min_dist: null,
+          umap_dimensions: [2, 3],
+          umap_target: "risk_score_ordinal",
+          umap_target_metric: "l2",
+          umap_target_weight: 0.25,
         },
         current_scan: {
           scan_id: "scan_1234abcd",
@@ -262,7 +275,7 @@ describe("buildDashboardModel", () => {
       },
     });
 
-    expect(model.embedding.pipeline).toBe("case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)");
+    expect(model.embedding.pipeline).toBe("case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)");
     expect(model.embedding.points).toHaveLength(3);
     expect(model.embedding.points[0]).toEqual({
       id: "case_high",
@@ -270,6 +283,9 @@ describe("buildDashboardModel", () => {
       x: 20,
       y: 30,
       z: 42,
+      x3d: 21,
+      y3d: 32,
+      z3d: 44,
       variant: "fraud",
     });
     expect(model.embedding.summary).toEqual({
