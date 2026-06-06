@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildDefaultApiBaseUrl,
   buildDefaultFrontendBaseUrl,
+  resolveApiBaseUrl,
+  resolveFrontendBaseUrl,
 } from "../../../../shared/runtime-config";
 
 afterEach(() => {
@@ -35,5 +37,38 @@ describe("runtime config defaults", () => {
 
     expect(buildDefaultApiBaseUrl()).toBe("http://54.180.226.121:8000");
     expect(buildDefaultFrontendBaseUrl()).toBe("http://54.180.226.121:3000");
+  });
+
+  it("ignores loopback build-time URLs on public hosted pages", () => {
+    vi.stubGlobal("window", {
+      location: {
+        hostname: "54.180.226.121",
+        host: "54.180.226.121:3000",
+        port: "3000",
+        protocol: "http:",
+      },
+    });
+
+    expect(resolveApiBaseUrl("http://localhost:8000")).toBe("http://54.180.226.121:8000");
+    expect(resolveApiBaseUrl("http://127.0.0.1:8000")).toBe("http://54.180.226.121:8000");
+    expect(resolveFrontendBaseUrl("http://localhost:3000")).toBe("http://54.180.226.121:3000");
+  });
+
+  it("keeps explicit public build-time URLs on hosted pages", () => {
+    vi.stubGlobal("window", {
+      location: {
+        hostname: "54.180.226.121",
+        host: "54.180.226.121:3000",
+        port: "3000",
+        protocol: "http:",
+      },
+    });
+
+    expect(resolveApiBaseUrl("http://api.safe-ticket.example:8000")).toBe(
+      "http://api.safe-ticket.example:8000",
+    );
+    expect(resolveFrontendBaseUrl("http://safe-ticket.example:3000")).toBe(
+      "http://safe-ticket.example:3000",
+    );
   });
 });
