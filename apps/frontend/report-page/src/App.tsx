@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type PointerEvent,
   type ReactNode,
@@ -15,6 +14,12 @@ import { getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
 import type { CaseUmapResponse, PipelineExchangeResponse, ScanResultResponse } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
+import {
+  projectEmbeddingAxis3D,
+  projectEmbeddingPoint3D,
+  projectEmbeddingPoints3D,
+  type ProjectedEmbeddingPoint,
+} from "./lib/embedding-projection";
 import { buildRouteHref, parseReportRoute, shouldRefreshReportData, type ReportView } from "./lib/navigation";
 import { buildReportBrief } from "./lib/report-brief";
 
@@ -240,83 +245,168 @@ function OverviewCard({
 }
 
 function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
+  const currentPoint = points.find((point) => point.variant === "current");
+
   return (
-    <svg className="dashboard-embedding" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <rect x="0" y="0" width="100" height="100" rx="16" />
-      {[20, 40, 60, 80].map((tick) => (
-        <line key={`h-${tick}`} x1="10" x2="92" y1={tick} y2={tick} />
-      ))}
-      {[20, 40, 60, 80].map((tick) => (
-        <line key={`v-${tick}`} x1={tick} x2={tick} y1="8" y2="90" />
-      ))}
-      <line className="axis-line" x1="10" x2="92" y1="90" y2="90" />
-      <line className="axis-line" x1="10" x2="10" y1="8" y2="90" />
-      {points.map((point) => (
-        <g key={point.id}>
-          <circle
-            className={`cluster-point ${point.variant}`}
-            cx={point.x}
-            cy={point.y}
-            r={point.variant === "current" ? 2.4 : 1.25}
-          />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function formatDistance(value: number | undefined) {
-  return typeof value === "number" ? value.toFixed(3) : "-";
-}
-
-function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
-  return (
-    <div className="dashboard-embedding-panel">
-      <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
-        <div>
-          <strong>Embedding map</strong>
-          <span>UMAP(3) 좌표를 2D x/y slice와 3D orbit view로 동시에 보여줍니다.</span>
-        </div>
-      </div>
-      <div className="dashboard-embedding-views">
-        <section className="dashboard-embedding-view-card">
-          <div className="dashboard-embedding-view-head">
-            <strong>2D slice</strong>
-            <span>x/y 평면</span>
-          </div>
-          <EmbeddingMap points={points} />
-        </section>
-        <section className="dashboard-embedding-view-card">
-          <div className="dashboard-embedding-view-head">
-            <strong>3D orbit</strong>
-            <span>x/y/z 공간</span>
-          </div>
-          <EmbeddingMap3D points={points} />
-        </section>
+    <div className="dashboard-embedding-plot-shell is-2d">
+      <svg className="dashboard-embedding-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="embedding-2d-glow" cx="74%" cy="18%" r="68%">
+            <stop offset="0%" stopColor="rgba(132, 112, 255, 0.18)" />
+            <stop offset="55%" stopColor="rgba(132, 112, 255, 0.04)" />
+            <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
+          </radialGradient>
+        </defs>
+        <rect className="embedding-plot-bg" x="0" y="0" width="100" height="100" rx="5" />
+        <rect className="embedding-plot-glow" x="0" y="0" width="100" height="100" rx="5" fill="url(#embedding-2d-glow)" />
+        {[20, 40, 60, 80].map((tick) => (
+          <line className="embedding-grid-line" key={`h-${tick}`} x1="8" x2="94" y1={tick} y2={tick} />
+        ))}
+        {[20, 40, 60, 80].map((tick) => (
+          <line className="embedding-grid-line" key={`v-${tick}`} x1={tick} x2={tick} y1="8" y2="92" />
+        ))}
+        <line className="embedding-axis-line" x1="8" x2="94" y1="92" y2="92" />
+        <line className="embedding-axis-line" x1="8" x2="8" y1="8" y2="92" />
+        <text className="embedding-axis-label" x="90" y="88">UMAP 1</text>
+        <text className="embedding-axis-label is-y" x="12" y="13">UMAP 2</text>
+        {points.map((point) => (
+          <g key={point.id}>
+            {point.variant === "current" ? (
+              <circle className="embedding-current-ring" cx={point.x} cy={point.y} r="4.7" />
+            ) : null}
+            <circle
+              className={`embedding-point ${point.variant}`}
+              cx={point.x}
+              cy={point.y}
+              r={point.variant === "current" ? 2.65 : 1.2}
+            />
+          </g>
+        ))}
+        {currentPoint ? (
+          <>
+            <line className="embedding-current-guide" x1={currentPoint.x} x2={currentPoint.x} y1="8" y2="92" />
+            <line className="embedding-current-guide" x1="8" x2="94" y1={currentPoint.y} y2={currentPoint.y} />
+          </>
+        ) : null}
+      </svg>
+      <div className="dashboard-embedding-plot-caption">
+        <span>orthographic x/y slice</span>
+        <strong>{points.length} points</strong>
       </div>
     </div>
   );
 }
 
-function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
-  const [rotation, setRotation] = useState({ x: -58, y: -34 });
-  const [zoom, setZoom] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef<{ pointerX: number; pointerY: number; rotationX: number; rotationY: number } | null>(
-    null,
+function ClusterLegend() {
+  return (
+    <div className="dashboard-embedding-legend" aria-label="Embedding cluster legend">
+      {[
+        ["fraud", "Fraud"],
+        ["borderline", "Borderline"],
+        ["safe", "Safe"],
+        ["current", "Current"],
+      ].map(([variant, label]) => (
+        <span key={variant}>
+          <i className={`embedding-legend-dot ${variant}`} />
+          {label}
+        </span>
+      ))}
+    </div>
   );
+}
+
+function buildCubeEdges(camera: { pitch: number; yaw: number; zoom: number }) {
+  const corners = [
+    [18, 18, 18],
+    [82, 18, 18],
+    [82, 82, 18],
+    [18, 82, 18],
+    [18, 18, 82],
+    [82, 18, 82],
+    [82, 82, 82],
+    [18, 82, 82],
+  ] as const;
+  const edgeIndexes = [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 0],
+    [4, 5],
+    [5, 6],
+    [6, 7],
+    [7, 4],
+    [0, 4],
+    [1, 5],
+    [2, 6],
+    [3, 7],
+  ] as const;
+  const projectedCorners = corners.map(([x, y, z], index) =>
+    projectEmbeddingPoint3D(
+      {
+        id: `corner-${index}`,
+        label: `corner-${index}`,
+        variant: "safe",
+        x,
+        y,
+        z,
+      },
+      camera,
+    ),
+  );
+
+  return edgeIndexes.map(([startIndex, endIndex]) => {
+    const start = projectedCorners[startIndex];
+    const end = projectedCorners[endIndex];
+    return {
+      id: `${start.id}-${end.id}`,
+      x1: start.screenX,
+      y1: start.screenY,
+      x2: end.screenX,
+      y2: end.screenY,
+      depth: (start.depth + end.depth) / 2,
+    };
+  });
+}
+
+function PointTooltip({ point }: { point: ProjectedEmbeddingPoint }) {
+  return (
+    <div
+      className="dashboard-embedding-tooltip"
+      style={{
+        left: `${point.screenX}%`,
+        top: `${point.screenY}%`,
+      }}
+    >
+      <strong>{point.label}</strong>
+      <span>{point.variant} / z {point.z.toFixed(1)}</span>
+    </div>
+  );
+}
+
+function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
+  const [camera, setCamera] = useState({ pitch: -31, yaw: 42, zoom: 1 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
+  const dragStartRef = useRef<{ pointerX: number; pointerY: number; pitch: number; yaw: number } | null>(null);
+  const projectedPoints = useMemo(() => projectEmbeddingPoints3D(points, camera), [camera, points]);
+  const axes = useMemo(
+    () => [
+      ["x", projectEmbeddingAxis3D("x", camera)],
+      ["y", projectEmbeddingAxis3D("y", camera)],
+      ["z", projectEmbeddingAxis3D("z", camera)],
+    ] as const,
+    [camera],
+  );
+  const cubeEdges = useMemo(() => buildCubeEdges(camera), [camera]);
+  const hoveredPoint = hoveredPointId ? projectedPoints.find((point) => point.id === hoveredPointId) : null;
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStartRef.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
-      rotationX: rotation.x,
-      rotationY: rotation.y,
+      pitch: camera.pitch,
+      yaw: camera.yaw,
     };
     setIsDragging(true);
   };
@@ -329,10 +419,11 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
 
     const deltaX = event.clientX - dragStart.pointerX;
     const deltaY = event.clientY - dragStart.pointerY;
-    setRotation({
-      x: clamp(dragStart.rotationX - deltaY * 0.32, -82, 18),
-      y: dragStart.rotationY + deltaX * 0.36,
-    });
+    setCamera((current) => ({
+      ...current,
+      pitch: clamp(dragStart.pitch - deltaY * 0.28, -74, 34),
+      yaw: dragStart.yaw + deltaX * 0.34,
+    }));
   };
 
   const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
@@ -348,18 +439,20 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
 
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
-    setZoom((current) => clamp(current + (event.deltaY > 0 ? -0.08 : 0.08), 0.72, 1.85));
+    setCamera((current) => ({
+      ...current,
+      zoom: clamp(current.zoom + (event.deltaY > 0 ? -0.08 : 0.08), 0.72, 1.72),
+    }));
   };
 
   return (
     <div className="dashboard-embedding-3d-shell">
       <div className="dashboard-embedding-3d-meta">
-        <span>Drag to rotate</span>
-        <span>Wheel to zoom</span>
+        <span>Drag orbit</span>
+        <span>Wheel zoom</span>
         <button
           onClick={() => {
-            setRotation({ x: -58, y: -34 });
-            setZoom(1);
+            setCamera({ pitch: -31, yaw: 42, zoom: 1 });
           }}
           type="button"
         >
@@ -367,7 +460,7 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
         </button>
       </div>
       <div
-        aria-label="3D embedding map. Drag to rotate and use mouse wheel to zoom."
+        aria-label="Interactive 3D embedding map. Drag to rotate and use mouse wheel to zoom."
         className={`dashboard-embedding-3d${isDragging ? " is-dragging" : ""}`}
         onPointerDown={handlePointerDown}
         onPointerLeave={handlePointerUp}
@@ -376,42 +469,107 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
         onWheel={handleWheel}
         role="img"
       >
-        <div
-          className="dashboard-embedding-3d-scene"
-          style={{
-            transform: `translate(-50%, -50%) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale(${zoom})`,
-          }}
-        >
-          <span className="dashboard-embedding-3d-plane is-floor" />
-          <span className="dashboard-embedding-3d-axis is-x" />
-          <span className="dashboard-embedding-3d-axis is-y" />
-          <span className="dashboard-embedding-3d-axis is-z" />
-          <span className="dashboard-embedding-3d-label is-x">x</span>
-          <span className="dashboard-embedding-3d-label is-y">y</span>
-          <span className="dashboard-embedding-3d-label is-z">z</span>
-          {points.map((point) => {
-            const x = (point.x - 50) * 4;
-            const y = (point.y - 50) * 4;
-            const z = ((point.z ?? 50) - 50) * 4;
-            const size = point.variant === "current" ? 14 : 8;
-            return (
-              <span
-                className={`dashboard-embedding-3d-point ${point.variant}`}
-                key={point.id}
-                style={
-                  {
-                    "--point-size": `${size}px`,
-                    transform: `translate3d(${x}px, ${y}px, ${z}px)`,
-                  } as CSSProperties
-                }
-                title={`${point.label} (${point.variant})`}
+        <svg className="dashboard-embedding-3d-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="embedding-3d-orb" cx="72%" cy="18%" r="72%">
+              <stop offset="0%" stopColor="rgba(139, 92, 246, 0.24)" />
+              <stop offset="48%" stopColor="rgba(20, 184, 166, 0.08)" />
+              <stop offset="100%" stopColor="rgba(15, 23, 42, 0)" />
+            </radialGradient>
+            <linearGradient id="embedding-3d-grid" x1="0%" x2="100%" y1="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(255, 255, 255, 0.1)" />
+              <stop offset="100%" stopColor="rgba(132, 112, 255, 0.02)" />
+            </linearGradient>
+          </defs>
+          <rect className="embedding-3d-bg" x="0" y="0" width="100" height="100" rx="6" />
+          <rect x="0" y="0" width="100" height="100" rx="6" fill="url(#embedding-3d-orb)" />
+          {[18, 34, 50, 66, 82].map((tick) => (
+            <g key={tick}>
+              <line className="embedding-3d-grid-line" x1="10" x2="90" y1={tick} y2={tick} />
+              <line className="embedding-3d-grid-line" x1={tick} x2={tick} y1="10" y2="90" />
+            </g>
+          ))}
+          {cubeEdges.map((edge) => (
+            <line
+              className="embedding-3d-cube-line"
+              key={edge.id}
+              opacity={0.2 + Math.max(0, Math.min(1, (edge.depth + 1.2) / 2.4)) * 0.4}
+              x1={edge.x1}
+              x2={edge.x2}
+              y1={edge.y1}
+              y2={edge.y2}
+            />
+          ))}
+          {axes.map(([axis, line]) => (
+            <g className={`embedding-3d-axis-group is-${axis}`} key={axis}>
+              <line className="embedding-3d-axis-line" x1={line.x1} x2={line.x2} y1={line.y1} y2={line.y2} />
+              <text className="embedding-3d-axis-label" x={line.x2 + 1.6} y={line.y2 + 1.6}>
+                {axis.toUpperCase()}
+              </text>
+            </g>
+          ))}
+          {projectedPoints.map((point) => (
+            <g
+              className={`embedding-3d-point-group ${point.variant}`}
+              key={point.id}
+              opacity={point.opacity}
+              onMouseEnter={() => setHoveredPointId(point.id)}
+              onMouseLeave={() => setHoveredPointId(null)}
+            >
+              {point.variant === "current" ? (
+                <circle className="embedding-3d-current-halo" cx={point.screenX} cy={point.screenY} r={point.radius + 2.7} />
+              ) : null}
+              <circle
+                className={`embedding-3d-point ${point.variant}`}
+                cx={point.screenX}
+                cy={point.screenY}
+                r={point.radius}
               />
-            );
-          })}
-        </div>
+            </g>
+          ))}
+        </svg>
+        {hoveredPoint ? <PointTooltip point={hoveredPoint} /> : null}
       </div>
     </div>
   );
+}
+
+function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
+  return (
+    <div className="dashboard-embedding-panel">
+      <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
+        <div>
+          <strong>Embedding projection studio</strong>
+          <span>UMAP(3) 좌표를 2D slice와 orthographic 3D orbit으로 분석합니다.</span>
+        </div>
+        <ClusterLegend />
+      </div>
+      <div className="dashboard-embedding-views">
+        <section className="dashboard-embedding-view-card is-2d">
+          <div className="dashboard-embedding-view-head">
+            <strong>2D density slice</strong>
+            <span>x/y projection</span>
+          </div>
+          <EmbeddingMap points={points} />
+        </section>
+        <section className="dashboard-embedding-view-card is-3d">
+          <div className="dashboard-embedding-view-head">
+            <strong>3D orbit field</strong>
+            <span>fixed-radius points</span>
+          </div>
+          <EmbeddingMap3D points={points} />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatDistance(value: number | undefined) {
+  return typeof value === "number" ? value.toFixed(3) : "-";
 }
 
 function SellerObservationCard({
@@ -961,7 +1119,7 @@ export function App() {
               </div>
             </article>
 
-            <article className="dashboard-card dashboard-col-8">
+            <article className="dashboard-card dashboard-col-12 dashboard-embedding-card">
               <header className="dashboard-card-header">
                 <div>
                   <h3>Embedding map</h3>
@@ -969,16 +1127,26 @@ export function App() {
                 </div>
                 <span className="dashboard-pill is-neutral">{dashboardEmbedding.pipeline}</span>
               </header>
-              <div className="dashboard-card-body dashboard-embedding-wrap">
-                <EmbeddingMapExplorer points={dashboardEmbedding.points} />
-                <div className="dashboard-embedding-copy">
-                  <p>현재 게시글은 <strong>{dashboardEmbedding.summary.nearestCluster}</strong> cluster에 가장 가깝습니다.</p>
-                  <ul>
-                    <li>Fraud cluster 거리: {dashboardEmbedding.summary.distances.fraud}</li>
-                    <li>Borderline cluster 거리: {dashboardEmbedding.summary.distances.borderline}</li>
-                    <li>Safe cluster 거리: {dashboardEmbedding.summary.distances.safe}</li>
-                  </ul>
+              <div className="dashboard-card-body">
+                <div className="dashboard-embedding-summary-strip">
+                  <div>
+                    <span>nearest label group</span>
+                    <strong>{dashboardEmbedding.summary.nearestCluster}</strong>
+                  </div>
+                  <div>
+                    <span>fraud center</span>
+                    <strong>{formatDistance(dashboardEmbedding.summary.distances.fraud)}</strong>
+                  </div>
+                  <div>
+                    <span>borderline center</span>
+                    <strong>{formatDistance(dashboardEmbedding.summary.distances.borderline)}</strong>
+                  </div>
+                  <div>
+                    <span>safe center</span>
+                    <strong>{formatDistance(dashboardEmbedding.summary.distances.safe)}</strong>
+                  </div>
                 </div>
+                <EmbeddingMapExplorer points={dashboardEmbedding.points} />
               </div>
             </article>
 
