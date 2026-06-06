@@ -33,7 +33,7 @@ def test_build_memory_case_record_matches_backend_import_shape() -> None:
         "source_type": "marketplace_crawl",
         "source_url": post["url"],
         "title": post["title"],
-        "body": "콘서트 티켓 양도\n\n안전결제 불가, 계좌이체만 가능합니다. 카톡 ticket123\n\n콘서트 티켓 양도 안전결제 불가",
+        "body": "콘서트 티켓 양도\n\n안전결제 불가, 계좌이체만 가능합니다. 카톡 ticket123",
         "label": "fraud_signal",
         "summary": "콘서트 티켓 양도 / signals: safe_payment_evasion, direct_deposit_request",
         "platform_hint": "joonggonara",

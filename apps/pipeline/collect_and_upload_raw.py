@@ -15,6 +15,7 @@ from crawlers.crawler import MARKETPLACE_PAGES, crawl_marketplace_pages
 
 BASE_DIR = Path(__file__).resolve().parent
 RAW_DIR = BASE_DIR / "data" / "raw"
+PROCESSED_FILE = BASE_DIR / "data" / "processed" / "processed_posts.jsonl"
 DEFAULT_API_URL = "http://localhost:8000/api/v1/raw-posts/bulk"
 
 
@@ -55,6 +56,58 @@ def build_raw_post_payload(path: Path, raw_post: dict[str, Any]) -> dict[str, An
     }
 
 
+def load_processed_posts(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        raise SystemExit(f"Processed JSONL file not found: {path}")
+
+    posts: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as file:
+        for line_number, line in enumerate(file, start=1):
+            if not line.strip():
+                continue
+            try:
+                post = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"{path}:{line_number} invalid JSON: {exc}") from exc
+            posts.append(post)
+
+    if not posts:
+        raise SystemExit(f"No processed posts found in {path}")
+
+    return posts
+
+
+def build_processed_post_payload(index: int, post: dict[str, Any], source_file: str) -> dict[str, Any]:
+    source_url = str(post.get("url") or post.get("source_url") or "").strip()
+    platform = str(post.get("platform") or "unknown").strip()
+
+    if not source_url:
+        raise ValueError(f"processed record {index} missing url/source_url")
+
+    raw_payload = {
+        "text_for_embedding": post.get("text_for_embedding"),
+        "data_quality_score": post.get("data_quality_score"),
+        "quality_flags": post.get("quality_flags", []),
+        "risk_flags": post.get("risk_flags", []),
+        "validation_reason": post.get("validation_reason"),
+    }
+
+    return {
+        "platform": platform,
+        "source_url": source_url,
+        "title": post.get("title"),
+        "content": post.get("content"),
+        "price": post.get("price"),
+        "seller_id": post.get("seller_id"),
+        "raw_html": None,
+        "rendered_text": post.get("rendered_text"),
+        "crawled_at": post.get("crawled_at"),
+        "raw_payload": raw_payload,
+        "ingest_source": "pipeline_processed",
+        "source_file": source_file,
+    }
+
+
 def chunked(items: list[dict[str, Any]], size: int) -> list[list[dict[str, Any]]]:
     return [items[index : index + size] for index in range(0, len(items), size)]
 
@@ -92,6 +145,45 @@ def upload_raw_posts(raw_dir: Path, api_url: str, batch_size: int) -> tuple[int,
             print(f"  - {path.name}: {reason}")
         if len(skipped) > 10:
             print(f"  ... and {len(skipped) - 10} more")
+
+    print(f"Sending to {api_url}")
+    for index, batch in enumerate(chunked(payloads, batch_size), start=1):
+        result = send_batch(api_url, batch)
+        total_created += int(result.get("created", 0))
+        total_updated += int(result.get("updated", 0))
+        print(
+            f"[batch {index}] total={result.get('total', len(batch))} "
+            f"created={result.get('created', 0)} updated={result.get('updated', 0)}"
+        )
+
+    print(f"Done. created={total_created} updated={total_updated}")
+    return total_created, total_updated
+
+
+def upload_processed_posts(processed_file: Path, api_url: str, batch_size: int) -> tuple[int, int]:
+    processed_posts = load_processed_posts(processed_file)
+    payloads: list[dict[str, Any]] = []
+    invalid_payloads: list[tuple[int, str]] = []
+
+    for index, post in enumerate(processed_posts, start=1):
+        try:
+            payloads.append(build_processed_post_payload(index, post, processed_file.name))
+        except ValueError as exc:
+            invalid_payloads.append((index, str(exc)))
+
+    if not payloads:
+        raise SystemExit(f"No uploadable processed posts found in {processed_file}")
+
+    total_created = 0
+    total_updated = 0
+
+    print(f"Loaded {len(payloads)} processed posts from {processed_file}")
+    if invalid_payloads:
+        print(f"Skipped {len(invalid_payloads)} processed records:")
+        for index, reason in invalid_payloads[:10]:
+            print(f"  - line {index}: {reason}")
+        if len(invalid_payloads) > 10:
+            print(f"  ... and {len(invalid_payloads) - 10} more")
 
     print(f"Sending to {api_url}")
     for index, batch in enumerate(chunked(payloads, batch_size), start=1):
@@ -156,29 +248,44 @@ def main() -> None:
         action="store_true",
         help="Delete existing generated raw artifacts before crawling.",
     )
+    parser.add_argument(
+        "--upload-only",
+        action="store_true",
+        help="Skip crawling and upload existing parsed_*.json files from --raw-dir.",
+    )
+    parser.add_argument(
+        "--processed-file",
+        default=os.getenv("SAFE_TICKET_PROCESSED_FILE", ""),
+        help="Upload cleaned processed_posts.jsonl records instead of parsed raw JSON files.",
+    )
     args = parser.parse_args()
 
     raw_dir = Path(args.raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.reset_data:
+    if args.processed_file:
+        upload_processed_posts(Path(args.processed_file), args.api_url, args.batch_size)
+        return
+
+    if args.reset_data and not args.upload_only:
         for item in raw_dir.iterdir():
             if item.is_file():
                 item.unlink()
         print(f"Cleared existing raw artifacts under {raw_dir}")
 
-    max_links_per_platform = args.max_links
-    if max_links_per_platform <= 0:
-        max_links_per_platform = max(1, args.total_links // len(MARKETPLACE_PAGES))
+    if not args.upload_only:
+        max_links_per_platform = args.max_links
+        if max_links_per_platform <= 0:
+            max_links_per_platform = max(1, args.total_links // len(MARKETPLACE_PAGES))
 
-    print("Collecting raw marketplace data...")
-    raw_posts = crawl_marketplace_pages(
-        raw_dir,
-        max_links_per_platform=max_links_per_platform,
-        retries=args.retries,
-        scroll_rounds=args.scrolls,
-    )
-    print(f"Collected {len(raw_posts)} raw posts into {raw_dir}")
+        print("Collecting raw marketplace data...")
+        raw_posts = crawl_marketplace_pages(
+            raw_dir,
+            max_links_per_platform=max_links_per_platform,
+            retries=args.retries,
+            scroll_rounds=args.scrolls,
+        )
+        print(f"Collected {len(raw_posts)} raw posts into {raw_dir}")
 
     upload_raw_posts(raw_dir, args.api_url, args.batch_size)
 

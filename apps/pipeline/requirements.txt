@@ -9,3 +9,4 @@ pgvector>=0.2.5
 python-dotenv>=1.0
 beautifulsoup4>=4.12.2
 requests>=2.31.0
+pytest>=8.0.0

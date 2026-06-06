@@ -1,0 +1,12 @@
+.git
+.DS_Store
+**/.DS_Store
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/node_modules/
+
+# Generated pipeline datasets are bind-mounted in local development and should
+# not be sent as Docker build context.
+apps/pipeline/data/

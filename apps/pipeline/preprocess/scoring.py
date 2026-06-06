@@ -29,7 +29,6 @@ def calculate_quality_score(post: dict) -> dict:
         [
             post.get("title", ""),
             post.get("content", ""),
-            post.get("rendered_text", ""),
         ]
     )
 

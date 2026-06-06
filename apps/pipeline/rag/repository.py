@@ -117,7 +117,7 @@ def search_similar_cases(
         ).all()
 
         for chunk, case in rows:
-            score = cosine_similarity(query_embedding, list(chunk.embedding or []))
+            score = cosine_similarity(query_embedding, _embedding_to_list(chunk.embedding))
             matches.append(
                 {
                     "case_id": case.case_id,
@@ -132,3 +132,11 @@ def search_similar_cases(
 
     matches.sort(key=lambda item: item["score"], reverse=True)
     return matches[:top_k]
+
+
+def _embedding_to_list(value) -> list[float]:
+    if value is None:
+        return []
+    if hasattr(value, "tolist"):
+        return list(value.tolist())
+    return list(value)

@@ -308,15 +308,6 @@ def build_text_for_embedding(post: dict) -> str:
     if post.get("content"):
         parts.append(f"content: {post['content']}")
 
-    if post.get("platform"):
-        parts.append(f"platform: {post['platform']}")
-
-    if post.get("price"):
-        parts.append(f"price: {post['price']}")
-
-    if post.get("seller_id"):
-        parts.append(f"seller: {post['seller_id']}")
-
     if post.get("risk_flags"):
         parts.append(f"risk_flags: {', '.join(post['risk_flags'])}")
 
