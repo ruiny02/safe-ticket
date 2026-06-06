@@ -117,6 +117,7 @@ export interface CaseUmapPoint {
   label: string;
   x: number;
   y: number;
+  z: number;
   variant: CaseUmapVariant;
   risk_level: "low" | "medium" | "high" | null;
   risk_score: number | null;

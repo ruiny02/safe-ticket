@@ -8,6 +8,7 @@ export interface DemoEmbeddingPoint {
   label: string;
   x: number;
   y: number;
+  z: number;
   variant: DemoEmbeddingVariant;
 }
 
@@ -19,7 +20,7 @@ interface RawPoint {
 }
 
 export interface DemoEmbeddingResult {
-  pipeline: "Raw embedding -> PCA(50) -> UMAP(2)";
+  pipeline: "Raw embedding -> PCA(50) -> UMAP(3)";
   points: DemoEmbeddingPoint[];
   summary: {
     nearestCluster: "fraud" | "safe" | "borderline";
@@ -206,13 +207,13 @@ export function buildDemoEmbeddingResult({
 
   const random = mulberry32(baseSeed + 9000);
   const umap = new UMAP({
-    nComponents: 2,
+    nComponents: 3,
     nNeighbors: 12,
     minDist: 0.22,
     spread: 1.1,
     random,
   });
-  const projected = umap.fit(pcaProjected) as Array<[number, number]>;
+  const projected = umap.fit(pcaProjected) as Array<[number, number, number]>;
 
   const normalizedX = normalize(
     projected.map((point) => point[0]),
@@ -224,12 +225,18 @@ export function buildDemoEmbeddingResult({
     12,
     88,
   );
+  const normalizedZ = normalize(
+    projected.map((point) => point[2]),
+    12,
+    88,
+  );
 
   const points = rawPoints.map((point, index) => ({
     id: point.id,
     label: point.label,
     x: Number(normalizedX[index].toFixed(1)),
     y: Number(normalizedY[index].toFixed(1)),
+    z: Number(normalizedZ[index].toFixed(1)),
     variant: point.variant,
   }));
 
@@ -258,7 +265,7 @@ export function buildDemoEmbeddingResult({
     "fraud") as "fraud" | "safe" | "borderline";
 
   return {
-    pipeline: "Raw embedding -> PCA(50) -> UMAP(2)",
+    pipeline: "Raw embedding -> PCA(50) -> UMAP(3)",
     points,
     summary: {
       nearestCluster,

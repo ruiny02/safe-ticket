@@ -163,7 +163,7 @@ function buildEmbeddingModel({
     return {
       title: "임베딩 공간 시각화",
       description:
-        "데모 임베딩 DB를 만들고, 원본 임베딩에서 PCA(50)를 거쳐 UMAP(2)로 축소한 좌표를 사용해 사기 / 정상 / 경계 군집과 현재 게시글의 거리를 보여줍니다.",
+        "데모 임베딩 DB를 만들고, 원본 임베딩에서 PCA(50)를 거쳐 UMAP(3)로 축소한 좌표를 2D와 3D로 함께 보여줍니다.",
       pipeline: demoEmbedding.pipeline,
       points: demoEmbedding.points,
       summary: demoEmbedding.summary,
@@ -175,6 +175,7 @@ function buildEmbeddingModel({
     label: point.label,
     x: point.x,
     y: point.y,
+    z: point.z,
     variant: point.variant,
   }));
   const fallbackNearest =

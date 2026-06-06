@@ -6,12 +6,13 @@ from pydantic import BaseModel, Field
 
 
 class CaseUmapPoint(BaseModel):
-    """A single fraud-memory case or current scan projected into 2D."""
+    """A single fraud-memory case or current scan projected into 3D."""
 
     case_id: str
     label: str
     x: float
     y: float
+    z: float
     variant: str
     summary: str | None = None
     source_url: str | None = None

@@ -18,7 +18,7 @@ from app.db.session import SessionLocal
 from app.schemas.case_umap import CaseUmapCurrentScan, CaseUmapPoint, CaseUmapProjection, CaseUmapResponse
 
 
-PROJECTION_PIPELINE = "case_chunks.embedding mean -> PCA(<=50) -> UMAP(2)"
+PROJECTION_PIPELINE = "case_chunks.embedding mean -> PCA(<=50) -> UMAP(3)"
 MIN_UMAP_CASES = 10
 
 
@@ -35,7 +35,7 @@ def build_case_umap(limit: int = 500, scan_id: str | None = None, refresh: bool 
     coordinates = _normalize_coordinates(_project_embeddings([item.embedding for item in case_embeddings]))
 
     points: list[CaseUmapPoint] = []
-    for item, (x, y) in zip(case_embeddings, coordinates):
+    for item, (x, y, z) in zip(case_embeddings, coordinates):
         risk_level, risk_score, variant = _risk_for_case(item.case)
         points.append(
             CaseUmapPoint(
@@ -43,6 +43,7 @@ def build_case_umap(limit: int = 500, scan_id: str | None = None, refresh: bool 
                 label=item.case.title or item.case.case_id,
                 x=round(float(x), 6),
                 y=round(float(y), 6),
+                z=round(float(z), 6),
                 variant=variant,
                 summary=item.case.summary,
                 source_url=item.case.source_url,
@@ -133,15 +134,15 @@ def _mean_embedding(embeddings: list[list[float]]) -> list[float] | None:
     return np.asarray(aligned, dtype=float).mean(axis=0).tolist()
 
 
-def _project_embeddings(embeddings: list[list[float]]) -> list[tuple[float, float]]:
+def _project_embeddings(embeddings: list[list[float]]) -> list[tuple[float, float, float]]:
     if not embeddings:
         return []
 
     if len(embeddings) == 1:
-        return [(0.0, 0.0)]
+        return [(0.0, 0.0, 0.0)]
 
     if len(embeddings) == 2:
-        return [(-0.5, 0.0), (0.5, 0.0)]
+        return [(-0.5, 0.0, 0.0), (0.5, 0.0, 0.0)]
 
     matrix = np.asarray(embeddings, dtype=float)
     pca_components = _pca_component_count(embeddings)
@@ -149,13 +150,13 @@ def _project_embeddings(embeddings: list[list[float]]) -> list[tuple[float, floa
 
     if len(embeddings) < MIN_UMAP_CASES:
         projected = _fallback_projection(pca_matrix)
-        return [(float(x), float(y)) for x, y in projected]
+        return [(float(x), float(y), float(z)) for x, y, z in projected]
 
     try:
         from umap import UMAP
 
         projected = UMAP(
-            n_components=2,
+            n_components=3,
             n_neighbors=_umap_neighbor_count(len(embeddings)),
             min_dist=0.12,
             metric="euclidean",
@@ -165,24 +166,29 @@ def _project_embeddings(embeddings: list[list[float]]) -> list[tuple[float, floa
     except Exception:
         projected = _fallback_projection(pca_matrix)
 
-    return [(float(x), float(y)) for x, y in projected]
+    return [(float(x), float(y), float(z)) for x, y, z in projected]
 
 
-def _normalize_coordinates(coordinates: list[tuple[float, float]]) -> list[tuple[float, float]]:
+def _normalize_coordinates(coordinates: list[tuple[float, float, float]]) -> list[tuple[float, float, float]]:
     if not coordinates:
         return []
 
-    xs = [x for x, _ in coordinates]
-    ys = [y for _, y in coordinates]
+    xs = [x for x, _, _ in coordinates]
+    ys = [y for _, y, _ in coordinates]
+    zs = [z for _, _, z in coordinates]
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
+    min_z, max_z = min(zs), max(zs)
 
     def scale(value: float, low: float, high: float) -> float:
         if math.isclose(low, high):
             return 50.0
         return 8.0 + ((value - low) / (high - low)) * 84.0
 
-    return [(scale(x, min_x, max_x), scale(y, min_y, max_y)) for x, y in coordinates]
+    return [
+        (scale(x, min_x, max_x), scale(y, min_y, max_y), scale(z, min_z, max_z))
+        for x, y, z in coordinates
+    ]
 
 
 def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> CaseUmapCurrentScan | None:
@@ -215,9 +221,10 @@ def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> Cas
     total_weight = sum(weight for _, weight in weighted)
     current_x = sum(point.x * weight for point, weight in weighted) / total_weight
     current_y = sum(point.y * weight for point, weight in weighted) / total_weight
+    current_z = sum(point.z * weight for point, weight in weighted) / total_weight
     centroids = _cluster_centroids(points)
     distances = {
-        variant: round(math.dist((current_x, current_y), centroid), 3)
+        variant: round(math.dist((current_x, current_y, current_z), centroid), 3)
         for variant, centroid in centroids.items()
     }
     nearest = min(distances, key=distances.get) if distances else "fraud"
@@ -228,6 +235,7 @@ def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> Cas
             label="현재 scan",
             x=round(current_x, 6),
             y=round(current_y, 6),
+            z=round(current_z, 6),
             variant="current",
             summary="현재 게시글의 유사 사례 가중 중심점입니다.",
         )
@@ -236,11 +244,11 @@ def _build_current_scan(scan_id: str | None, points: list[CaseUmapPoint]) -> Cas
 
 
 def _fallback_projection(matrix: np.ndarray) -> np.ndarray:
-    if matrix.shape[1] >= 2:
-        return matrix[:, :2]
+    if matrix.shape[1] >= 3:
+        return matrix[:, :3]
 
-    zeros = np.zeros((matrix.shape[0], 1))
-    return np.hstack([matrix[:, :1], zeros])
+    zeros = np.zeros((matrix.shape[0], 3 - matrix.shape[1]))
+    return np.hstack([matrix, zeros])
 
 
 def _pca_component_count(embeddings: list[list[float]]) -> int:
@@ -287,8 +295,8 @@ def _coerce_float(value: object | None, default: float) -> float:
         return default
 
 
-def _cluster_centroids(points: list[CaseUmapPoint]) -> dict[str, tuple[float, float]]:
-    centroids: dict[str, tuple[float, float]] = {}
+def _cluster_centroids(points: list[CaseUmapPoint]) -> dict[str, tuple[float, float, float]]:
+    centroids: dict[str, tuple[float, float, float]] = {}
     for variant in ("fraud", "borderline", "safe"):
         cluster = [point for point in points if point.variant == variant]
         if not cluster:
@@ -296,6 +304,7 @@ def _cluster_centroids(points: list[CaseUmapPoint]) -> dict[str, tuple[float, fl
         centroids[variant] = (
             sum(point.x for point in cluster) / len(cluster),
             sum(point.y for point in cluster) / len(cluster),
+            sum(point.z for point in cluster) / len(cluster),
         )
     return centroids
 
