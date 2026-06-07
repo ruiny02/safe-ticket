@@ -99,6 +99,7 @@ class PipelineClient:
             seller=payload.seller,
             content_blocks=payload.content_blocks,
             marketplace_signals=payload.marketplace_signals,
+            user_context=payload.user_context,
         )
 
     def analyze(self, outbound_payload: PipelineOutboundPayload) -> PipelineInboundPayload:

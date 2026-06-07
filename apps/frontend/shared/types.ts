@@ -16,6 +16,11 @@ export interface MarketplaceSignal {
   value: string;
 }
 
+export interface UserRiskContext {
+  age_group: "under_30" | "30_59" | "60_plus" | "unknown";
+  trade_experience: "high" | "medium" | "low" | "unknown";
+}
+
 export interface ScanCreateRequest {
   platform: MarketplacePlatform;
   page_url: string;
@@ -24,6 +29,7 @@ export interface ScanCreateRequest {
   seller: SellerInfo;
   content_blocks: ContentBlock[];
   marketplace_signals: MarketplaceSignal[];
+  user_context?: UserRiskContext;
 }
 
 export interface ScanQueuedResponse {
@@ -51,6 +57,15 @@ export interface SimilarCase {
   case_id: string;
   score: number;
   summary: string;
+  matched_chunk?: string | null;
+  risk_level?: "low" | "medium" | "high" | null;
+  risk_flags?: string[];
+}
+
+export interface RiskScoreComponent {
+  component: string;
+  points: number;
+  reason: string;
 }
 
 export interface ExternalLookupResult {
@@ -70,7 +85,10 @@ export interface ScanResultResponse {
   status: "queued" | "processing" | "completed" | "partial" | "failed";
   risk_level: "low" | "medium" | "high" | null;
   risk_score: number | null;
+  risk_points?: number | null;
+  risk_score_breakdown?: RiskScoreComponent[];
   summary: string | null;
+  llm_reasoning?: string | null;
   risk_tags: string[];
   evidence_items: ScanHighlightTarget[];
   highlight_targets: ScanHighlightTarget[];
@@ -90,6 +108,7 @@ export interface PipelineOutboundPayload {
   seller: SellerInfo;
   content_blocks: ContentBlock[];
   marketplace_signals: MarketplaceSignal[];
+  user_context?: UserRiskContext;
 }
 
 export interface PipelineInboundPayload {

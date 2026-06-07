@@ -9,6 +9,7 @@ from app.repositories.db_store import db_store
 from app.schemas.external_lookup import ExternalLookupProvider, ExternalLookupResponse
 from app.schemas.scan import (
     ContentBlock,
+    EvidenceItem,
     PipelineErrorInfo,
     PipelineExchangeResponse,
     ScanCreateRequest,
@@ -16,14 +17,21 @@ from app.schemas.scan import (
     ScanListResponse,
     ScanResultResponse,
 )
-from app.services.case_retrieval import search_similar_cases_for_text
 from app.services.external_lookup import (
     POLICE_PAGE_URL,
     THECHEAT_SEARCH_URL,
     ExternalLookupError,
     external_lookup_service,
 )
+from app.services.case_retrieval import search_similar_cases_for_text
+from app.services.llm_scan_analysis import (
+    LLMScanAnalysisError,
+    llm_scan_analysis_service,
+    validate_llm_highlights,
+)
 from app.services.pipeline_client import PipelineClientError, pipeline_client
+from app.services.rag.context import build_rag_context
+from app.services.rag.scoring import RAGScore, score_rag_context
 from app.services.rules.external_lookup_candidates import ExternalLookupCandidate, extract_external_lookup_candidates
 
 
@@ -103,25 +111,56 @@ class ScanService:
 
         # Save the final completed scan in the format consumed by the frontend.
         external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
-        retrieved_cases = search_similar_cases_for_text(
-            self._build_retrieval_query(
-                title=exchange.outbound_payload.page_title,
-                content_blocks=exchange.outbound_payload.content_blocks,
-            )
+        rag_context = build_rag_context(
+            scan_payload=exchange.outbound_payload,
+            external_lookup_results=external_lookup_results,
+            user_context=exchange.outbound_payload.user_context,
         )
+        rag_score = score_rag_context(rag_context)
+        similar_cases = [item.to_similar_case() for item in rag_context.similar_cases_top3]
+        if not similar_cases:
+            similar_cases = search_similar_cases_for_text(rag_context.listing_text)
+        summary = self._fallback_summary(rag_score)
+        llm_reasoning: str | None = None
+        recommended_actions = inbound_payload.recommended_actions
+        highlight_targets = self._dedupe_evidence_items(
+            inbound_payload.highlight_targets + rag_context.savings_account_signals
+        )
+        evidence_items = self._dedupe_evidence_items(inbound_payload.evidence_items + highlight_targets)
+        degraded = inbound_payload.degraded
+
+        try:
+            llm_result = llm_scan_analysis_service.generate(rag_context, rag_score)
+            validated_llm_highlights = validate_llm_highlights(
+                llm_result.highlight_targets,
+                exchange.outbound_payload.content_blocks,
+            )
+            summary = llm_result.summary
+            llm_reasoning = llm_result.llm_reasoning
+            if validated_llm_highlights:
+                highlight_targets = validated_llm_highlights
+                evidence_items = validated_llm_highlights
+            if llm_result.recommended_actions:
+                recommended_actions = llm_result.recommended_actions
+        except LLMScanAnalysisError:
+            degraded = True
+
         final_scan = ScanResultResponse(
             scan_id=scan_id,
             status="completed",
-            risk_level=inbound_payload.risk_level,
-            risk_score=inbound_payload.risk_score,
-            summary=inbound_payload.summary,
-            risk_tags=inbound_payload.risk_tags,
-            evidence_items=inbound_payload.evidence_items,
-            highlight_targets=inbound_payload.highlight_targets,
-            similar_cases=retrieved_cases or inbound_payload.similar_cases,
-            recommended_actions=inbound_payload.recommended_actions,
+            risk_level=rag_score.risk_level,
+            risk_score=rag_score.risk_score,
+            risk_points=rag_score.risk_points,
+            risk_score_breakdown=rag_score.breakdown,
+            summary=summary,
+            llm_reasoning=llm_reasoning,
+            risk_tags=self._build_risk_tags(inbound_payload.risk_tags, rag_context.scoring_signals),
+            evidence_items=evidence_items,
+            highlight_targets=highlight_targets,
+            similar_cases=similar_cases or inbound_payload.similar_cases,
+            recommended_actions=recommended_actions,
             external_lookup_results=external_lookup_results,
-            degraded=inbound_payload.degraded,
+            degraded=degraded,
             report_url=f"/report/{scan_id}",
         )
         db_store.save_scan(final_scan)
@@ -162,11 +201,6 @@ class ScanService:
         """Persist a stable failed scan result without leaking transport-layer details."""
         db_store.update_scan_status(scan_id=scan_id, status="failed", summary=error_info.message)
 
-    def _build_retrieval_query(self, title: str, content_blocks: list[ContentBlock]) -> str:
-        """Build the text used to retrieve similar imported cases."""
-        block_text = " ".join(block.text for block in content_blocks)
-        return f"{title} {block_text}".strip()
-
     def _run_external_lookups(self, content_blocks: list[ContentBlock]) -> list[ExternalLookupResponse]:
         """Run police and TheCheat lookups for parsed phone/account candidates."""
         lookup_results: list[ExternalLookupResponse] = []
@@ -198,6 +232,39 @@ class ScanService:
             message=message,
             source_url=source_url,
         )
+
+    def _fallback_summary(self, score: RAGScore) -> str:
+        """Build a minimal deterministic summary when LLM generation is unavailable."""
+        if score.risk_points == 200:
+            return "외부 신고 이력이 확인되어 즉시 거래를 중단하고 상세 내용을 확인해야 합니다."
+        if score.risk_level == "high":
+            return "유사 사례, 계좌 패턴, 사용자 거래 맥락을 종합하면 추가 확인이 필요한 거래입니다."
+        if score.risk_level == "medium":
+            return "일부 위험 신호가 감지되어 송금 전 추가 확인이 필요합니다."
+        return "현재 탐지된 위험 신호는 낮지만, 안전결제와 판매자 확인은 계속 권장됩니다."
+
+    def _build_risk_tags(self, pipeline_tags: list[str], scoring_signals: dict[str, object]) -> list[str]:
+        """Expose stable tags from pipeline and deterministic RAG scoring."""
+        tags = list(dict.fromkeys(pipeline_tags))
+        if bool(scoring_signals.get("external_lookup_positive")):
+            tags.append("external_lookup_positive")
+        if bool(scoring_signals.get("has_savings_account_pattern")):
+            tags.append("savings_account_pattern")
+        if float(scoring_signals.get("max_similarity_score", 0.0) or 0.0) > 0:
+            tags.append("similar_case_match")
+        return list(dict.fromkeys(tags))
+
+    def _dedupe_evidence_items(self, items: list[EvidenceItem]) -> list[EvidenceItem]:
+        """Remove repeated highlights while preserving order."""
+        deduped: list[EvidenceItem] = []
+        seen: set[tuple[str, int, int, str]] = set()
+        for item in items:
+            key = (item.block_id, item.start, item.end, item.reason_code)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+        return deduped
 
 
 # A module-level service instance keeps route imports small.

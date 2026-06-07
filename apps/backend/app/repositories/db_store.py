@@ -33,6 +33,7 @@ class DatabaseStore:
                 price=payload.price,
                 status="queued",
                 risk_tags=[],
+                risk_score_breakdown_json=[],
                 evidence_items_json=[],
                 highlight_targets_json=[],
                 similar_cases_json=[],
@@ -56,7 +57,12 @@ class DatabaseStore:
             row.status = scan.status
             row.risk_level = scan.risk_level
             row.risk_score = scan.risk_score
+            row.risk_points = scan.risk_points
+            row.risk_score_breakdown_json = [
+                item.model_dump(mode="json") for item in scan.risk_score_breakdown
+            ]
             row.summary = scan.summary
+            row.llm_reasoning = scan.llm_reasoning
             row.risk_tags = scan.risk_tags
             row.evidence_items_json = [item.model_dump(mode="json") for item in scan.evidence_items]
             row.highlight_targets_json = [item.model_dump(mode="json") for item in scan.highlight_targets]
@@ -170,7 +176,10 @@ class DatabaseStore:
             status=row.status,  # type: ignore[arg-type]
             risk_level=row.risk_level,  # type: ignore[arg-type]
             risk_score=row.risk_score,
+            risk_points=row.risk_points,
+            risk_score_breakdown=row.risk_score_breakdown_json or [],
             summary=row.summary,
+            llm_reasoning=row.llm_reasoning,
             risk_tags=row.risk_tags or [],
             evidence_items=row.evidence_items_json or [],
             highlight_targets=row.highlight_targets_json or [],
