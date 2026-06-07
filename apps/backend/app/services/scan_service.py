@@ -25,6 +25,7 @@ from app.services.external_lookup import (
 )
 from app.services.pipeline_client import PipelineClientError, pipeline_client
 from app.services.rules.external_lookup_candidates import ExternalLookupCandidate, extract_external_lookup_candidates
+from app.services.user_profile_adjustment import apply_user_profile_adjustment
 
 
 EXTERNAL_LOOKUP_PROVIDERS: tuple[ExternalLookupProvider, ...] = ("police", "thecheat")
@@ -133,6 +134,7 @@ class ScanService:
             degraded=inbound_payload.degraded,
             report_url=self._build_report_url(scan_id),
         )
+        final_scan = apply_user_profile_adjustment(final_scan, exchange.outbound_payload.user_profile)
         db_store.save_scan(final_scan)
         db_store.save_pipeline_exchange(
             PipelineExchangeResponse(
