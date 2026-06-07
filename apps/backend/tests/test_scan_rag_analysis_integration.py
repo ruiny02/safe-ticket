@@ -14,7 +14,7 @@ from app.db.models import Case, CaseChunk
 from app.db.session import SessionLocal, engine
 from app.main import app
 from app.schemas.external_lookup import ExternalLookupResponse
-from app.schemas.scan import EvidenceItem, PipelineInboundPayload, UserRiskContext
+from app.schemas.scan import EvidenceItem, PipelineInboundPayload
 from app.services import pipeline_client as pipeline_client_module
 from app.services import scan_service as scan_service_module
 from app.services.llm_scan_analysis import LLMScanAnalysisResult
@@ -63,7 +63,7 @@ def seed_case() -> None:
 
 
 def build_scan_payload() -> dict:
-    """Return a payload that includes user risk context."""
+    """Return a payload that includes public user profile data."""
     return {
         "platform": "joonggonara",
         "page_url": "https://example.com/product/123",
@@ -77,9 +77,9 @@ def build_scan_payload() -> dict:
             }
         ],
         "marketplace_signals": [],
-        "user_context": {
-            "age_group": "60_plus",
-            "trade_experience": "low",
+        "user_profile": {
+            "age": 67,
+            "trade_experience_level": "beginner",
         },
     }
 
@@ -248,10 +248,13 @@ def test_scan_result_forces_200_points_when_external_lookup_is_positive(monkeypa
         ),
     )
 
-    create_response = client.post("/api/v1/scans/sync", json=build_scan_payload())
+    create_response = client.post("/api/v1/scans", json=build_scan_payload())
 
-    assert create_response.status_code == 200
-    body = create_response.json()
+    assert create_response.status_code == 202
+    scan_id = create_response.json()["scan_id"]
+    result_response = client.get(f"/api/v1/scans/{scan_id}")
+    assert result_response.status_code == 200
+    body = result_response.json()
     assert body["risk_points"] == 200
     assert body["risk_score"] == 1.0
     assert body["risk_level"] == "high"

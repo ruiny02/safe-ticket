@@ -31,5 +31,10 @@ class ChatReplyResponse(BaseModel):
     """Normalized assistant response consumed by the frontend chat panel."""
 
     reply: str
-    source: Literal["gemini"] = "gemini"
-    model: str
+    source: Literal["backend", "gemini"] = "backend"
+    model: str | None = None
+
+
+# Backward-compatible names used by older backend tests and route code.
+ChatConversationMessage = ChatMessage
+ChatRequestPayload = ChatReplyRequest

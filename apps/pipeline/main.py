@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, HttpUrl
+from sqlalchemy.exc import SQLAlchemyError
+
+from db.connection import get_engine
+from db.models import init_db
+from gemini_analyzer import analyze_listing_with_gemini
+from rag.repository import search_similar_cases
+from seed_memory import seed_memory
 
 
 class HealthResponse(BaseModel):
@@ -19,6 +29,7 @@ class SellerInfo(BaseModel):
 
     seller_id: str
     nickname: str
+    profile_url: HttpUrl | None = None
 
 
 class ContentBlock(BaseModel):
@@ -36,6 +47,13 @@ class MarketplaceSignal(BaseModel):
     value: str
 
 
+class UserProfile(BaseModel):
+    """Optional user profile forwarded by the frontend."""
+
+    age: int | None = Field(default=None, ge=0, le=120)
+    trade_experience_level: Literal["beginner", "intermediate", "advanced"] | None = None
+
+
 class PipelineOutboundPayload(BaseModel):
     """Request schema sent by the backend to the pipeline."""
 
@@ -47,6 +65,7 @@ class PipelineOutboundPayload(BaseModel):
     seller: SellerInfo
     content_blocks: list[ContentBlock]
     marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
+    user_profile: UserProfile | None = None
 
 
 class EvidenceItem(BaseModel):
@@ -164,10 +183,23 @@ RULES = [
 ]
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Seed demo fraud-memory cases on startup when enabled."""
+    if os.getenv("SEED_PIPELINE_MEMORY", "").lower() in {"1", "true", "yes"}:
+        try:
+            seed_memory()
+        except Exception:
+            # Seeding is useful for demos, but retrieval fallback keeps analyze usable without it.
+            pass
+    yield
+
+
 app = FastAPI(
     title="safe-ticket-pipeline",
     description="HTTP API used by the backend to request listing risk analysis.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
@@ -212,16 +244,37 @@ def analyze(payload: PipelineOutboundPayload) -> PipelineInboundPayload:
 
     risk_score = min(round(risk_score, 2), 1.0)
     risk_level = _risk_level_from_score(risk_score)
+    ai_analysis = analyze_listing_with_gemini(
+        payload,
+        fallback_context={
+            "risk_level": risk_level,
+            "risk_score": risk_score,
+            "risk_tags": risk_tags,
+            "evidence_items": [item.model_dump() for item in evidence_items],
+        },
+    )
+
+    if ai_analysis is not None:
+        risk_level = ai_analysis["risk_level"]
+        risk_score = ai_analysis["risk_score"]
+        summary = ai_analysis["summary"]
+        risk_tags = ai_analysis["risk_tags"] or risk_tags
+        recommended_actions = [
+            RecommendedAction(**item) for item in ai_analysis["recommended_actions"]
+        ] or _build_recommended_actions(risk_tags)
+    else:
+        summary = _build_summary(risk_level=risk_level, risk_tags=risk_tags)
+        recommended_actions = _build_recommended_actions(risk_tags)
 
     return PipelineInboundPayload(
         risk_level=risk_level,
         risk_score=risk_score,
-        summary=_build_summary(risk_level=risk_level, risk_tags=risk_tags),
+        summary=summary,
         risk_tags=risk_tags,
         evidence_items=evidence_items,
         highlight_targets=evidence_items,
-        similar_cases=_build_similar_cases(risk_tags),
-        recommended_actions=_build_recommended_actions(risk_tags),
+        similar_cases=_find_similar_cases(payload, risk_tags),
+        recommended_actions=recommended_actions,
         degraded=False,
     )
 
@@ -244,8 +297,41 @@ def _build_summary(risk_level: str, risk_tags: list[str]) -> str:
     return f"{risk_level.title()} risk detected based on these signals: {joined_tags}."
 
 
-def _build_similar_cases(risk_tags: list[str]) -> list[SimilarCase]:
-    """Return placeholder similar cases when risk signals are present."""
+def _find_similar_cases(payload: PipelineOutboundPayload, risk_tags: list[str]) -> list[SimilarCase]:
+    """Search fraud-memory embeddings and fall back safely when retrieval is unavailable."""
+    if not risk_tags:
+        return []
+
+    try:
+        engine = get_engine()
+        init_db(engine)
+        matches = search_similar_cases(engine, _build_similarity_query(payload), top_k=3)
+    except (ImportError, SQLAlchemyError, RuntimeError, OSError, ValueError):
+        return _build_rule_based_similar_cases(risk_tags)
+
+    similar_cases = [
+        SimilarCase(
+            case_id=str(match["case_id"]),
+            score=round(float(match["score"]), 2),
+            summary=match.get("summary") or match.get("matched_text") or "Similar fraud memory case.",
+        )
+        for match in matches
+        if float(match.get("score", 0)) > 0
+    ]
+
+    return similar_cases or _build_rule_based_similar_cases(risk_tags)
+
+
+def _build_similarity_query(payload: PipelineOutboundPayload) -> str:
+    """Convert the analyzed listing into searchable text for fraud-memory retrieval."""
+    content = [payload.page_title]
+    content.extend(block.text for block in payload.content_blocks)
+    content.extend(f"{signal.label}: {signal.value}" for signal in payload.marketplace_signals)
+    return "\n".join(part for part in content if part)
+
+
+def _build_rule_based_similar_cases(risk_tags: list[str]) -> list[SimilarCase]:
+    """Return a stable fallback similar case when retrieval has no usable data."""
     if not risk_tags:
         return []
 

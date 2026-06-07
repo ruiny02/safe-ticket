@@ -7,17 +7,21 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test_safe_ticket.db")
 from fastapi.testclient import TestClient
 import pytest
 
+from app.api.routes import chat as chat_route
 from app.db.base import Base
 from app.db.session import engine
 from app.main import app
+from app.repositories.db_store import db_store
 from app.schemas.scan import (
     EvidenceItem,
     PipelineInboundPayload,
     RecommendedAction,
+    ScanCreateRequest,
+    ScanResultResponse,
     SimilarCase,
 )
-from app.repositories.db_store import db_store
 from app.services import pipeline_client as pipeline_client_module
+from app.services.gemini_chat import GeminiChatConfigurationError
 from app.services.pipeline_client import PipelineUnavailableError
 
 
@@ -46,6 +50,7 @@ def build_scan_payload() -> dict:
                 "text": "Please move to messenger for faster communication.",
             },
         ],
+        "marketplace_signals": [],
     }
 
 
@@ -124,6 +129,7 @@ def test_scan_flow_and_pipeline_debug(monkeypatch: pytest.MonkeyPatch) -> None:
     scan_body = scan_response.json()
     assert scan_body["status"] == "completed"
     assert len(scan_body["highlight_targets"]) == 2
+    assert scan_body["report_url"].endswith(f"/reports/{scan_id}")
     assert observed_statuses == ["processing"]
 
     # Inspect the exact outbound and inbound payloads used for pipeline integration.
@@ -241,3 +247,144 @@ def test_pipeline_health_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "pipeline_reachable": True}
+
+
+def test_chat_reply_endpoint_returns_frontend_compatible_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the frontend chat panel can receive a backend fallback reply."""
+
+    def mock_reply(_payload):
+        raise GeminiChatConfigurationError("missing key")
+
+    monkeypatch.setattr(chat_route.gemini_chat_service, "reply", mock_reply)
+    payload = {
+        "prompt": "What should I do next?",
+        "page_url": "https://example.com/post/123",
+        "scan_id": "scan_chat",
+        "listing": build_scan_payload(),
+        "scan_result": {
+            "scan_id": "scan_chat",
+            "status": "completed",
+            "risk_level": "high",
+            "risk_score": 0.87,
+            "summary": "Mocked pipeline response for API testing.",
+            "risk_tags": ["avoid_safe_payment"],
+            "evidence_items": [
+                {
+                    "block_id": "title",
+                    "start": 0,
+                    "end": 17,
+                    "matched_text": "Transfer me first",
+                    "reason_code": "avoid_safe_payment",
+                    "reason": "Mocked risky phrase match.",
+                    "css_class": "safe-ticket-highlight-danger",
+                }
+            ],
+            "highlight_targets": [],
+            "similar_cases": [],
+            "recommended_actions": [
+                {
+                    "action": "use_safe_payment",
+                    "description": "Use protected payment.",
+                }
+            ],
+            "external_lookup_results": [],
+            "degraded": False,
+            "report_url": "http://localhost:3000/report/#/reports/scan_chat",
+        },
+        "messages": [],
+    }
+
+    response = client.post("/api/v1/chat/reply", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "backend"
+    assert "high risk" in body["reply"]
+
+
+def test_chat_reply_endpoint_can_return_gemini_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the endpoint surfaces Gemini replies when the AI client is configured."""
+    monkeypatch.setattr(chat_route.gemini_chat_service, "reply", lambda _payload: "Gemini says stay safe.")
+
+    response = client.post(
+        "/api/v1/chat/reply",
+        json={
+            "prompt": "What should I do?",
+            "page_url": "https://example.com/post/123",
+            "scan_id": None,
+            "listing": None,
+            "scan_result": None,
+            "messages": [],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reply"] == "Gemini says stay safe."
+    assert body["source"] == "gemini"
+
+
+def test_chat_reply_uses_persisted_scan_when_scan_id_exists(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure API-doc placeholder scan_result values do not override real DB data."""
+
+    def mock_reply(_payload):
+        raise GeminiChatConfigurationError("missing key")
+
+    monkeypatch.setattr(chat_route.gemini_chat_service, "reply", mock_reply)
+    pipeline_result = build_pipeline_result()
+    db_store.create_scan(scan_id="scan_real", payload=ScanCreateRequest.model_validate(build_scan_payload()))
+    db_store.save_scan(
+        ScanResultResponse(
+            scan_id="scan_real",
+            status="completed",
+            risk_level=pipeline_result.risk_level,
+            risk_score=pipeline_result.risk_score,
+            summary=pipeline_result.summary,
+            risk_tags=pipeline_result.risk_tags,
+            evidence_items=pipeline_result.evidence_items,
+            highlight_targets=pipeline_result.highlight_targets,
+            similar_cases=pipeline_result.similar_cases,
+            recommended_actions=pipeline_result.recommended_actions,
+            degraded=pipeline_result.degraded,
+        )
+    )
+
+    response = client.post(
+        "/api/v1/chat/reply",
+        json={
+            "prompt": "Explain this scan.",
+            "page_url": "https://example.com/post/123",
+            "scan_id": "scan_real",
+            "listing": None,
+            "scan_result": {
+                "scan_id": "string",
+                "status": "completed",
+                "risk_level": "low",
+                "risk_score": 0,
+                "summary": "string",
+                "risk_tags": ["string"],
+                "evidence_items": [
+                    {
+                        "block_id": "string",
+                        "start": 0,
+                        "end": 0,
+                        "matched_text": "string",
+                        "reason_code": "string",
+                        "reason": "string",
+                        "css_class": "string",
+                    }
+                ],
+                "highlight_targets": [],
+                "similar_cases": [],
+                "recommended_actions": [],
+                "external_lookup_results": [],
+                "degraded": False,
+                "report_url": None,
+            },
+            "messages": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "high risk" in response.json()["reply"]
+    assert "string" not in response.json()["reply"]

@@ -1,10 +1,11 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 DISPLAY="${DISPLAY:-:99}"
 SCREEN_RESOLUTION="${SCREEN_RESOLUTION:-1440x1000x24}"
 THECHEAT_LOGIN_URL="${THECHEAT_LOGIN_URL:-https://thecheat.co.kr/rb/?mod=ssl_login_otp}"
 CHROME_USER_DATA_DIR="${CHROME_USER_DATA_DIR:-/data/profile}"
+CHROME_REMOTE_DEBUGGING_PORT="${CHROME_REMOTE_DEBUGGING_PORT:-9222}"
 
 mkdir -p "${CHROME_USER_DATA_DIR}"
 rm -f "/tmp/.X${DISPLAY#:}-lock"
@@ -28,7 +29,7 @@ exec "${CHROME_BIN}" \
   --display="${DISPLAY}" \
   --user-data-dir="${CHROME_USER_DATA_DIR}" \
   --remote-debugging-address=0.0.0.0 \
-  --remote-debugging-port=9222 \
+  --remote-debugging-port="${CHROME_REMOTE_DEBUGGING_PORT}" \
   --no-sandbox \
   --disable-dev-shm-usage \
   --no-first-run \

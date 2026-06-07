@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { parseBunjangChatHtml, parseBunjangPageHtml, parseBunjangProductHtml } from "../../../../shared/bunjang";
+import { extractChatBlocksFromDocument } from "../../../../shared/parser-utils";
 import {
   buildScanPayload,
   enhanceJoongnaProductPayloadFromDocument,
@@ -39,6 +40,7 @@ describe("parseJoongnaProductHtml", () => {
     expect(parsed.seller).toEqual({
       seller_id: "4099087",
       nickname: "낭닥SJ",
+      profile_url: "https://web.joongna.com/store/4099087",
     });
     expect(parsed.marketplace_signals).toEqual([
       expect.objectContaining({ key: "trust_score", value: "306점" }),
@@ -47,7 +49,7 @@ describe("parseJoongnaProductHtml", () => {
       expect.objectContaining({ key: "favorite_count", value: "0" }),
     ]);
     expect(parsed.content_blocks[1].text).toContain("3355-28-8620726");
-    expect(parsed.content_blocks.some((block) => block.block_id === "marketplace-signals")).toBe(true);
+    expect(parsed.content_blocks.some((block) => block.block_id === "marketplace-signals")).toBe(false);
   });
 
   it("falls back to JSON-LD and store links on live-like html", () => {
@@ -72,6 +74,7 @@ describe("parseJoongnaProductHtml", () => {
     expect(parsed.seller).toEqual({
       seller_id: "2474236",
       nickname: "AcesHigh",
+      profile_url: "https://web.joongna.com/store/2474236",
     });
     expect(parsed.marketplace_signals).toEqual([]);
     expect(parsed.content_blocks[1].text).toContain("2026 I.O.I Concert Tour: LOOP in SEOUL");
@@ -130,6 +133,7 @@ describe("parseJoongnaProductHtml", () => {
     expect(enhanced.seller).toEqual({
       seller_id: "4099087",
       nickname: "낭닥SJ",
+      profile_url: "https://web.joongna.com/store/4099087",
     });
     expect(isReliableJoongnaProductPayload(enhanced)).toBe(true);
   });
@@ -143,6 +147,7 @@ describe("parseJoongnaProductHtml", () => {
       seller: {
         seller_id: "4099087",
         nickname: "낭닥SJ",
+        profile_url: "https://web.joongna.com/store/4099087",
       },
       content_blocks: [
         { block_id: "title", text: "테스트 상품" },
@@ -190,6 +195,7 @@ describe("parseJoongnaChatHtml", () => {
     expect(parsed.marketplace_signals.some((signal) => signal.key === "safe_payment")).toBe(false);
     expect(parsed.content_blocks.some((block) => block.block_id === "jn-chat-004")).toBe(true);
     expect(parsed.content_blocks.at(-1)?.text).toContain("304-1234-5678-90");
+    expect(parsed.content_blocks.every((block) => /^jn-chat-\d+$/i.test(block.block_id))).toBe(true);
   });
 
   it("auto-detects joongna chat pages from html and url", () => {
@@ -239,6 +245,7 @@ describe("parseBunjangProductHtml", () => {
             <p class="_description_15uwa_1">R석 1매 양도합니다.</p>
             <div>배송비 <span>일반 10,000원</span> 구매하기</div>
             <div class="_shopProfileSection_15v9v_24">
+              <a href="/shops/5158822">상점정보</a>
               <span class="Typography_typography__1wr8iu13 Typography_typography_variant_T4__1wr8iu17">총알클로버</span>
               <span>별점 4.9</span>
               <span class="Typography_typography__1wr8iu13 Typography_typography_variant_L8__1wr8iu1u">후기 11</span>
@@ -255,6 +262,7 @@ describe("parseBunjangProductHtml", () => {
     expect(parsed.page_title).toContain("하나비 콘서트 티켓 양도");
     expect(parsed.price).toBe(270000);
     expect(parsed.seller.nickname).toBe("총알클로버");
+    expect(parsed.seller.profile_url).toBe("https://m.bunjang.co.kr/shops/5158822");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("seller_rating");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("review_count");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("transaction_count");
@@ -377,6 +385,7 @@ describe("parseBunjangChatHtml", () => {
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("transaction_count");
     expect(parsed.content_blocks.some((block) => block.block_id === "bg-chat-004")).toBe(true);
     expect(parsed.content_blocks.at(-1)?.text).toContain("1102-1234-5678");
+    expect(parsed.content_blocks.every((block) => /^bg-chat-\d+$/i.test(block.block_id))).toBe(true);
   });
 
   it("auto-detects bunjang chat pages from html and url", () => {
@@ -398,6 +407,38 @@ describe("parseMarketplacePageHtml", () => {
   });
 });
 
+describe("extractChatBlocksFromDocument", () => {
+  it("ignores demo chat notices and keeps only buyer or seller messages", () => {
+    const createElement = (text: string, options?: { messageId?: string; matchesExplicit?: boolean }) => ({
+      isConnected: true,
+      dataset: options?.messageId ? { messageId: options.messageId } : {},
+      textContent: text,
+      closest: (selector: string) => (selector === "#safe-ticket-extension-root" ? null : null),
+      querySelector: () => null,
+      getAttribute: (name: string) => (name === "data-message-id" ? options?.messageId ?? null : null),
+      matches: (selector: string) => Boolean(options?.matchesExplicit && selector.includes("[data-chat-message]")),
+    });
+
+    const elements = [
+      createElement("안심결제 쓰고 사기 걱정 없는 중고거래"),
+      createElement("중고나라 채팅, 안심결제가 가장 안전합니다!"),
+      createElement("상품 아직 있나요?", { messageId: "jn-chat-001", matchesExplicit: true }),
+      createElement("네, 아직 있습니다.", { messageId: "jn-chat-002", matchesExplicit: true }),
+      createElement("앱에서는 채팅 응답이 더 빠르고 편리합니다. 지금 설치하면 거래 확률을 높일 수 있어요!"),
+    ];
+    const documentRef = {
+      querySelectorAll: () => elements,
+    } as unknown as Document;
+
+    const blocks = extractChatBlocksFromDocument(documentRef, "jn-chat");
+
+    expect(blocks).toEqual([
+      { block_id: "jn-chat-001", text: "상품 아직 있나요?" },
+      { block_id: "jn-chat-002", text: "네, 아직 있습니다." },
+    ]);
+  });
+});
+
 describe("buildScanPayload", () => {
   it("keeps the scan contract shape expected by POST /api/v1/scans", () => {
     const html = readFileSync(joongnaProductFixturePath, "utf-8");
@@ -411,6 +452,7 @@ describe("buildScanPayload", () => {
       seller: {
         seller_id: "4099087",
         nickname: "낭닥SJ",
+        profile_url: "https://web.joongna.com/store/4099087",
       },
       content_blocks: expect.arrayContaining([
         {
@@ -421,10 +463,6 @@ describe("buildScanPayload", () => {
           block_id: "body-1",
           text: expect.any(String),
         },
-        {
-          block_id: "marketplace-signals",
-          text: expect.stringContaining("신뢰지수: 306점"),
-        },
       ]),
       marketplace_signals: [
         expect.objectContaining({ key: "trust_score", value: "306점" }),
@@ -433,5 +471,6 @@ describe("buildScanPayload", () => {
         expect.objectContaining({ key: "favorite_count", value: "0" }),
       ],
     });
+    expect(parsed.content_blocks.some((block) => block.block_id === "marketplace-signals")).toBe(false);
   });
 });

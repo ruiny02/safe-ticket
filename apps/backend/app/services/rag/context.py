@@ -40,7 +40,7 @@ def build_rag_context(
     user_context: UserRiskContext | None = None,
 ) -> RAGContext:
     """Build reusable RAG context from scan text, lookups, rules, and retrieved cases."""
-    resolved_user_context = user_context or scan_payload.user_context
+    resolved_user_context = user_context or UserRiskContext()
     listing_text = build_listing_text(scan_payload)
     savings_signals = build_savings_account_evidence_items(scan_payload.content_blocks)
     similar_cases = retrieve_similar_cases(listing_text, top_k=3)

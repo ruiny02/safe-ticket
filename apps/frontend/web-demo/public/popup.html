@@ -11,19 +11,37 @@
       <div class="popup-brand">
         <img class="popup-brand-mark" src="icons/safe-ticket-icon-128.png" alt="" aria-hidden="true" />
         <div>
-          <p class="popup-eyebrow">safe-ticket</p>
-          <h1>거래 스캔</h1>
+          <p class="popup-eyebrow">SAFE-TICKET</p>
         </div>
       </div>
-      <p id="status" class="popup-status">현재 탭을 확인 중입니다.</p>
-      <p id="current-url" class="popup-url">확인 중...</p>
 
-      <div class="popup-actions">
-        <button id="open-demo" type="button">상품 데모 열기</button>
-        <button id="open-joongna-chat-demo" type="button">중고나라 채팅</button>
-        <button id="open-bunjang-chat-demo" type="button">번개장터 채팅</button>
-        <button id="open-report" type="button" hidden>최근 결과 보기</button>
-      </div>
+      <section class="popup-profile-card" aria-labelledby="popup-profile-title">
+        <div class="popup-section-header">
+          <div>
+            <h2 id="popup-profile-title">사용자 정보 설정</h2>
+          </div>
+          <span id="profile-save-status" class="popup-profile-status">자동 저장</span>
+        </div>
+
+        <label class="popup-field" for="age-input">
+          <span>나이</span>
+          <input id="age-input" type="number" min="0" max="120" inputmode="numeric" placeholder="예: 24" />
+        </label>
+
+        <div class="popup-field">
+          <span>중고거래 경험</span>
+          <div class="popup-choice-grid" role="radiogroup" aria-label="중고거래 경험">
+            <button class="popup-choice" data-experience="beginner" type="button">초급</button>
+            <button class="popup-choice" data-experience="intermediate" type="button">중급</button>
+            <button class="popup-choice" data-experience="advanced" type="button">고급</button>
+          </div>
+        </div>
+
+        <p class="popup-helper">입력한 나이와 거래 경험은 맞춤형 위험도 계산에 활용됩니다.</p>
+      </section>
+
+      <p id="status" class="popup-status" hidden>현재 페이지를 확인 중입니다.</p>
+      <p id="current-url" class="popup-url">확인 중...</p>
     </main>
 
     <script type="module" src="popup.js"></script>

@@ -16,7 +16,9 @@ const supportedPatterns = [
 ];
 
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
+const USER_PROFILE_STORAGE_KEY = "safeTicketUserProfile";
 const DEFAULT_FRONTEND_BASE_URL = "http://localhost:3000";
+const EXPERIENCE_LEVELS = ["beginner", "intermediate", "advanced"];
 
 function getFrontendBaseUrl(currentUrl, latestScan = null) {
   if (latestScan?.frontendBaseUrl) {
@@ -67,7 +69,7 @@ function getStatus(url) {
       }
     : {
         supported: false,
-        label: "중고나라 또는 번개장터 상품 상세/채팅 페이지를 열면 패널이 자동으로 나타납니다.",
+        label: "중고나라 또는 번개장터 상품 상세/채팅 페이지에서만 확장 패널이 나타납니다.",
       };
 }
 
@@ -82,15 +84,16 @@ async function run() {
 
   const statusNode = document.getElementById("status");
   const currentUrlNode = document.getElementById("current-url");
-  const openDemoButton = document.getElementById("open-demo");
-  const openJoongnaChatDemoButton = document.getElementById("open-joongna-chat-demo");
-  const openBunjangChatDemoButton = document.getElementById("open-bunjang-chat-demo");
   const openReportButton = document.getElementById("open-report");
+  const ageInput = document.getElementById("age-input");
+  const profileSaveStatus = document.getElementById("profile-save-status");
+  const experienceButtons = Array.from(document.querySelectorAll("[data-experience]"));
   let latestScan = null;
 
   if (statusNode) {
     statusNode.textContent = status.label;
     if (!status.supported) {
+      statusNode.hidden = false;
       statusNode.classList.add("is-inactive");
     }
   }
@@ -99,37 +102,77 @@ async function run() {
     currentUrlNode.textContent = url;
   }
 
-  openDemoButton?.addEventListener("click", () => {
-    void openTab(`${getCurrentFrontendBaseUrl(url)}/product/227242032.html`);
-  });
-
-  openJoongnaChatDemoButton?.addEventListener("click", () => {
-    void openTab(`${getCurrentFrontendBaseUrl(url)}/joongna-chat.html`);
-  });
-
-  openBunjangChatDemoButton?.addEventListener("click", () => {
-    void openTab(`${getCurrentFrontendBaseUrl(url)}/bunjang-chat.html`);
-  });
-
   const storageApi = chrome.storage?.local;
   if (!storageApi) {
     if (statusNode) {
       statusNode.classList.add("is-inactive");
-      statusNode.textContent = "저장소 권한이 없어 최근 스캔 상태를 불러오지 못했습니다.";
+      statusNode.textContent = "저장소 권한이 없어 사용자 설정과 최근 스캔 결과를 불러오지 못했습니다.";
     }
     return;
   }
 
-  const stored = await storageApi.get(LATEST_SCAN_STORAGE_KEY);
+  const stored = await storageApi.get([LATEST_SCAN_STORAGE_KEY, USER_PROFILE_STORAGE_KEY]);
   latestScan = stored[LATEST_SCAN_STORAGE_KEY] ?? null;
+  const savedProfile = stored[USER_PROFILE_STORAGE_KEY] ?? null;
   const reportUrl = getReportPageUrlForTab(url, latestScan);
 
-  if (openReportButton && reportUrl) {
-    openReportButton.hidden = false;
-    openReportButton.addEventListener("click", () => {
-      void openTab(reportUrl);
-    });
+  if (savedProfile && typeof savedProfile === "object") {
+    if (ageInput && typeof savedProfile.age === "number") {
+      ageInput.value = String(savedProfile.age);
+    }
+
+    if (EXPERIENCE_LEVELS.includes(savedProfile.trade_experience_level)) {
+      experienceButtons.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.experience === savedProfile.trade_experience_level);
+      });
+    }
   }
+
+  const setSaveStatus = (label, saved = false) => {
+    if (!profileSaveStatus) {
+      return;
+    }
+
+    profileSaveStatus.textContent = label;
+    profileSaveStatus.classList.toggle("is-saved", saved);
+  };
+
+  const readCurrentProfile = () => {
+    const ageValue = ageInput?.value?.trim() ?? "";
+    const parsedAge = ageValue === "" ? null : Number.parseInt(ageValue, 10);
+    const activeExperienceButton = experienceButtons.find((button) => button.classList.contains("is-active"));
+    const tradeExperienceLevel = activeExperienceButton?.dataset.experience ?? null;
+
+    return {
+      age: Number.isFinite(parsedAge) ? parsedAge : null,
+      trade_experience_level: EXPERIENCE_LEVELS.includes(tradeExperienceLevel) ? tradeExperienceLevel : null,
+    };
+  };
+
+  const persistProfile = async () => {
+    await storageApi.set({
+      [USER_PROFILE_STORAGE_KEY]: readCurrentProfile(),
+    });
+    setSaveStatus("저장됨", true);
+    window.setTimeout(() => {
+      setSaveStatus("자동 저장", false);
+    }, 1200);
+  };
+
+  ageInput?.addEventListener("change", () => {
+    void persistProfile();
+  });
+
+  experienceButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      experienceButtons.forEach((candidate) => {
+        candidate.classList.toggle("is-active", candidate === button);
+      });
+      void persistProfile();
+    });
+  });
+
+  void reportUrl;
 }
 
 void run();

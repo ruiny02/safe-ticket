@@ -41,7 +41,7 @@ export function buildReportBrief({
         sentences: [
           `현재 게시글은 ${scanResult.risk_level ?? "unknown"} 위험으로 분류됐고, 요약 점수는 ${Math.round((scanResult.risk_score ?? 0) * 100)}점입니다.`,
           scanResult.summary ?? "스캔 요약이 아직 비어 있습니다.",
-          `임베딩 공간에서는 ${dashboard.embedding.summary.nearestCluster} cluster에 가장 가깝고, fraud cluster와의 거리는 ${dashboard.embedding.summary.distances.fraud}입니다.`,
+          `임베딩 공간에서는 ${dashboard.embedding.summary.nearestCluster} cluster에 가장 가까운 패턴으로 표시됩니다.`,
         ],
       },
       {

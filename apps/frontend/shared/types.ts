@@ -3,6 +3,7 @@ export type MarketplacePlatform = "joonggonara" | "bunjang";
 export interface SellerInfo {
   seller_id: string;
   nickname: string;
+  profile_url?: string | null;
 }
 
 export interface ContentBlock {
@@ -16,9 +17,11 @@ export interface MarketplaceSignal {
   value: string;
 }
 
-export interface UserRiskContext {
-  age_group: "under_30" | "30_59" | "60_plus" | "unknown";
-  trade_experience: "high" | "medium" | "low" | "unknown";
+export type UserTradeExperienceLevel = "beginner" | "intermediate" | "advanced";
+
+export interface UserProfile {
+  age: number | null;
+  trade_experience_level: UserTradeExperienceLevel | null;
 }
 
 export interface ScanCreateRequest {
@@ -29,7 +32,7 @@ export interface ScanCreateRequest {
   seller: SellerInfo;
   content_blocks: ContentBlock[];
   marketplace_signals: MarketplaceSignal[];
-  user_context?: UserRiskContext;
+  user_profile?: UserProfile | null;
 }
 
 export interface ScanQueuedResponse {
@@ -109,7 +112,7 @@ export interface PipelineOutboundPayload {
   seller: SellerInfo;
   content_blocks: ContentBlock[];
   marketplace_signals: MarketplaceSignal[];
-  user_context?: UserRiskContext;
+  user_profile?: UserProfile | null;
 }
 
 export interface PipelineInboundPayload {
@@ -128,6 +131,40 @@ export interface PipelineExchangeResponse {
   scan_id: string;
   outbound_payload: PipelineOutboundPayload;
   inbound_payload: PipelineInboundPayload;
+}
+
+export type SellerContextLevel = "trusted" | "caution" | "high_risk" | "unknown";
+export type PatternConsistency = "consistent" | "mixed" | "inconsistent" | "unknown";
+
+export interface SellerProfileSnapshot {
+  profile_url: string;
+  seller_name: string | null;
+  response_rate_percent: number | null;
+  response_time: string | null;
+  trust_index: number | null;
+  safe_payment_count: number | null;
+  review_count: number | null;
+  follower_count: number | null;
+  total_products: number | null;
+  recent_product_titles: string[];
+  raw_text_excerpt: string;
+}
+
+export interface SellerContextReportResponse {
+  scan_id: string;
+  profile_url: string;
+  seller_name: string | null;
+  seller_context_level: SellerContextLevel;
+  seller_context_score: number;
+  pattern_consistency: PatternConsistency;
+  summary: string;
+  positive_profile_signals: string[];
+  current_listing_risk_signals: string[];
+  pattern_shift_explanation: string;
+  recommendation: string;
+  profile_snapshot: SellerProfileSnapshot;
+  source: "gemini" | "backend";
+  model: string | null;
 }
 
 export type CaseUmapVariant = "current" | "fraud" | "safe" | "borderline";

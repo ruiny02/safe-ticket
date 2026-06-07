@@ -1,0 +1,27 @@
+
+{
+  "manifest_version": 3,
+  "name": "safe-ticket trade chat demo",
+  "version": "0.1.0",
+  "description": "Injects a safe-ticket scan overlay into local Joongna and Bunjang trade chat demo pages.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
+      ],
+      "js": ["safe-ticket-page-parser.js", "safe-ticket-external-lookup-display.js", "safe-ticket-chat-scan.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "safe-ticket trade chat demo"
+  }
+}

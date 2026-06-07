@@ -27,6 +27,7 @@ dist/
 build/
 site/
 node_modules/
+.pnpm-store/
 *.tsbuildinfo
 *.egg-info/
 .eggs/
@@ -36,7 +37,6 @@ test-results/
 .playwright-mcp/
 .artifacts/
 artifacts/
-test_safe_ticket.db
 .references/
 bi-weekly-report/
 
@@ -54,6 +54,3 @@ apps/pipeline/venv/
 # python
 __pycache__/
 *.pyc
-
-
-.tmp

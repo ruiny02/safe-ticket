@@ -16,6 +16,8 @@ from app.schemas.scan import (
     ScanCreateResponse,
     ScanListResponse,
     ScanResultResponse,
+    UserProfile,
+    UserRiskContext,
 )
 from app.services.external_lookup import (
     POLICE_PAGE_URL,
@@ -63,13 +65,17 @@ class ScanService:
     def run_scan_sync(self, payload: ScanCreateRequest) -> ScanResultResponse:
         """Create, process, and return a scan result in one request for local frontend testing."""
         created_scan = self.enqueue_scan(payload)
-        self.process_scan(created_scan.scan_id)
+        settings = get_settings()
+        self.process_scan(
+            created_scan.scan_id,
+            run_external_lookups=settings.sync_external_lookup_enabled,
+        )
         scan = self.get_scan(created_scan.scan_id)
         if scan is None:
-          raise RuntimeError("scan not found after synchronous processing")
+            raise RuntimeError("scan not found after synchronous processing")
         return scan
 
-    def process_scan(self, scan_id: str) -> None:
+    def process_scan(self, scan_id: str, run_external_lookups: bool = True) -> None:
         """Send the saved payload to the pipeline and translate the outcome into scan status."""
         if db_store.get_scan(scan_id) is None:
             return
@@ -109,12 +115,15 @@ class ScanService:
             self._mark_scan_failed(scan_id=scan_id, error_info=error_info)
             return
 
-        # Save the final completed scan in the format consumed by the frontend.
-        external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
+        settings = get_settings()
+        external_lookup_results: list[ExternalLookupResponse] = []
+        if settings.external_lookup_enabled and run_external_lookups:
+            external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
+
         rag_context = build_rag_context(
             scan_payload=exchange.outbound_payload,
             external_lookup_results=external_lookup_results,
-            user_context=exchange.outbound_payload.user_context,
+            user_context=self._build_user_risk_context(exchange.outbound_payload.user_profile),
         )
         rag_score = score_rag_context(rag_context)
         similar_cases = [item.to_similar_case() for item in rag_context.similar_cases_top3]
@@ -145,6 +154,7 @@ class ScanService:
         except LLMScanAnalysisError:
             degraded = True
 
+        # Save the final completed scan in the format consumed by the frontend.
         final_scan = ScanResultResponse(
             scan_id=scan_id,
             status="completed",
@@ -164,7 +174,7 @@ class ScanService:
             recommended_actions=recommended_actions,
             external_lookup_results=external_lookup_results,
             degraded=degraded,
-            report_url=f"/report/{scan_id}",
+            report_url=self._build_report_url(scan_id),
         )
         db_store.save_scan(final_scan)
         db_store.save_pipeline_exchange(
@@ -224,7 +234,7 @@ class ScanService:
         exc: Exception,
     ) -> ExternalLookupResponse:
         """Convert an external-provider failure into scan metadata instead of failing the scan."""
-        message = str(exc) if isinstance(exc, ExternalLookupError) else f"외부조회 처리 중 오류가 발생했습니다: {exc}"
+        message = str(exc) if isinstance(exc, ExternalLookupError) else f"External lookup failed: {exc}"
         source_url = POLICE_PAGE_URL if provider == "police" else THECHEAT_SEARCH_URL
 
         return ExternalLookupResponse(
@@ -234,6 +244,32 @@ class ScanService:
             status="failed",
             message=message,
             source_url=source_url,
+        )
+
+    def _build_user_risk_context(self, user_profile: UserProfile | None) -> UserRiskContext:
+        """Convert the public user profile API shape into internal scoring buckets."""
+        if user_profile is None:
+            return UserRiskContext()
+
+        if user_profile.age is None:
+            age_group = "unknown"
+        elif user_profile.age >= 60:
+            age_group = "60_plus"
+        elif user_profile.age >= 30:
+            age_group = "30_59"
+        else:
+            age_group = "under_30"
+
+        experience_map = {
+            "beginner": "low",
+            "intermediate": "medium",
+            "advanced": "high",
+            None: "unknown",
+        }
+
+        return UserRiskContext(
+            age_group=age_group,
+            trade_experience=experience_map.get(user_profile.trade_experience_level, "unknown"),
         )
 
     def _fallback_summary(self, score: RAGScore) -> str:
@@ -273,6 +309,11 @@ class ScanService:
             seen.add(key)
             deduped.append(item)
         return deduped
+
+    def _build_report_url(self, scan_id: str) -> str:
+        """Build the frontend report URL stored with completed scan results."""
+        base_url = get_settings().frontend_report_base_url.rstrip("/")
+        return f"{base_url}/{scan_id}"
 
 
 # A module-level service instance keeps route imports small.

@@ -37,7 +37,9 @@
   "content_scripts": [
     {
       "matches": [
-        "http://*/*",
+        "http://*:3000/product/*",
+        "http://*:3000/joongna-chat.html",
+        "http://*:3000/bunjang-chat.html",
         "http://localhost:3000/product/*",
         "http://localhost:3000/joongna-chat.html",
         "http://localhost:3000/bunjang-chat.html",

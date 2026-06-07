@@ -18,6 +18,8 @@ class SellerInfo(BaseModel):
     # Seller identifiers help match future fraud signals and similar cases.
     seller_id: str
     nickname: str
+    # Public marketplace profile URL used for seller context analysis.
+    profile_url: HttpUrl | None = None
 
 
 class ContentBlock(BaseModel):
@@ -37,10 +39,17 @@ class MarketplaceSignal(BaseModel):
 
 
 class UserRiskContext(BaseModel):
-    """Normalized user context used only for risk calibration."""
+    """Normalized internal user context used only for RAG risk calibration."""
 
     age_group: Literal["under_30", "30_59", "60_plus", "unknown"] = "unknown"
     trade_experience: Literal["high", "medium", "low", "unknown"] = "unknown"
+
+
+class UserProfile(BaseModel):
+    """Optional public user information used for personalized risk weighting."""
+
+    age: int | None = Field(default=None, ge=0, le=120)
+    trade_experience_level: Literal["beginner", "intermediate", "advanced"] | None = None
 
 
 class ScanCreateRequest(BaseModel):
@@ -54,7 +63,7 @@ class ScanCreateRequest(BaseModel):
     seller: SellerInfo
     content_blocks: list[ContentBlock]
     marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
-    user_context: UserRiskContext = Field(default_factory=UserRiskContext)
+    user_profile: UserProfile | None = None
 
 
 class ScanCreateResponse(BaseModel):
@@ -117,7 +126,7 @@ class PipelineOutboundPayload(BaseModel):
     seller: SellerInfo
     content_blocks: list[ContentBlock]
     marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
-    user_context: UserRiskContext = Field(default_factory=UserRiskContext)
+    user_profile: UserProfile | None = None
 
 
 class PipelineInboundPayload(BaseModel):

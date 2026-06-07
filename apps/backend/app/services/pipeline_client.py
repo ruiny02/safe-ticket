@@ -99,13 +99,13 @@ class PipelineClient:
             seller=payload.seller,
             content_blocks=payload.content_blocks,
             marketplace_signals=payload.marketplace_signals,
-            user_context=payload.user_context,
+            user_profile=payload.user_profile,
         )
 
     def analyze(self, outbound_payload: PipelineOutboundPayload) -> PipelineInboundPayload:
         """Send the outbound payload to the configured pipeline endpoint and validate the reply."""
         settings = get_settings()
-        request_url = f"{settings.pipeline_base_url.rstrip('/')}{settings.pipeline_analyze_path}"
+        request_url = _join_url(settings.pipeline_base_url, settings.pipeline_analyze_path)
         headers = {"Content-Type": "application/json"}
 
         # Support an optional internal API key without requiring auth in local development.
@@ -141,3 +141,8 @@ class PipelineClient:
 
 # A module-level client instance keeps service imports small and test patching easy.
 pipeline_client = PipelineClient()
+
+
+def _join_url(base_url: str, path: str) -> str:
+    """Join a base URL and endpoint path without depending on a leading slash."""
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"

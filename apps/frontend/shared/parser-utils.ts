@@ -112,6 +112,18 @@ export function buildFallbackSellerId(prefix: string, nickname: string): string 
   return `${prefix}-${safeNickname}`;
 }
 
+export function toAbsoluteUrl(url: string | undefined | null, baseUrl: string): string | undefined {
+  if (!url?.trim()) {
+    return undefined;
+  }
+
+  try {
+    return new URL(decodeHtmlEntities(url.trim()), baseUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
 export function extractChatBlocks(html: string, prefix = "chat") {
   const matches = html.matchAll(/<([a-z0-9]+)([^>]*data-chat-message[^>]*)>([\s\S]*?)<\/\1>/gi);
 
@@ -135,7 +147,12 @@ export function extractChatBlocksFromDocument(
   documentRef: Document,
   prefix = "chat",
 ): Array<{ block_id: string; text: string }> {
-  const selector = [
+  const explicitSelector = [
+    "[data-chat-message]",
+    "[data-message-id][data-role]",
+    "[data-role][data-speaker]",
+  ].join(", ");
+  const fallbackSelector = [
     "[data-chat-message]",
     "[data-message-id]",
     "[data-testid*='message']",
@@ -143,7 +160,38 @@ export function extractChatBlocksFromDocument(
     "[class*='message']",
     "[class*='msg']",
   ].join(", ");
+  const explicitCandidates = Array.from(documentRef.querySelectorAll<HTMLElement>(explicitSelector));
+  const selector = explicitCandidates.length ? explicitSelector : fallbackSelector;
   const allCandidates = Array.from(documentRef.querySelectorAll<HTMLElement>(selector));
+  const excludedContainerSelector = [
+    "#safe-ticket-extension-root",
+    "[class*='banner']",
+    "[class*='notice']",
+    "[class*='guide']",
+    "[class*='warning']",
+    "[class*='profile']",
+    "[class*='protect']",
+    "[class*='protection']",
+    "[class*='product-strip']",
+    "[class*='product-text']",
+    "[class*='product-mini']",
+    "[class*='pay-card']",
+    "[class*='tag']",
+    "[class*='empty']",
+    "[class*='filter']",
+  ].join(", ");
+  const excludedTextPatterns = [
+    /안심결제 쓰고 사기 걱정 없는 중고거래/,
+    /중고나라 채팅,\s*안심결제가 가장 안전합니다/i,
+    /외부 거래 유도 및 사기 감지 시스템 작동 중/,
+    /앱에서는 채팅 응답이 더 빠르고 편리합니다/i,
+    /지금까지\s*\d+개의 상품을 판매했어요/,
+    /후기\s*\d+\s*[·•]\s*거래내역\s*\d+/,
+    /안심결제란/,
+    /앱 다운로드/,
+    /사기피해 보상 최대/,
+    /^구매하기$/,
+  ];
   const candidates = allCandidates.filter((element) => {
     if (!element.isConnected) {
       return false;
@@ -159,6 +207,17 @@ export function extractChatBlocksFromDocument(
 
     const text = normalizeInlineText(element.textContent ?? "");
     if (!text || text.length < 2 || text.length > 280) {
+      return false;
+    }
+
+    const matchesExplicitSelector =
+      typeof element.matches === "function" ? element.matches(explicitSelector) : false;
+
+    if (!matchesExplicitSelector && element.closest(excludedContainerSelector)) {
+      return false;
+    }
+
+    if (excludedTextPatterns.some((pattern) => pattern.test(text))) {
       return false;
     }
 

@@ -1,42 +1,21 @@
 """Assistant chat endpoints."""
 
-from fastapi import APIRouter, HTTPException, status
+from __future__ import annotations
 
+from fastapi import APIRouter
+
+from app.repositories.db_store import db_store
 from app.schemas.chat import ChatReplyRequest, ChatReplyResponse
-from app.services.gemini_chat import (
-    GeminiChatConfigurationError,
-    GeminiChatError,
-    gemini_chat_service,
-)
+from app.schemas.scan import RecommendedAction, ScanResultResponse, SimilarCase
+from app.services.gemini_chat import GeminiChatError, gemini_chat_service
 
 
 router = APIRouter()
 
 
-def _create_chat_reply(payload: ChatReplyRequest) -> ChatReplyResponse:
-    """Generate a Gemini-backed chat reply."""
-    try:
-        reply = gemini_chat_service.reply(payload)
-    except GeminiChatConfigurationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except GeminiChatError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-
-    return ChatReplyResponse(
-        reply=reply,
-        model=gemini_chat_service.model,
-    )
-
-
 @router.post("/reply", response_model=ChatReplyResponse)
 def create_chat_reply(payload: ChatReplyRequest) -> ChatReplyResponse:
-    """Return a chat reply for the extension AI question panel."""
+    """Return a Gemini reply when configured, otherwise use a deterministic helper reply."""
     return _create_chat_reply(payload)
 
 
@@ -44,3 +23,97 @@ def create_chat_reply(payload: ChatReplyRequest) -> ChatReplyResponse:
 def create_chat(payload: ChatReplyRequest) -> ChatReplyResponse:
     """Compatibility endpoint for frontend chat fallback candidates."""
     return _create_chat_reply(payload)
+
+
+def _create_chat_reply(payload: ChatReplyRequest) -> ChatReplyResponse:
+    """Generate a chat response using persisted scan context when available."""
+    normalized_payload = _normalize_payload(payload)
+
+    try:
+        reply = gemini_chat_service.reply(normalized_payload)
+    except GeminiChatError:
+        return ChatReplyResponse(reply=_build_reply(normalized_payload), source="backend")
+
+    return ChatReplyResponse(
+        reply=reply,
+        source="gemini",
+        model=gemini_chat_service.model,
+    )
+
+
+def _build_reply(payload: ChatReplyRequest) -> str:
+    """Generate a useful non-AI answer when Gemini is unavailable."""
+    scan_result = payload.scan_result
+    if scan_result is None:
+        return (
+            "I can answer better after a scan result is available. "
+            "Please run the listing scan first, then ask me about the risk summary, evidence, or next steps."
+        )
+
+    parts = [
+        _risk_sentence(scan_result),
+        _evidence_sentence(scan_result),
+        _action_sentence(scan_result.recommended_actions),
+        _similar_case_sentence(scan_result.similar_cases),
+    ]
+    return " ".join(part for part in parts if part)
+
+
+def _normalize_payload(payload: ChatReplyRequest) -> ChatReplyRequest:
+    """Prefer persisted scan data and ignore Swagger placeholder values."""
+    if payload.scan_id:
+        persisted_scan = db_store.get_scan(payload.scan_id)
+        if persisted_scan is not None:
+            return payload.model_copy(update={"scan_result": persisted_scan})
+
+    if payload.scan_result is not None and _looks_like_placeholder_scan(payload.scan_result):
+        return payload.model_copy(update={"scan_result": None})
+
+    return payload
+
+
+def _looks_like_placeholder_scan(scan_result: ScanResultResponse) -> bool:
+    """Detect generated API-doc placeholder payloads such as 'string' fields."""
+    placeholder_values = {"string", ""}
+    text_values = [
+        scan_result.summary or "",
+        *(scan_result.risk_tags or []),
+        *(item.matched_text for item in scan_result.evidence_items),
+        *(item.reason for item in scan_result.evidence_items),
+    ]
+    return any(value.strip().lower() in placeholder_values for value in text_values)
+
+
+def _risk_sentence(scan_result: ScanResultResponse) -> str:
+    """Summarize the scan's main risk level and tags."""
+    risk_level = scan_result.risk_level or "unknown"
+    score = scan_result.risk_score if scan_result.risk_score is not None else 0
+    if scan_result.risk_tags:
+        tags = ", ".join(scan_result.risk_tags[:3])
+        return f"This listing is currently marked as {risk_level} risk with score {score:.2f}; main signals are {tags}."
+    return f"This listing is currently marked as {risk_level} risk with score {score:.2f}."
+
+
+def _evidence_sentence(scan_result: ScanResultResponse) -> str:
+    """Point the user to the strongest highlighted evidence."""
+    if not scan_result.evidence_items:
+        return "No highlighted evidence was returned for this scan."
+
+    evidence = scan_result.evidence_items[0]
+    return f"The strongest highlighted phrase is '{evidence.matched_text}', because {evidence.reason}"
+
+
+def _action_sentence(actions: list[RecommendedAction]) -> str:
+    """Suggest the first recommended action from the pipeline result."""
+    if not actions:
+        return ""
+    action = actions[0]
+    return f"Recommended next step: {action.description}"
+
+
+def _similar_case_sentence(similar_cases: list[SimilarCase]) -> str:
+    """Mention the top similar case when retrieval returns one."""
+    if not similar_cases:
+        return ""
+    similar_case = similar_cases[0]
+    return f"The closest similar case is {similar_case.case_id} with score {similar_case.score:.2f}."

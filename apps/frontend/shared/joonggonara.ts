@@ -1,7 +1,6 @@
 import type { ContentBlock, MarketplaceSignal, ScanCreateRequest } from "./types";
 import {
   buildFallbackSellerId,
-  buildMarketplaceSignalsBlock,
   cleanMultiline,
   decodeFieldText,
   extractChatBlocks,
@@ -12,6 +11,7 @@ import {
   normalizeInlineText,
   normalizeMarketplaceSignals,
   parseMoney,
+  toAbsoluteUrl,
 } from "./parser-utils";
 
 const JOONGNA_SUSPICIOUS_SELLER_TOKENS = [
@@ -115,6 +115,21 @@ function extractJoongnaSellerFromWatermark(source: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function buildJoongnaSellerProfileUrl(sellerId: string | undefined, href: string | undefined, pageUrl: string): string | undefined {
+  const absoluteHref = toAbsoluteUrl(href, pageUrl);
+  if (absoluteHref && /^https:\/\/(?:web\.)?joongna\.com\/store\/\d+/i.test(absoluteHref)) {
+    return absoluteHref;
+  }
+
+  const idFromHref = fallbackMatch(absoluteHref ?? href ?? "", /\/store\/(\d+)/i);
+  const profileSellerId = sellerId && /^\d+$/.test(sellerId) ? sellerId : idFromHref;
+  if (profileSellerId) {
+    return `https://web.joongna.com/store/${profileSellerId}`;
+  }
+
+  return undefined;
 }
 
 function extractJoongnaMarketplaceSignals(html: string): MarketplaceSignal[] {
@@ -240,27 +255,6 @@ function mergeMarketplaceSignals(currentSignals: MarketplaceSignal[], nextSignal
   return normalizeMarketplaceSignals(mergedSignals);
 }
 
-function syncMarketplaceSignalsBlock(payload: ScanCreateRequest): void {
-  const blockIndex = payload.content_blocks.findIndex((block) => block.block_id === "marketplace-signals");
-  const nextBlock = buildMarketplaceSignalsBlock(payload.marketplace_signals);
-
-  if (!nextBlock && blockIndex >= 0) {
-    payload.content_blocks.splice(blockIndex, 1);
-    return;
-  }
-
-  if (!nextBlock) {
-    return;
-  }
-
-  if (blockIndex >= 0) {
-    payload.content_blocks[blockIndex] = nextBlock;
-    return;
-  }
-
-  payload.content_blocks.push(nextBlock);
-}
-
 function isSuspiciousJoongnaSeller(value: string): boolean {
   const normalizedValue = normalizeInlineText(value);
 
@@ -284,6 +278,11 @@ function syncChatBlocks(payload: ScanCreateRequest, chatBlocks: ContentBlock[]):
     return;
   }
 
+  if (isChatPayload(payload)) {
+    payload.content_blocks = [...chatBlocks];
+    return;
+  }
+
   const staticBlocks = payload.content_blocks.filter((block) => !isChatBlockId(block.block_id));
   payload.content_blocks = [...staticBlocks, ...chatBlocks];
 }
@@ -298,7 +297,6 @@ export function isJoongnaChatHtml(html: string, pageUrl: string): boolean {
 export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCreateRequest {
   const productJsonLd = extractProductJsonLd(html);
   const marketplaceSignals = extractJoongnaMarketplaceSignals(html);
-  const marketplaceSignalsBlock = buildMarketplaceSignalsBlock(marketplaceSignals);
 
   const titleRaw =
     extractJoongnaString(html, "productTitle") ??
@@ -308,6 +306,7 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
     extractJoongnaNumber(html, "storeSeq") ??
     fallbackMatch(html, /href="\/store\/(\d+)"/) ??
     buildFallbackSellerId("joongna-seller", "unknown");
+  const sellerHref = fallbackMatch(html, /href="([^"]*\/store\/\d+[^"]*)"/);
   const sellerNicknameRaw =
     extractJoongnaString(html, "nickName") ??
     productJsonLd?.offers?.seller?.name ??
@@ -340,11 +339,11 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
     seller: {
       seller_id: sellerId,
       nickname: sellerNickname,
+      profile_url: buildJoongnaSellerProfileUrl(sellerId, sellerHref, pageUrl),
     },
     content_blocks: [
       { block_id: "title", text: title },
       { block_id: "body-1", text: description },
-      ...(marketplaceSignalsBlock ? [marketplaceSignalsBlock] : []),
     ].filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,
   };
@@ -382,6 +381,18 @@ export function enhanceJoongnaProductPayloadFromDocument(
     content_blocks: payload.content_blocks.map((block) => ({ ...block })),
     marketplace_signals: payload.marketplace_signals.map((signal) => ({ ...signal })),
   };
+  const sellerProfileUrl = buildJoongnaSellerProfileUrl(
+    sellerId ?? nextPayload.seller.seller_id,
+    sellerAnchor?.getAttribute("href") ?? nextPayload.seller.profile_url ?? undefined,
+    nextPayload.page_url,
+  );
+  const bunjangSellerAnchor = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('a[href*="/shops/"], a[href*="/shop/"]'),
+  ).find((anchor) => /\/shops?\/\d+/i.test(anchor.getAttribute("href") ?? ""));
+  const bunjangSellerProfileUrl = toAbsoluteUrl(
+    bunjangSellerAnchor?.getAttribute("href") ?? nextPayload.seller.profile_url ?? undefined,
+    nextPayload.page_url,
+  );
 
   if (payload.platform === "joonggonara" && titleText.length > 3 && titleText !== payload.page_title) {
     nextPayload.page_title = titleText;
@@ -416,10 +427,17 @@ export function enhanceJoongnaProductPayloadFromDocument(
     }
   }
 
+  if (payload.platform === "joonggonara" && sellerProfileUrl) {
+    nextPayload.seller.profile_url = sellerProfileUrl;
+  }
+
+  if (payload.platform === "bunjang" && bunjangSellerProfileUrl) {
+    nextPayload.seller.profile_url = bunjangSellerProfileUrl;
+  }
+
   const visibleSignals = extractSignalsFromVisibleText(document.body?.innerText ?? "", payload.platform);
   if (visibleSignals.length) {
     nextPayload.marketplace_signals = mergeMarketplaceSignals(nextPayload.marketplace_signals, visibleSignals);
-    syncMarketplaceSignalsBlock(nextPayload);
   }
 
   if (isChatPayload(nextPayload)) {
@@ -456,7 +474,6 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
     fallbackMatch(html, /data-product-price[^>]*>([\s\S]*?)<\/[^>]+>/) ??
     fallbackMatch(html, /<b[^>]*>([\d,\s]+)<\/b>/) ??
     "0";
-  const tradeLocationRaw = fallbackMatch(html, /data-trade-location[^>]*>([\s\S]*?)<\/[^>]+>/) ?? "";
   const sellerNameRaw =
     fallbackMatch(html, /data-seller-name[^>]*>([\s\S]*?)<\/[^>]+>/) ??
     fallbackMatch(html, /jn-chat-title[\s\S]*?<strong[^>]*>([\s\S]*?)<\/strong>/) ??
@@ -464,14 +481,13 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
   const sellerId =
     fallbackMatch(html, /data-seller-id="([^"]+)"/) ??
     buildFallbackSellerId("joongna-chat-seller", normalizeInlineText(decodeFieldText(sellerNameRaw)));
+  const sellerHref = fallbackMatch(html, /data-seller-profile-url="([^"]+)"/) ?? fallbackMatch(html, /href="([^"]*\/store\/\d+[^"]*)"/);
   const chatBlocks = extractChatBlocks(html, "jn-chat");
 
   const title = normalizeInlineText(decodeFieldText(titleRaw));
   const priceText = normalizeInlineText(decodeFieldText(priceTextRaw));
-  const tradeLocation = normalizeInlineText(decodeFieldText(tradeLocationRaw));
   const sellerNickname = normalizeInlineText(decodeFieldText(sellerNameRaw));
   const marketplaceSignals = extractJoongnaMarketplaceSignals(html);
-  const marketplaceSignalsBlock = buildMarketplaceSignalsBlock(marketplaceSignals);
 
   return {
     platform: "joonggonara",
@@ -481,13 +497,9 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
     seller: {
       seller_id: sellerId,
       nickname: sellerNickname,
+      profile_url: buildJoongnaSellerProfileUrl(sellerId, sellerHref, pageUrl),
     },
-    content_blocks: [
-      { block_id: "title", text: title },
-      { block_id: "product-summary", text: [title, priceText, tradeLocation].filter(Boolean).join(" ") },
-      ...(marketplaceSignalsBlock ? [marketplaceSignalsBlock] : []),
-      ...chatBlocks,
-    ].filter((block) => block.text.trim().length > 0),
+    content_blocks: chatBlocks.filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,
   };
 }

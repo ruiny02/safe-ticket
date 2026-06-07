@@ -5,6 +5,7 @@ import type {
   ScanCreateRequest,
   ScanQueuedResponse,
   ScanResultResponse,
+  SellerContextReportResponse,
 } from "./types";
 import { buildCorsRequestInit } from "./fetch-options";
 
@@ -301,5 +302,26 @@ export async function getCaseRiskMap(
     `${baseUrl}/api/v1/cases/risk-map?${params.toString()}`,
     undefined,
     "Case risk-map request",
+  );
+}
+
+export async function createSellerContextReport(
+  baseUrl: string,
+  scanId: string,
+  profileUrl: string,
+): Promise<SellerContextReportResponse> {
+  return requestJson<SellerContextReportResponse>(
+    `${baseUrl}/api/v1/sellers/context-report`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        scan_id: scanId,
+        profile_url: profileUrl,
+      }),
+    },
+    "Seller context report request",
   );
 }

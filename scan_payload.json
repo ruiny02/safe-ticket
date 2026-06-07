@@ -1,0 +1,23 @@
+{
+  "platform": "joonggonara",
+  "page_url": "https://example.com/post/123",
+  "page_title": "Concert ticket sale",
+  "price": 120000,
+  "seller": {
+    "seller_id": "seller123",
+    "nickname": "ticket-seller"
+  },
+  "content_blocks": [
+    {
+      "block_id": "body-1",
+      "text": "Please use bank transfer first and message me on Kakao for the concert ticket."
+    }
+  ],
+  "marketplace_signals": [
+    {
+      "key": "seller_history",
+      "label": "Seller history",
+      "value": "New account with no previous reviews"
+    }
+  ]
+}
