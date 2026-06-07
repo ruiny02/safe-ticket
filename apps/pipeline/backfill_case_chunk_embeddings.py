@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
 
-DEFAULT_MODEL = "gemini-embedding-001"
+DEFAULT_MODEL = "gemini-embedding-2"
 DEFAULT_OUTPUT_DIM = 768
 DEFAULT_TASK_TYPE = "RETRIEVAL_DOCUMENT"
 EMBEDDING_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent"
@@ -32,6 +32,9 @@ class ChunkRow:
     chunk_id: int
     case_id: str
     title: str | None
+    summary: str | None
+    risk_level: str | None
+    risk_flags_json: Any
     chunk_text: str
 
 
@@ -56,10 +59,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--requests-per-minute",
         type=float,
-        default=10.0,
+        default=100.0,
         help="Throttle Google API calls. Conservative default avoids free-tier rate-limit surprises.",
     )
     parser.add_argument("--max-retries", type=int, default=6)
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Recompute and replace existing embeddings instead of only filling NULL rows.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Fetch rows and call no API/update no DB.")
     parser.add_argument(
         "--yes",
@@ -76,10 +84,11 @@ def main() -> None:
     _validate_args(args)
 
     engine = create_engine(args.database_url, future=True)
-    pending_total = count_pending_chunks(engine)
-    print(f"Pending chunks without embedding: {pending_total}")
+    pending_total = count_target_chunks(engine, overwrite=args.overwrite)
+    target_description = "all chunks" if args.overwrite else "chunks without embedding"
+    print(f"Target {target_description}: {pending_total}")
 
-    rows = fetch_pending_chunks(engine, limit=min(args.limit, args.batch_size))
+    rows = fetch_target_chunks(engine, limit=min(args.limit, args.batch_size), overwrite=args.overwrite)
     if not rows:
         print("No chunks need embeddings.")
         return
@@ -115,10 +124,10 @@ def main() -> None:
             time.sleep(interval_seconds)
 
         remaining_limit = args.limit - processed
-        rows = fetch_pending_chunks(engine, limit=min(args.batch_size, remaining_limit))
+        rows = fetch_target_chunks(engine, limit=min(args.batch_size, remaining_limit), overwrite=args.overwrite)
 
     print(f"Backfill complete for this run. Updated {processed} chunks.")
-    print(f"Remaining chunks without embedding: {count_pending_chunks(engine)}")
+    print(f"Remaining chunks without embedding: {count_target_chunks(engine, overwrite=False)}")
 
 
 def _validate_args(args: argparse.Namespace) -> None:
@@ -130,38 +139,43 @@ def _validate_args(args: argparse.Namespace) -> None:
     if not args.dry_run and not args.yes:
         raise SystemExit("Write runs require --yes. Start with --dry-run first.")
     if args.output_dim < 128 or args.output_dim > 3072:
-        raise SystemExit("--output-dim must be between 128 and 3072 for gemini-embedding-001.")
+        raise SystemExit("--output-dim must be between 128 and 3072 for Gemini embedding models.")
     if args.limit < 1:
         raise SystemExit("--limit must be at least 1.")
     if args.batch_size < 1:
         raise SystemExit("--batch-size must be at least 1.")
 
 
-def count_pending_chunks(engine) -> int:
-    """Return how many server chunks still need embeddings."""
+def count_target_chunks(engine, *, overwrite: bool) -> int:
+    """Return how many server chunks match the requested backfill mode."""
+    where_clause = "TRUE" if overwrite else "embedding IS NULL"
     with engine.connect() as connection:
         return int(
             connection.execute(
-                text("SELECT COUNT(*) FROM case_chunks WHERE embedding IS NULL")
+                text(f"SELECT COUNT(*) FROM case_chunks WHERE {where_clause}")
             ).scalar_one()
         )
 
 
-def fetch_pending_chunks(engine, limit: int) -> list[ChunkRow]:
-    """Fetch the next pending chunks in deterministic order."""
+def fetch_target_chunks(engine, limit: int, *, overwrite: bool) -> list[ChunkRow]:
+    """Fetch the next chunks in deterministic order for the selected mode."""
     if limit <= 0:
         return []
 
+    where_clause = "TRUE" if overwrite else "cc.embedding IS NULL"
     query = text(
-        """
+        f"""
         SELECT
             cc.chunk_id,
             cc.case_id,
             c.title,
+            c.summary,
+            c.risk_level,
+            c.risk_flags_json,
             cc.chunk_text
         FROM case_chunks cc
         JOIN cases c ON c.case_id = cc.case_id
-        WHERE cc.embedding IS NULL
+        WHERE {where_clause}
         ORDER BY cc.case_id, cc.chunk_order, cc.chunk_id
         LIMIT :limit
         """
@@ -175,6 +189,9 @@ def fetch_pending_chunks(engine, limit: int) -> list[ChunkRow]:
             chunk_id=int(row["chunk_id"]),
             case_id=str(row["case_id"]),
             title=row["title"],
+            summary=row["summary"],
+            risk_level=row["risk_level"],
+            risk_flags_json=row["risk_flags_json"],
             chunk_text=str(row["chunk_text"]),
         )
         for row in rows
@@ -258,9 +275,30 @@ def embed_chunk(
 
 
 def build_document_text(row: ChunkRow) -> str:
-    """Format chunk text as a retrieval document with optional title context."""
-    title = (row.title or "none").strip() or "none"
-    return f"title: {title} | text: {row.chunk_text.strip()}"
+    """Format chunk text as a retrieval document with case-level risk context."""
+    parts = [
+        f"case_id: {row.case_id}",
+        f"title: {_clean_text(row.title) or 'none'}",
+        f"summary: {_clean_text(row.summary) or 'none'}",
+        f"risk_level: {_clean_text(row.risk_level) or 'unknown'}",
+        f"risk_flags: {_format_risk_flags(row.risk_flags_json)}",
+        f"text: {row.chunk_text.strip()}",
+    ]
+    return "\n".join(parts)
+
+
+def _clean_text(value: str | None) -> str:
+    """Normalize optional DB text for embedding input."""
+    return " ".join(str(value or "").split())
+
+
+def _format_risk_flags(value: Any) -> str:
+    """Format JSON risk flags compactly for embedding input."""
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value if str(item).strip()) or "none"
+    if isinstance(value, dict):
+        return ", ".join(f"{key}={item}" for key, item in value.items()) or "none"
+    return _clean_text(str(value)) or "none"
 
 
 def extract_embedding_values(payload: dict[str, Any]) -> list[float]:
@@ -296,7 +334,6 @@ def update_chunk_embedding(engine, chunk_id: int, embedding: list[float]) -> Non
                 UPDATE case_chunks
                 SET embedding = CAST(:embedding AS vector)
                 WHERE chunk_id = :chunk_id
-                  AND embedding IS NULL
                 """
             ),
             {
