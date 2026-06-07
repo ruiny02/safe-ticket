@@ -1,4 +1,4 @@
-"""Service layer that coordinates API requests and real pipeline processing."""
+﻿"""Service layer that coordinates API requests and real pipeline processing."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from app.schemas.scan import (
     ScanListResponse,
     ScanResultResponse,
 )
+from app.services.case_retrieval import search_similar_cases_for_text
 from app.services.external_lookup import (
     POLICE_PAGE_URL,
     THECHEAT_SEARCH_URL,
@@ -109,6 +110,13 @@ class ScanService:
         if settings.external_lookup_enabled and run_external_lookups:
             external_lookup_results = self._run_external_lookups(exchange.outbound_payload.content_blocks)
 
+        retrieved_cases = search_similar_cases_for_text(
+            self._build_retrieval_query(
+                title=exchange.outbound_payload.page_title,
+                content_blocks=exchange.outbound_payload.content_blocks,
+            )
+        )
+
         # Save the final completed scan in the format consumed by the frontend.
         final_scan = ScanResultResponse(
             scan_id=scan_id,
@@ -119,7 +127,7 @@ class ScanService:
             risk_tags=inbound_payload.risk_tags,
             evidence_items=inbound_payload.evidence_items,
             highlight_targets=inbound_payload.highlight_targets,
-            similar_cases=inbound_payload.similar_cases,
+            similar_cases=retrieved_cases or inbound_payload.similar_cases,
             recommended_actions=inbound_payload.recommended_actions,
             external_lookup_results=external_lookup_results,
             degraded=inbound_payload.degraded,
@@ -162,6 +170,11 @@ class ScanService:
     def _mark_scan_failed(self, scan_id: str, error_info: PipelineErrorInfo) -> None:
         """Persist a stable failed scan result without leaking transport-layer details."""
         db_store.update_scan_status(scan_id=scan_id, status="failed", summary=error_info.message)
+
+    def _build_retrieval_query(self, title: str, content_blocks: list[ContentBlock]) -> str:
+        """Build the text used to retrieve similar imported cases."""
+        block_text = " ".join(block.text for block in content_blocks)
+        return f"{title} {block_text}".strip()
 
     def _run_external_lookups(self, content_blocks: list[ContentBlock]) -> list[ExternalLookupResponse]:
         """Run police and TheCheat lookups for parsed phone/account candidates."""

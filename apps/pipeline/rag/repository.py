@@ -1,4 +1,4 @@
-"""Store and retrieve pipeline-owned embedding cases."""
+﻿"""Store and retrieve pipeline-owned embedding cases."""
 
 from __future__ import annotations
 
@@ -117,8 +117,7 @@ def search_similar_cases(
         ).all()
 
         for chunk, case in rows:
-            chunk_embedding = [] if chunk.embedding is None else list(chunk.embedding)
-            score = float(cosine_similarity(query_embedding, chunk_embedding))
+            score = float(cosine_similarity(query_embedding, _embedding_to_list(chunk.embedding)))
             matches.append(
                 {
                     "case_id": case.case_id,
@@ -133,3 +132,12 @@ def search_similar_cases(
 
     matches.sort(key=lambda item: item["score"], reverse=True)
     return matches[:top_k]
+
+
+def _embedding_to_list(value) -> list[float]:
+    if value is None:
+        return []
+    if hasattr(value, "tolist"):
+        return list(value.tolist())
+    return list(value)
+

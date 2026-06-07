@@ -12,12 +12,11 @@
   },
   "permissions": ["storage"],
   "host_permissions": [
+    "http://*/*",
     "http://localhost:8000/*",
     "http://127.0.0.1:8000/*",
-    "http://54.180.226.121:8000/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
-    "http://54.180.226.121:3000/*",
     "https://web.joongna.com/*",
     "https://m.joongna.com/*",
     "https://m.bunjang.co.kr/*"
@@ -26,9 +25,9 @@
     {
       "resources": ["icons/safe-ticket-icon-128.png"],
       "matches": [
+        "http://*/*",
         "http://localhost/*",
         "http://127.0.0.1/*",
-        "http://54.180.226.121/*",
         "https://web.joongna.com/*",
         "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"
@@ -38,9 +37,13 @@
   "content_scripts": [
     {
       "matches": [
-        "http://localhost:3000/*",
-        "http://127.0.0.1:3000/*",
-        "http://54.180.226.121:3000/*",
+        "http://*/*",
+        "http://localhost:3000/product/*",
+        "http://localhost:3000/joongna-chat.html",
+        "http://localhost:3000/bunjang-chat.html",
+        "http://127.0.0.1:3000/product/*",
+        "http://127.0.0.1:3000/joongna-chat.html",
+        "http://127.0.0.1:3000/bunjang-chat.html",
         "https://web.joongna.com/*",
         "https://m.joongna.com/*",
         "https://m.bunjang.co.kr/*"

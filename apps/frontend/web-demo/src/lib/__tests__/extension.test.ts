@@ -12,6 +12,9 @@ describe("isSupportedMarketplacePage", () => {
     expect(isSupportedMarketplacePage("http://localhost:3000/product/227242032.html")).toBe(true);
     expect(isSupportedMarketplacePage("http://localhost:3000/joongna-chat.html")).toBe(true);
     expect(isSupportedMarketplacePage("http://localhost:3000/bunjang-chat.html")).toBe(true);
+    expect(isSupportedMarketplacePage("http://54.180.226.121:3000/product/227242032.html")).toBe(true);
+    expect(isSupportedMarketplacePage("http://54.180.226.121:3000/joongna-chat.html")).toBe(true);
+    expect(isSupportedMarketplacePage("http://54.180.226.121:3000/bunjang-chat.html")).toBe(true);
     expect(isSupportedMarketplacePage("https://web.joongna.com/product/227242032")).toBe(true);
     expect(isSupportedMarketplacePage("https://m.joongna.com/product/227242032")).toBe(true);
     expect(isSupportedMarketplacePage("https://web.joongna.com/products/227242032")).toBe(true);
@@ -25,6 +28,7 @@ describe("isSupportedMarketplacePage", () => {
   it("rejects unrelated pages", () => {
     expect(isSupportedMarketplacePage("http://localhost:3000/")).toBe(false);
     expect(isSupportedMarketplacePage("https://example.com/product/227242032")).toBe(false);
+    expect(isSupportedMarketplacePage("http://54.180.226.121:3000/")).toBe(false);
   });
 });
 

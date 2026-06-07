@@ -109,3 +109,47 @@ export interface PipelineExchangeResponse {
   outbound_payload: PipelineOutboundPayload;
   inbound_payload: PipelineInboundPayload;
 }
+
+export type CaseUmapVariant = "current" | "fraud" | "safe" | "borderline";
+
+export interface CaseUmapPoint {
+  case_id: string;
+  label: string;
+  x: number;
+  y: number;
+  z: number;
+  x_3d: number | null;
+  y_3d: number | null;
+  z_3d: number | null;
+  variant: CaseUmapVariant;
+  risk_level: "low" | "medium" | "high" | null;
+  risk_score: number | null;
+  summary: string | null;
+  source_url: string | null;
+  platform_hint: string | null;
+  risk_flags: string[];
+}
+
+export interface CaseUmapCurrentScan {
+  scan_id: string;
+  nearest_cluster: "fraud" | "safe" | "borderline";
+  distances: Partial<Record<"fraud" | "safe" | "borderline", number>>;
+}
+
+export interface CaseUmapResponse {
+  points: CaseUmapPoint[];
+  total_cases: number;
+  risk_counts: Partial<Record<"fraud" | "safe" | "borderline", number>>;
+  projection: {
+    pipeline: string;
+    source_embedding: string;
+    pca_components: number;
+    umap_neighbors: number | null;
+    umap_min_dist: number | null;
+    umap_dimensions: number[];
+    umap_target: string | null;
+    umap_target_metric: string | null;
+    umap_target_weight: number | null;
+  };
+  current_scan: CaseUmapCurrentScan | null;
+}

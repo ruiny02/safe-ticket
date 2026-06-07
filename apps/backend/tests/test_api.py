@@ -171,6 +171,53 @@ def test_scan_list_endpoint_returns_recent_scans(monkeypatch: pytest.MonkeyPatch
     assert all(item["status"] == "completed" for item in body["items"])
 
 
+def test_scan_uses_imported_case_memory_for_similar_cases(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure scan results can point at cases imported from raw_posts."""
+
+    def mock_analyze(*_args, **_kwargs) -> PipelineInboundPayload:
+        result = build_pipeline_result()
+        result.similar_cases = [
+            SimilarCase(
+                case_id="rule_based_reference_001",
+                score=0.72,
+                summary="Placeholder case from pipeline.",
+            )
+        ]
+        return result
+
+    monkeypatch.setattr(pipeline_client_module.pipeline_client, "analyze", mock_analyze)
+
+    raw_payload = {
+        "platform": "joonggonara",
+        "source_url": "https://web.joongna.com/product/229310133",
+        "title": "2026 이승기 콘서트 티켓양도",
+        "content": "이승기 콘서트 티켓 양도합니다. 선입금 후 모바일티켓 전달.",
+        "price": "170,000원",
+        "raw_payload": {"url": "https://web.joongna.com/product/229310133"},
+    }
+    assert client.post("/api/v1/raw-posts", json=raw_payload).status_code == 201
+    assert client.post("/api/v1/raw-posts/import-cases").status_code == 200
+
+    scan_payload = build_scan_payload()
+    scan_payload["page_title"] = "2026 이승기 콘서트 티켓양도"
+    scan_payload["content_blocks"] = [
+        {
+            "block_id": "body-1",
+            "text": "이승기 콘서트 티켓 양도 관련해서 모바일티켓 전달 가능한가요?",
+        }
+    ]
+
+    create_response = client.post("/api/v1/scans", json=scan_payload)
+    assert create_response.status_code == 202
+
+    scan_response = client.get(f"/api/v1/scans/{create_response.json()['scan_id']}")
+    assert scan_response.status_code == 200
+    similar_cases = scan_response.json()["similar_cases"]
+    assert similar_cases
+    assert similar_cases[0]["case_id"].startswith("case_")
+    assert similar_cases[0]["case_id"] != "rule_based_reference_001"
+
+
 def test_failed_pipeline_marks_scan_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure pipeline failures surface as failed scans instead of crashing the API."""
 

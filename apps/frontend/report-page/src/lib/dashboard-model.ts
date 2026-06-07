@@ -1,4 +1,10 @@
-import type { ExternalLookupResult, PipelineExchangeResponse, ScanResultResponse } from "../../../shared/types";
+import type {
+  CaseUmapResponse,
+  CaseUmapVariant,
+  ExternalLookupResult,
+  PipelineExchangeResponse,
+  ScanResultResponse,
+} from "../../../shared/types";
 import {
   externalLookupStatusLabel,
   externalLookupTitle,
@@ -50,7 +56,7 @@ export interface DashboardModel {
   embedding: {
     title: string;
     description: string;
-    pipeline: "Raw embedding -> PCA(50) -> UMAP(2)";
+    pipeline: string;
     points: DemoEmbeddingPoint[];
     summary: {
       nearestCluster: "fraud" | "safe" | "borderline";
@@ -135,23 +141,87 @@ function buildExternalLookups(results: ExternalLookupResult[] = []): DashboardEx
   }));
 }
 
+function isClusterVariant(value: CaseUmapVariant): value is "fraud" | "safe" | "borderline" {
+  return value === "fraud" || value === "safe" || value === "borderline";
+}
+
+function buildEmbeddingModel({
+  caseUmap,
+  scanResult,
+  highlightCount,
+}: {
+  caseUmap: CaseUmapResponse | null;
+  scanResult: ScanResultResponse;
+  highlightCount: number;
+}): DashboardModel["embedding"] {
+  if (!caseUmap?.points.length) {
+    const demoEmbedding = buildDemoEmbeddingResult({
+      scanId: scanResult.scan_id,
+      riskLevel: scanResult.risk_level,
+      highlightCount,
+    });
+    return {
+      title: "임베딩 공간 시각화",
+      description:
+        "데모 임베딩 DB를 만들고, 원본 임베딩에서 PCA(50)를 거쳐 UMAP(3)로 축소한 좌표를 2D와 3D로 함께 보여줍니다.",
+      pipeline: demoEmbedding.pipeline,
+      points: demoEmbedding.points,
+      summary: demoEmbedding.summary,
+    };
+  }
+
+  const points = caseUmap.points.map((point) => ({
+    id: point.case_id,
+    label: point.label,
+    x: point.x,
+    y: point.y,
+    z: point.z,
+    x3d: point.x_3d ?? point.x,
+    y3d: point.y_3d ?? point.y,
+    z3d: point.z_3d ?? point.z,
+    variant: point.variant,
+  }));
+  const fallbackNearest =
+    scanResult.risk_level === "low" ? "safe" : scanResult.risk_level === "medium" ? "borderline" : "fraud";
+  const nearestCluster = caseUmap.current_scan?.nearest_cluster ?? fallbackNearest;
+
+  return {
+    title: "임베딩 공간 시각화",
+    description:
+      "backend에 저장된 case chunk 임베딩을 case 단위로 평균낸 뒤 PCA와 supervised UMAP으로 축소해 라벨 기반 위험군 구조와 현재 게시글의 위치를 보여줍니다.",
+    pipeline: caseUmap.projection.pipeline,
+    points,
+    summary: {
+      nearestCluster: isClusterVariant(nearestCluster) ? nearestCluster : fallbackNearest,
+      clusterCounts: {
+        fraud: caseUmap.risk_counts.fraud ?? 0,
+        safe: caseUmap.risk_counts.safe ?? 0,
+        borderline: caseUmap.risk_counts.borderline ?? 0,
+      },
+      distances: {
+        fraud: caseUmap.current_scan?.distances.fraud ?? 0,
+        safe: caseUmap.current_scan?.distances.safe ?? 0,
+        borderline: caseUmap.current_scan?.distances.borderline ?? 0,
+      },
+    },
+  };
+}
+
 export function buildDashboardModel({
   scanResult,
   pipelineDebug,
+  caseUmap,
 }: {
   scanResult: ScanResultResponse;
   pipelineDebug: PipelineExchangeResponse | null;
+  caseUmap: CaseUmapResponse | null;
 }): DashboardModel {
   const headline = riskHeadline(scanResult.risk_level);
   const seller = pipelineDebug?.outbound_payload.seller;
   const highlightCount = scanResult.highlight_targets.length;
   const similarCaseCount = scanResult.similar_cases.length;
   const riskPercentile = Math.min(99, Math.max(3, Math.round((scanResult.risk_score ?? 0.5) * 100)));
-  const embedding = buildDemoEmbeddingResult({
-    scanId: scanResult.scan_id,
-    riskLevel: scanResult.risk_level,
-    highlightCount,
-  });
+  const embedding = buildEmbeddingModel({ caseUmap, scanResult, highlightCount });
   const accountNumber = extractAccountNumber(pipelineDebug?.outbound_payload.content_blocks ?? []);
 
   return {
@@ -187,9 +257,8 @@ export function buildDashboardModel({
       ],
     },
     embedding: {
-      title: "임베딩 공간 시각화",
-      description:
-        "데모 임베딩 DB를 만들고, 원본 임베딩에서 PCA(50)를 거쳐 UMAP(2)로 축소한 좌표를 사용해 사기 / 정상 / 경계 군집과 현재 게시글의 거리를 보여줍니다.",
+      title: embedding.title,
+      description: embedding.description,
       pipeline: embedding.pipeline,
       points: embedding.points,
       summary: embedding.summary,

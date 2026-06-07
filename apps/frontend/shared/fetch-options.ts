@@ -1,5 +1,9 @@
 type LocalAddressSpaceRequestInit = RequestInit & { targetAddressSpace?: "local" };
 
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "::1";
+}
+
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split(".").map((part) => Number.parseInt(part, 10));
   if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
@@ -7,9 +11,12 @@ function isPrivateIpv4(hostname: string): boolean {
   }
 
   const [first, second] = parts;
+  if (first === 127) {
+    return false;
+  }
+
   return (
     first === 10 ||
-    first === 127 ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && second === 168) ||
     (first === 169 && second === 254)
@@ -19,7 +26,11 @@ function isPrivateIpv4(hostname: string): boolean {
 function shouldRequestLocalAddressSpace(url: string): boolean {
   try {
     const hostname = new URL(url, "http://localhost").hostname.toLowerCase();
-    return hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "::1" || isPrivateIpv4(hostname);
+    if (isLoopbackHostname(hostname)) {
+      return false;
+    }
+
+    return isPrivateIpv4(hostname);
   } catch {
     return false;
   }

@@ -734,62 +734,405 @@ svg {
   line-height: 1.6;
 }
 
-.dashboard-embedding-wrap {
-  display: grid;
-  grid-template-columns: minmax(280px, 420px) 1fr;
-  gap: 20px;
-  align-items: center;
+.dashboard-embedding-card {
+  background:
+    radial-gradient(circle at 92% 8%, rgba(132, 112, 255, 0.12), transparent 32%),
+    linear-gradient(180deg, #fff, #fbfbff),
+    #fff;
 }
 
-.dashboard-embedding {
-  width: 100%;
-  height: 320px;
+.dashboard-embedding-summary-strip {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-embedding-summary-strip div {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--gray-100);
   border-radius: 16px;
+  background: linear-gradient(180deg, #fff, #f9fafb);
+}
+
+.dashboard-embedding-summary-strip span,
+.dashboard-embedding-summary-strip strong {
+  display: block;
+}
+
+.dashboard-embedding-summary-strip span {
+  color: var(--gray-400);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-embedding-summary-strip strong {
+  margin-top: 6px;
+  color: var(--gray-900);
+  font-size: clamp(1.15rem, 2vw, 1.65rem);
+  line-height: 1.1;
+}
+
+.dashboard-embedding-panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.dashboard-embedding-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-embedding-toolbar strong,
+.dashboard-embedding-toolbar span {
+  display: block;
+}
+
+.dashboard-embedding-toolbar strong {
+  color: var(--gray-900);
+  font-size: 15px;
+}
+
+.dashboard-embedding-toolbar span {
+  margin-top: 3px;
+  color: var(--gray-500);
+  font-size: 13px;
+}
+
+.dashboard-embedding-views {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.85fr) minmax(520px, 1.35fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.dashboard-embedding-view-card {
+  overflow: hidden;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(132, 112, 255, 0.14);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 85% 10%, rgba(132, 112, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.9)),
+    #fff;
+  box-shadow: 0 22px 54px rgba(17, 24, 39, 0.07);
+}
+
+.dashboard-embedding-view-card.is-3d {
+  border-color: rgba(99, 102, 241, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 245, 255, 0.88)),
+    #fff;
+}
+
+.dashboard-embedding-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dashboard-embedding-view-head strong {
+  color: var(--gray-900);
+  font-size: 15px;
+}
+
+.dashboard-embedding-view-head span {
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--violet-50);
+  color: var(--violet-600);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dashboard-embedding-plot-shell {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-embedding-svg,
+.dashboard-embedding-3d-svg {
+  display: block;
+  width: 100%;
+  height: 430px;
+  border-radius: 20px;
+}
+
+.dashboard-embedding-svg {
+  border: 1px solid rgba(191, 196, 205, 0.26);
   background: #fcfcfe;
 }
 
-.dashboard-embedding rect {
+.embedding-plot-bg {
   fill: #fcfcfe;
 }
 
-.dashboard-embedding line {
-  stroke: rgba(191, 196, 205, 0.4);
-  stroke-width: 0.4;
+.embedding-plot-glow {
+  pointer-events: none;
 }
 
-.dashboard-embedding .axis-line {
-  stroke: rgba(107, 114, 128, 0.72);
-  stroke-width: 0.8;
+.embedding-grid-line,
+.embedding-axis-line,
+.embedding-current-guide {
+  vector-effect: non-scaling-stroke;
 }
 
-.cluster-point {
-  stroke: #fff;
-  stroke-width: 0.45;
-  opacity: 0.9;
+.embedding-grid-line {
+  stroke: rgba(148, 163, 184, 0.28);
+  stroke-width: 0.36;
 }
 
-.cluster-point.fraud {
-  fill: var(--red-600);
+.embedding-axis-line {
+  stroke: rgba(71, 85, 105, 0.68);
+  stroke-width: 0.72;
 }
 
-.cluster-point.safe {
-  fill: var(--green-600);
+.embedding-current-guide {
+  stroke: rgba(15, 23, 42, 0.34);
+  stroke-dasharray: 1.2 1.2;
+  stroke-width: 0.38;
 }
 
-.cluster-point.borderline {
-  fill: var(--yellow-500);
-}
-
-.cluster-point.current {
-  fill: var(--gray-900);
-  stroke: #fff;
-  stroke-width: 0.75;
-}
-
-.dashboard-embedding text {
+.embedding-axis-label {
+  fill: rgba(51, 65, 85, 0.78);
   font-size: 3px;
-  font-weight: 700;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.embedding-axis-label.is-y {
+  dominant-baseline: hanging;
+}
+
+.embedding-point,
+.embedding-3d-point {
+  cursor: pointer;
+  vector-effect: non-scaling-stroke;
+}
+
+.embedding-point {
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 0.52;
+  opacity: 0.92;
+}
+
+.embedding-point.fraud,
+.embedding-3d-point.fraud,
+.embedding-legend-dot.fraud {
+  fill: var(--red-600);
+  background: var(--red-600);
+}
+
+.embedding-point.safe,
+.embedding-3d-point.safe,
+.embedding-legend-dot.safe {
+  fill: var(--green-600);
+  background: var(--green-600);
+}
+
+.embedding-point.borderline,
+.embedding-3d-point.borderline,
+.embedding-legend-dot.borderline {
+  fill: var(--yellow-500);
+  background: var(--yellow-500);
+}
+
+.embedding-point.current,
+.embedding-3d-point.current,
+.embedding-legend-dot.current {
   fill: var(--gray-900);
+  background: var(--gray-900);
+}
+
+.embedding-current-ring,
+.embedding-3d-current-halo {
+  fill: none;
+  stroke: rgba(132, 112, 255, 0.42);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.dashboard-embedding-plot-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.dashboard-embedding-plot-caption strong {
+  color: var(--gray-900);
+}
+
+.dashboard-embedding-3d-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-embedding-3d-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.dashboard-embedding-3d-meta span {
+  border: 1px solid rgba(132, 112, 255, 0.16);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.dashboard-embedding-3d-meta button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--gray-900);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-embedding-3d {
+  position: relative;
+  width: 100%;
+  height: 430px;
+  overflow: hidden;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: 22px;
+  background: #101426;
+  cursor: grab;
+  touch-action: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 54px rgba(30, 41, 59, 0.16);
+}
+
+.dashboard-embedding-3d.is-dragging {
+  cursor: grabbing;
+}
+
+.dashboard-embedding-3d-svg {
+  height: 100%;
+}
+
+.embedding-3d-bg {
+  fill: #111827;
+}
+
+.embedding-3d-grid-line,
+.embedding-3d-cube-line,
+.embedding-3d-axis-line {
+  vector-effect: non-scaling-stroke;
+}
+
+.embedding-3d-grid-line {
+  stroke: rgba(148, 163, 184, 0.1);
+  stroke-width: 0.28;
+}
+
+.embedding-3d-cube-line {
+  stroke: rgba(196, 181, 253, 0.52);
+  stroke-width: 0.34;
+}
+
+.embedding-3d-axis-line {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-linecap: round;
+  stroke-width: 0.5;
+}
+
+.embedding-3d-axis-group.is-z .embedding-3d-axis-line {
+  stroke: rgba(132, 112, 255, 0.9);
+}
+
+.embedding-3d-axis-label {
+  fill: rgba(255, 255, 255, 0.78);
+  font-size: 3px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.embedding-3d-point {
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 0.45;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.34));
+}
+
+.embedding-3d-point.current {
+  stroke-width: 0.7;
+}
+
+.dashboard-embedding-tooltip {
+  position: absolute;
+  z-index: 3;
+  min-width: 132px;
+  transform: translate(10px, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 9px 11px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #fff;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+}
+
+.dashboard-embedding-tooltip strong,
+.dashboard-embedding-tooltip span {
+  display: block;
+}
+
+.dashboard-embedding-tooltip strong {
+  font-size: 12px;
+}
+
+.dashboard-embedding-tooltip span {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
+
+.dashboard-embedding-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dashboard-embedding-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(132, 112, 255, 0.12);
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.embedding-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
 }
 
 .dashboard-embedding-copy p {
@@ -1228,7 +1571,8 @@ svg {
     grid-column: span 12;
   }
 
-  .dashboard-embedding-wrap,
+  .dashboard-embedding-views,
+  .dashboard-embedding-summary-strip,
   .dashboard-source-grid,
   .dashboard-overview-grid,
   .dashboard-observation-grid,

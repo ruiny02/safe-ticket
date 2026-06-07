@@ -98,7 +98,6 @@ def build_case_body(post: dict) -> str:
     body_parts = [
         post.get("title", ""),
         post.get("content", ""),
-        post.get("rendered_text", ""),
     ]
     body = "\n\n".join(part.strip() for part in body_parts if part and part.strip())
     return body or post.get("text_for_embedding", "") or "(empty marketplace case)"

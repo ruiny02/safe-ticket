@@ -8,8 +8,8 @@ export interface PanelRect {
 export const PANEL_COLLAPSED_WIDTH = 92;
 export const PANEL_MIN_WIDTH = 320;
 export const PANEL_MIN_HEIGHT = 460;
-export const PANEL_MAX_WIDTH = 480;
-export const PANEL_MAX_HEIGHT = 860;
+export const PANEL_MAX_WIDTH = 720;
+export const PANEL_MAX_HEIGHT = 960;
 export const PANEL_MARGIN = 16;
 
 export function createDefaultPanelRect(viewportWidth: number, viewportHeight: number): PanelRect {

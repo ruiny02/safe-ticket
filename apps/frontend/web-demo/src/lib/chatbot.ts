@@ -165,7 +165,7 @@ function buildActionSummary(scanResult: ScanResultResponse): string {
 
 function buildExternalLookupSummary(results: ExternalLookupResult[] = []): string {
   if (!results.length) {
-    return "이번 스캔에서 외부조회 결과는 아직 없습니다. 계좌번호나 전화번호가 본문에 있으면 조회 카드가 함께 채워질 수 있어요.";
+    return "이번 스캔에서는 계좌번호나 전화번호가 감지되지 않아 외부 조회가 실행되지 않았습니다. 관련 정보가 본문이나 채팅에 있으면 조회 카드가 함께 채워질 수 있어요.";
   }
 
   return [

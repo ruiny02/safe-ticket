@@ -130,6 +130,7 @@ describe("buildDashboardModel", () => {
     const model = buildDashboardModel({
       scanResult,
       pipelineDebug,
+      caseUmap: null,
     });
 
     expect(model.hero.title).toContain("즉시 거래를 멈추고");
@@ -139,7 +140,7 @@ describe("buildDashboardModel", () => {
       "Protected buyers",
       "Manual review",
     ]);
-    expect(model.embedding.pipeline).toBe("Raw embedding -> PCA(50) -> UMAP(2)");
+    expect(model.embedding.pipeline).toBe("Raw embedding -> PCA(50) -> UMAP(3)");
     expect(model.embedding.points.length).toBeGreaterThanOrEqual(60);
     expect(model.embedding.points.some((point) => point.variant === "current")).toBe(true);
     expect(model.embedding.points.some((point) => point.variant === "fraud")).toBe(true);
@@ -185,5 +186,120 @@ describe("buildDashboardModel", () => {
       },
     ]);
     expect(model.lookupLinks.map((link) => link.label)).toEqual(["경찰청 조회 안내", "더치트 조회"]);
+  });
+
+  it("uses backend case UMAP data when it is available", () => {
+    const model = buildDashboardModel({
+      scanResult,
+      pipelineDebug,
+      caseUmap: {
+        points: [
+          {
+            case_id: "case_high",
+            label: "High risk ticket post",
+            x: 20,
+            y: 30,
+            z: 42,
+            x_3d: 21,
+            y_3d: 32,
+            z_3d: 44,
+            variant: "fraud",
+            risk_level: "high",
+            risk_score: 0.9,
+            summary: "high risk",
+            source_url: "https://example.com/high",
+            platform_hint: "joonggonara",
+            risk_flags: ["payment_flow_high_risk"],
+          },
+          {
+            case_id: "case_low",
+            label: "Low risk ticket post",
+            x: 80,
+            y: 70,
+            z: 64,
+            x_3d: 81,
+            y_3d: 72,
+            z_3d: 66,
+            variant: "safe",
+            risk_level: "low",
+            risk_score: 0.1,
+            summary: "low risk",
+            source_url: "https://example.com/low",
+            platform_hint: "bunjang",
+            risk_flags: [],
+          },
+          {
+            case_id: "scan_1234abcd",
+            label: "현재 scan",
+            x: 22,
+            y: 31,
+            z: 43,
+            x_3d: 23,
+            y_3d: 33,
+            z_3d: 45,
+            variant: "current",
+            risk_level: null,
+            risk_score: null,
+            summary: "current",
+            source_url: null,
+            platform_hint: null,
+            risk_flags: [],
+          },
+        ],
+        total_cases: 2,
+        risk_counts: {
+          fraud: 1,
+          safe: 1,
+          borderline: 0,
+        },
+        projection: {
+          pipeline: "case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)",
+          source_embedding: "case_chunks.embedding",
+          pca_components: 4,
+          umap_neighbors: null,
+          umap_min_dist: null,
+          umap_dimensions: [2, 3],
+          umap_target: "risk_score_ordinal",
+          umap_target_metric: "l2",
+          umap_target_weight: 0.25,
+        },
+        current_scan: {
+          scan_id: "scan_1234abcd",
+          nearest_cluster: "fraud",
+          distances: {
+            fraud: 2.2,
+            safe: 40,
+            borderline: 18,
+          },
+        },
+      },
+    });
+
+    expect(model.embedding.pipeline).toBe("case_chunks.embedding mean -> PCA(<=50) -> Supervised UMAP(2) + Supervised UMAP(3)");
+    expect(model.embedding.points).toHaveLength(3);
+    expect(model.embedding.points[0]).toEqual({
+      id: "case_high",
+      label: "High risk ticket post",
+      x: 20,
+      y: 30,
+      z: 42,
+      x3d: 21,
+      y3d: 32,
+      z3d: 44,
+      variant: "fraud",
+    });
+    expect(model.embedding.summary).toEqual({
+      nearestCluster: "fraud",
+      clusterCounts: {
+        fraud: 1,
+        safe: 1,
+        borderline: 0,
+      },
+      distances: {
+        fraud: 2.2,
+        safe: 40,
+        borderline: 18,
+      },
+    });
   });
 });

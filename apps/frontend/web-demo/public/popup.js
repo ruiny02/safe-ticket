@@ -10,22 +10,30 @@ const supportedPatterns = [
   /^http:\/\/127\.0\.0\.1:\d+\/product\/[^/]+\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/joongna-chat\.html$/i,
   /^http:\/\/127\.0\.0\.1:\d+\/bunjang-chat\.html$/i,
-  /^http:\/\/54\.180\.226\.121:\d+\/product\/[^/]+\.html$/i,
-  /^http:\/\/54\.180\.226\.121:\d+\/joongna-chat\.html$/i,
-  /^http:\/\/54\.180\.226\.121:\d+\/bunjang-chat\.html$/i,
+  /^http:\/\/[^/?#]+:3000\/product\/[^/]+\.html$/i,
+  /^http:\/\/[^/?#]+:3000\/joongna-chat\.html$/i,
+  /^http:\/\/[^/?#]+:3000\/bunjang-chat\.html$/i,
 ];
 
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
-const DEFAULT_FRONTEND_BASE_URL = "http://54.180.226.121:3000";
+const DEFAULT_FRONTEND_BASE_URL = "http://localhost:3000";
 
-function getFrontendBaseUrl(currentUrl) {
+function getFrontendBaseUrl(currentUrl, latestScan = null) {
+  if (latestScan?.frontendBaseUrl) {
+    return latestScan.frontendBaseUrl.replace(/\/+$/, "");
+  }
+
   try {
     const parsedUrl = new URL(currentUrl);
-    if (parsedUrl.protocol === "http:" && /^(?:localhost|127\.0\.0\.1|54\.180\.226\.121)$/.test(parsedUrl.hostname)) {
+    const isSafeTicketFrontend =
+      parsedUrl.protocol === "http:" &&
+      (/^(?:localhost|127\.0\.0\.1)$/.test(parsedUrl.hostname) || parsedUrl.port === "3000");
+
+    if (isSafeTicketFrontend) {
       return `${parsedUrl.protocol}//${parsedUrl.host}`;
     }
   } catch {
-    // Fall back to the deployed frontend.
+    // Fall back to the local compose frontend.
   }
 
   return DEFAULT_FRONTEND_BASE_URL;
@@ -40,7 +48,7 @@ function getReportPageUrlForTab(currentUrl, latestScan) {
     return null;
   }
 
-  return buildReportPageUrl(latestScan.scanId, getFrontendBaseUrl(currentUrl));
+  return buildReportPageUrl(latestScan.scanId, getFrontendBaseUrl(currentUrl, latestScan));
 }
 
 function isSupportedMarketplacePage(url) {
@@ -74,6 +82,7 @@ async function run() {
   const openJoongnaChatDemoButton = document.getElementById("open-joongna-chat-demo");
   const openBunjangChatDemoButton = document.getElementById("open-bunjang-chat-demo");
   const openReportButton = document.getElementById("open-report");
+  let latestScan = null;
 
   if (statusNode) {
     statusNode.textContent = status.label;
@@ -87,15 +96,15 @@ async function run() {
   }
 
   openDemoButton?.addEventListener("click", () => {
-    void openTab(`${getFrontendBaseUrl(url)}/product/227242032.html`);
+    void openTab(`${getFrontendBaseUrl(url, latestScan)}/product/227242032.html`);
   });
 
   openJoongnaChatDemoButton?.addEventListener("click", () => {
-    void openTab(`${getFrontendBaseUrl(url)}/joongna-chat.html`);
+    void openTab(`${getFrontendBaseUrl(url, latestScan)}/joongna-chat.html`);
   });
 
   openBunjangChatDemoButton?.addEventListener("click", () => {
-    void openTab(`${getFrontendBaseUrl(url)}/bunjang-chat.html`);
+    void openTab(`${getFrontendBaseUrl(url, latestScan)}/bunjang-chat.html`);
   });
 
   const storageApi = chrome.storage?.local;
@@ -108,7 +117,7 @@ async function run() {
   }
 
   const stored = await storageApi.get(LATEST_SCAN_STORAGE_KEY);
-  const latestScan = stored[LATEST_SCAN_STORAGE_KEY] ?? null;
+  latestScan = stored[LATEST_SCAN_STORAGE_KEY] ?? null;
   const reportUrl = getReportPageUrlForTab(url, latestScan);
 
   if (openReportButton && reportUrl) {
