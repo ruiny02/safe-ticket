@@ -36,6 +36,13 @@ class MarketplaceSignal(BaseModel):
     value: str
 
 
+class UserProfile(BaseModel):
+    """Optional user information used for personalized risk weighting."""
+
+    age: int | None = Field(default=None, ge=0, le=120)
+    trade_experience_level: Literal["beginner", "intermediate", "advanced"] | None = None
+
+
 class ScanCreateRequest(BaseModel):
     """Payload accepted when the frontend asks the backend to analyze a listing."""
 
@@ -47,6 +54,7 @@ class ScanCreateRequest(BaseModel):
     seller: SellerInfo
     content_blocks: list[ContentBlock]
     marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
+    user_profile: UserProfile | None = None
 
 
 class ScanCreateResponse(BaseModel):
@@ -96,6 +104,7 @@ class PipelineOutboundPayload(BaseModel):
     seller: SellerInfo
     content_blocks: list[ContentBlock]
     marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
+    user_profile: UserProfile | None = None
 
 
 class PipelineInboundPayload(BaseModel):

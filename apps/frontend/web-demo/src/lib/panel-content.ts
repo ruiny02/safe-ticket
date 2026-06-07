@@ -104,7 +104,7 @@ export function buildPanelContent(options: {
     payload,
     scanResult,
     appliedHighlights = [],
-    apiBaseUrl = "http://localhost:8000",
+    apiBaseUrl = "http://127.0.0.1:8000",
     dashboardUrl = "http://localhost:3000/report/#/dashboard",
     reportUrl = "http://localhost:3000/report/#/reports",
   } = options;

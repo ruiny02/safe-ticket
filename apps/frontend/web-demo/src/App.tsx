@@ -25,11 +25,18 @@ import {
 } from "./lib/floating-panel";
 import { applyPageHighlights, clearPageHighlights } from "./lib/highlight";
 import { buildPanelContent } from "./lib/panel-content";
-import { buildDashboardBaseUrl, buildDashboardPageUrl, buildReportListUrl, buildReportPageUrl } from "./lib/report-link";
+import {
+  buildDashboardBaseUrl,
+  buildDashboardPageUrl,
+  buildReportListUrl,
+  buildReportPageUrl,
+  buildSettingsPageUrl,
+} from "./lib/report-link";
 
 const API_BASE_URL = getSafeTicketApiBaseUrl();
 const FRONTEND_BASE_URL = getSafeTicketFrontendBaseUrl();
 const LATEST_SCAN_STORAGE_KEY = "safeTicketLatestScan";
+const USER_PROFILE_STORAGE_KEY = "safeTicketUserProfile";
 const SAFE_TICKET_ICON_PATH = "icons/safe-ticket-icon-128.png";
 
 interface AppProps {
@@ -226,6 +233,50 @@ async function persistLatestScan(pageUrl: string, scanId: string): Promise<void>
   });
 }
 
+async function loadStoredUserProfile(): Promise<ScanCreateRequest["user_profile"]> {
+  const extensionApi = (globalThis as typeof globalThis & {
+    chrome?: {
+      storage?: {
+        local?: {
+          get: (keys: string | string[]) => Promise<Record<string, unknown>>;
+        };
+      };
+    };
+  }).chrome;
+
+  const storageApi = extensionApi?.storage?.local;
+  if (!storageApi) {
+    return null;
+  }
+
+  const stored = await storageApi.get(USER_PROFILE_STORAGE_KEY);
+  const rawProfile = stored[USER_PROFILE_STORAGE_KEY];
+  if (!rawProfile || typeof rawProfile !== "object") {
+    return null;
+  }
+
+  const nextProfile = rawProfile as {
+    age?: unknown;
+    trade_experience_level?: unknown;
+  };
+  const age = typeof nextProfile.age === "number" && Number.isFinite(nextProfile.age) ? nextProfile.age : null;
+  const tradeExperienceLevel =
+    nextProfile.trade_experience_level === "beginner" ||
+    nextProfile.trade_experience_level === "intermediate" ||
+    nextProfile.trade_experience_level === "advanced"
+      ? nextProfile.trade_experience_level
+      : null;
+
+  if (age === null && tradeExperienceLevel === null) {
+    return null;
+  }
+
+  return {
+    age,
+    trade_experience_level: tradeExperienceLevel,
+  };
+}
+
 export function App({ pageUrl }: AppProps) {
   const parseRequestIdRef = useRef(0);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -335,12 +386,17 @@ export function App({ pageUrl }: AppProps) {
     setIsSending(true);
 
     try {
+      const storedUserProfile = await loadStoredUserProfile();
+      const requestPayload: ScanCreateRequest = {
+        ...payload,
+        user_profile: storedUserProfile,
+      };
       let nextScanResult: ScanResultResponse;
 
       try {
-        nextScanResult = await createScanSync(API_BASE_URL, payload);
+        nextScanResult = await createScanSync(API_BASE_URL, requestPayload);
       } catch {
-        const nextResponse = await createScan(API_BASE_URL, payload);
+        const nextResponse = await createScan(API_BASE_URL, requestPayload);
         nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
       }
 
@@ -723,7 +779,7 @@ export function App({ pageUrl }: AppProps) {
         height: isCollapsed ? "auto" : `${panelRect.height}px`,
       }}
     >
-      <header className="safe-ticket-header" onPointerDown={handleHeaderPointerDown}>
+<header className="safe-ticket-header" onPointerDown={handleHeaderPointerDown}>
         <div
           className="safe-ticket-brand"
           onPointerDown={(event) => {
@@ -743,13 +799,25 @@ export function App({ pageUrl }: AppProps) {
             <p className="safe-ticket-eyebrow">SAFE-TICKET</p>
           </div>
         </div>
-        <button
-          className="safe-ticket-icon-button"
-          onClick={() => setIsCollapsed((value) => !value)}
-          type="button"
-        >
-          {isCollapsed ? "열기" : "접기"}
-        </button>
+        <div className="safe-ticket-header-actions">
+          {!isCollapsed ? (
+            <a
+              className="safe-ticket-icon-button safe-ticket-link-button safe-ticket-header-login-button"
+              href={buildSettingsPageUrl()}
+              rel="noreferrer"
+              target="_blank"
+            >
+              로그인
+            </a>
+          ) : null}
+          <button
+            className="safe-ticket-icon-button"
+            onClick={() => setIsCollapsed((value) => !value)}
+            type="button"
+          >
+            {isCollapsed ? "열기" : "접기"}
+          </button>
+        </div>
       </header>
 
       {!isCollapsed ? (
