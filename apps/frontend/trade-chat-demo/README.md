@@ -46,8 +46,8 @@
 
 스캔 완료 후 통합 패널에서 아래 링크가 활성화됩니다.
 
-- 대시보드: `http://localhost:3000/report/#/dashboard?scanId=<scan_id>`
-- 리포트: `http://localhost:3000/report/#/reports/<scan_id>`
+- 대시보드: `http://54.180.226.121:3000/report/#/dashboard?scanId=<scan_id>`
+- 리포트: `http://54.180.226.121:3000/report/#/reports/<scan_id>`
 
 ## Chrome Extension Loading
 
@@ -59,9 +59,9 @@
 6. 아래 페이지에 접속한 뒤 새로고침합니다.
 
 ```text
-http://localhost:3000/product/227242032.html
-http://localhost:3000/joongna-chat.html
-http://localhost:3000/bunjang-chat.html
+http://54.180.226.121:3000/product/227242032.html
+http://54.180.226.121:3000/joongna-chat.html
+http://54.180.226.121:3000/bunjang-chat.html
 ```
 
-주의: HTML 파일을 `file://`로 직접 열면 백엔드 CORS 설정에 따라 요청이 막힐 수 있습니다. Docker frontend 또는 `http://localhost:3000` 같은 허용된 origin으로 서빙하세요.
+주의: HTML 파일을 `file://`로 직접 열면 백엔드 CORS 설정에 따라 요청이 막힐 수 있습니다. AWS preview 또는 허용된 origin으로 서빙하세요.

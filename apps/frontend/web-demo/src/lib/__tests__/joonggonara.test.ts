@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { parseBunjangChatHtml, parseBunjangPageHtml, parseBunjangProductHtml } from "../../../../shared/bunjang";
+import { extractChatBlocksFromDocument } from "../../../../shared/parser-utils";
 import {
   buildScanPayload,
   enhanceJoongnaProductPayloadFromDocument,
@@ -47,7 +48,7 @@ describe("parseJoongnaProductHtml", () => {
       expect.objectContaining({ key: "favorite_count", value: "0" }),
     ]);
     expect(parsed.content_blocks[1].text).toContain("3355-28-8620726");
-    expect(parsed.content_blocks.some((block) => block.block_id === "marketplace-signals")).toBe(true);
+    expect(parsed.content_blocks.some((block) => block.block_id === "marketplace-signals")).toBe(false);
   });
 
   it("falls back to JSON-LD and store links on live-like html", () => {
@@ -190,6 +191,7 @@ describe("parseJoongnaChatHtml", () => {
     expect(parsed.marketplace_signals.some((signal) => signal.key === "safe_payment")).toBe(false);
     expect(parsed.content_blocks.some((block) => block.block_id === "jn-chat-004")).toBe(true);
     expect(parsed.content_blocks.at(-1)?.text).toContain("304-1234-5678-90");
+    expect(parsed.content_blocks.every((block) => /^jn-chat-\d+$/i.test(block.block_id))).toBe(true);
   });
 
   it("auto-detects joongna chat pages from html and url", () => {
@@ -377,6 +379,7 @@ describe("parseBunjangChatHtml", () => {
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("transaction_count");
     expect(parsed.content_blocks.some((block) => block.block_id === "bg-chat-004")).toBe(true);
     expect(parsed.content_blocks.at(-1)?.text).toContain("1102-1234-5678");
+    expect(parsed.content_blocks.every((block) => /^bg-chat-\d+$/i.test(block.block_id))).toBe(true);
   });
 
   it("auto-detects bunjang chat pages from html and url", () => {
@@ -395,6 +398,38 @@ describe("parseMarketplacePageHtml", () => {
 
     expect(parsed.platform).toBe("bunjang");
     expect(parsed.seller.seller_id).toBe("bunjang-user-5158822");
+  });
+});
+
+describe("extractChatBlocksFromDocument", () => {
+  it("ignores demo chat notices and keeps only buyer or seller messages", () => {
+    const createElement = (text: string, options?: { messageId?: string; matchesExplicit?: boolean }) => ({
+      isConnected: true,
+      dataset: options?.messageId ? { messageId: options.messageId } : {},
+      textContent: text,
+      closest: (selector: string) => (selector === "#safe-ticket-extension-root" ? null : null),
+      querySelector: () => null,
+      getAttribute: (name: string) => (name === "data-message-id" ? options?.messageId ?? null : null),
+      matches: (selector: string) => Boolean(options?.matchesExplicit && selector.includes("[data-chat-message]")),
+    });
+
+    const elements = [
+      createElement("안심결제 쓰고 사기 걱정 없는 중고거래"),
+      createElement("중고나라 채팅, 안심결제가 가장 안전합니다!"),
+      createElement("상품 아직 있나요?", { messageId: "jn-chat-001", matchesExplicit: true }),
+      createElement("네, 아직 있습니다.", { messageId: "jn-chat-002", matchesExplicit: true }),
+      createElement("앱에서는 채팅 응답이 더 빠르고 편리합니다. 지금 설치하면 거래 확률을 높일 수 있어요!"),
+    ];
+    const documentRef = {
+      querySelectorAll: () => elements,
+    } as unknown as Document;
+
+    const blocks = extractChatBlocksFromDocument(documentRef, "jn-chat");
+
+    expect(blocks).toEqual([
+      { block_id: "jn-chat-001", text: "상품 아직 있나요?" },
+      { block_id: "jn-chat-002", text: "네, 아직 있습니다." },
+    ]);
   });
 });
 
@@ -421,10 +456,6 @@ describe("buildScanPayload", () => {
           block_id: "body-1",
           text: expect.any(String),
         },
-        {
-          block_id: "marketplace-signals",
-          text: expect.stringContaining("신뢰지수: 306점"),
-        },
       ]),
       marketplace_signals: [
         expect.objectContaining({ key: "trust_score", value: "306점" }),
@@ -433,5 +464,6 @@ describe("buildScanPayload", () => {
         expect.objectContaining({ key: "favorite_count", value: "0" }),
       ],
     });
+    expect(parsed.content_blocks.some((block) => block.block_id === "marketplace-signals")).toBe(false);
   });
 });

@@ -16,6 +16,13 @@ export interface MarketplaceSignal {
   value: string;
 }
 
+export type UserTradeExperienceLevel = "beginner" | "intermediate" | "advanced";
+
+export interface UserProfile {
+  age: number | null;
+  trade_experience_level: UserTradeExperienceLevel | null;
+}
+
 export interface ScanCreateRequest {
   platform: MarketplacePlatform;
   page_url: string;
@@ -24,6 +31,7 @@ export interface ScanCreateRequest {
   seller: SellerInfo;
   content_blocks: ContentBlock[];
   marketplace_signals: MarketplaceSignal[];
+  user_profile?: UserProfile | null;
 }
 
 export interface ScanQueuedResponse {
@@ -90,6 +98,7 @@ export interface PipelineOutboundPayload {
   seller: SellerInfo;
   content_blocks: ContentBlock[];
   marketplace_signals: MarketplaceSignal[];
+  user_profile?: UserProfile | null;
 }
 
 export interface PipelineInboundPayload {
