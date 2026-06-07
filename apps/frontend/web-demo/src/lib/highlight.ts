@@ -59,14 +59,130 @@ export function clearPageHighlights(documentRef: Document = document): void {
 }
 
 function highlightAllMatches(target: ScanHighlightTarget, documentRef: Document): number {
-  const textNodes = findTextNodesWithMatch(documentRef.body, target.matched_text);
+  const roots = getHighlightRoots(target.block_id, documentRef);
   let appliedCount = 0;
 
-  for (const textNode of textNodes) {
-    appliedCount += highlightMatchesInTextNode(textNode, target, documentRef);
+  for (const root of roots) {
+    const textNodes = findTextNodesWithMatch(root, target.matched_text);
+
+    for (const textNode of textNodes) {
+      appliedCount += highlightMatchesInTextNode(textNode, target, documentRef);
+    }
   }
 
   return appliedCount;
+}
+
+function getHighlightRoots(blockId: string, documentRef: Document): HTMLElement[] {
+  const body = documentRef.body;
+  if (!body) {
+    return [];
+  }
+
+  if (/^(?:jn|bg)-chat-\d+$/i.test(blockId)) {
+    const messageRoot = documentRef.querySelector<HTMLElement>(
+      `[data-message-id="${blockId}"], [data-chat-message][data-message-id="${blockId}"]`,
+    );
+
+    if (messageRoot) {
+      return [messageRoot];
+    }
+
+    const chatThreadRoots = getUniqueElements(documentRef, [
+      "[data-safe-ticket-chat] [data-chat-message]",
+      "[data-safe-ticket-chat] [class*='bubble']",
+      "[data-safe-ticket-chat] [data-message-id]",
+    ]);
+
+    return chatThreadRoots.length ? chatThreadRoots : [body];
+  }
+
+  if (blockId === "title") {
+    const titleRoots = getUniqueElements(documentRef, [
+      "h1",
+      "[data-product-title]",
+      "[class*='_productName_']",
+      "[class*='product-name']",
+      "[class*='title']",
+    ]);
+    return titleRoots.length ? titleRoots : [body];
+  }
+
+  if (blockId === "body-1") {
+    const hostname = documentRef.location?.hostname ?? "";
+    const selectors = /joongna/i.test(hostname)
+      ? [
+          "[data-safe-ticket-body-root]",
+          "p.whitespace-pre-line",
+          "p[class*='whitespace-pre-line']",
+          "[data-product-description]",
+          "[class*='product-content']",
+          "[class*='product-detail'] p",
+          "[class*='product-detail'] span",
+          "[class*='detail'] [class*='content']",
+          "[class*='detail-content'] p",
+          "[class*='description']",
+          "[class*='description'] p",
+        ]
+      : /bunjang/i.test(hostname)
+        ? [
+          "[data-safe-ticket-body-root]",
+          "p[class*='_description_']",
+          "[data-product-description]",
+          "[class*='product-content']",
+          "[class*='product-detail'] p",
+          "[class*='detail'] [class*='content']",
+          "[class*='detail-content'] p",
+          "[class*='description']",
+          "[class*='description'] p",
+        ]
+        : [
+          "[data-safe-ticket-body-root]",
+          "[data-product-description]",
+          "p.whitespace-pre-line",
+          "p[class*='_description_']",
+          "[class*='product-content']",
+          "[class*='product-detail'] p",
+          "[class*='detail'] [class*='content']",
+          "[class*='detail-content'] p",
+          "[class*='description']",
+          "[class*='description'] p",
+        ];
+
+    const scoped = getUniqueElements(documentRef, selectors);
+    if (scoped.length) {
+      return scoped;
+    }
+
+    const fallbackScoped = getUniqueElements(documentRef, [
+      "main article",
+      "main section",
+      "article",
+      "[role='main']",
+      "main",
+    ]);
+    return fallbackScoped.length ? fallbackScoped : [body];
+  }
+
+  return [body];
+}
+
+function getUniqueElements(documentRef: Document, selectors: string[]): HTMLElement[] {
+  const seen = new Set<HTMLElement>();
+  const matches: HTMLElement[] = [];
+
+  for (const selector of selectors) {
+    for (const element of Array.from(documentRef.querySelectorAll<HTMLElement>(selector))) {
+      if (seen.has(element) || element.closest(`#${EXTENSION_ROOT_ID}`)) {
+        continue;
+      }
+
+      seen.add(element);
+      matches.push(element);
+    }
+  }
+
+  return matches;
 }
 
 function highlightMatchesInTextNode(
@@ -146,6 +262,10 @@ function findTextNodesWithMatch(
 
         const blockedTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA"]);
         if (blockedTags.has(parent.tagName)) {
+          return NodeFilter.FILTER_SKIP;
+        }
+
+        if (isBlockedHighlightContext(parent, root)) {
           return NodeFilter.FILTER_SKIP;
         }
 
@@ -234,4 +354,31 @@ function buildWhitespaceTolerantRegex(value: string): RegExp | null {
 
   const escaped = parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   return new RegExp(escaped.join("\\s+"));
+}
+
+function isBlockedHighlightContext(element: HTMLElement, root: HTMLElement): boolean {
+  if (root.contains(element)) {
+    return false;
+  }
+
+  return Boolean(
+    element.closest(
+      [
+        "nav",
+        "header",
+        "footer",
+        "aside",
+        "[role='navigation']",
+        "[aria-label*='breadcrumb' i]",
+        "[class*='breadcrumb']",
+        "[class*='recommend']",
+        "[class*='related']",
+        "[class*='similar']",
+        "[class*='carousel']",
+        "[class*='swiper']",
+        "[class*='banner']",
+        "[class*='ad']",
+      ].join(", "),
+    ),
+  );
 }

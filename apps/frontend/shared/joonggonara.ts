@@ -1,7 +1,6 @@
 import type { ContentBlock, MarketplaceSignal, ScanCreateRequest } from "./types";
 import {
   buildFallbackSellerId,
-  buildMarketplaceSignalsBlock,
   cleanMultiline,
   decodeFieldText,
   extractChatBlocks,
@@ -240,27 +239,6 @@ function mergeMarketplaceSignals(currentSignals: MarketplaceSignal[], nextSignal
   return normalizeMarketplaceSignals(mergedSignals);
 }
 
-function syncMarketplaceSignalsBlock(payload: ScanCreateRequest): void {
-  const blockIndex = payload.content_blocks.findIndex((block) => block.block_id === "marketplace-signals");
-  const nextBlock = buildMarketplaceSignalsBlock(payload.marketplace_signals);
-
-  if (!nextBlock && blockIndex >= 0) {
-    payload.content_blocks.splice(blockIndex, 1);
-    return;
-  }
-
-  if (!nextBlock) {
-    return;
-  }
-
-  if (blockIndex >= 0) {
-    payload.content_blocks[blockIndex] = nextBlock;
-    return;
-  }
-
-  payload.content_blocks.push(nextBlock);
-}
-
 function isSuspiciousJoongnaSeller(value: string): boolean {
   const normalizedValue = normalizeInlineText(value);
 
@@ -284,6 +262,11 @@ function syncChatBlocks(payload: ScanCreateRequest, chatBlocks: ContentBlock[]):
     return;
   }
 
+  if (isChatPayload(payload)) {
+    payload.content_blocks = [...chatBlocks];
+    return;
+  }
+
   const staticBlocks = payload.content_blocks.filter((block) => !isChatBlockId(block.block_id));
   payload.content_blocks = [...staticBlocks, ...chatBlocks];
 }
@@ -298,7 +281,6 @@ export function isJoongnaChatHtml(html: string, pageUrl: string): boolean {
 export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCreateRequest {
   const productJsonLd = extractProductJsonLd(html);
   const marketplaceSignals = extractJoongnaMarketplaceSignals(html);
-  const marketplaceSignalsBlock = buildMarketplaceSignalsBlock(marketplaceSignals);
 
   const titleRaw =
     extractJoongnaString(html, "productTitle") ??
@@ -344,7 +326,6 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
     content_blocks: [
       { block_id: "title", text: title },
       { block_id: "body-1", text: description },
-      ...(marketplaceSignalsBlock ? [marketplaceSignalsBlock] : []),
     ].filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,
   };
@@ -419,7 +400,6 @@ export function enhanceJoongnaProductPayloadFromDocument(
   const visibleSignals = extractSignalsFromVisibleText(document.body?.innerText ?? "", payload.platform);
   if (visibleSignals.length) {
     nextPayload.marketplace_signals = mergeMarketplaceSignals(nextPayload.marketplace_signals, visibleSignals);
-    syncMarketplaceSignalsBlock(nextPayload);
   }
 
   if (isChatPayload(nextPayload)) {
@@ -456,7 +436,6 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
     fallbackMatch(html, /data-product-price[^>]*>([\s\S]*?)<\/[^>]+>/) ??
     fallbackMatch(html, /<b[^>]*>([\d,\s]+)<\/b>/) ??
     "0";
-  const tradeLocationRaw = fallbackMatch(html, /data-trade-location[^>]*>([\s\S]*?)<\/[^>]+>/) ?? "";
   const sellerNameRaw =
     fallbackMatch(html, /data-seller-name[^>]*>([\s\S]*?)<\/[^>]+>/) ??
     fallbackMatch(html, /jn-chat-title[\s\S]*?<strong[^>]*>([\s\S]*?)<\/strong>/) ??
@@ -468,10 +447,8 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
 
   const title = normalizeInlineText(decodeFieldText(titleRaw));
   const priceText = normalizeInlineText(decodeFieldText(priceTextRaw));
-  const tradeLocation = normalizeInlineText(decodeFieldText(tradeLocationRaw));
   const sellerNickname = normalizeInlineText(decodeFieldText(sellerNameRaw));
   const marketplaceSignals = extractJoongnaMarketplaceSignals(html);
-  const marketplaceSignalsBlock = buildMarketplaceSignalsBlock(marketplaceSignals);
 
   return {
     platform: "joonggonara",
@@ -482,12 +459,7 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
       seller_id: sellerId,
       nickname: sellerNickname,
     },
-    content_blocks: [
-      { block_id: "title", text: title },
-      { block_id: "product-summary", text: [title, priceText, tradeLocation].filter(Boolean).join(" ") },
-      ...(marketplaceSignalsBlock ? [marketplaceSignalsBlock] : []),
-      ...chatBlocks,
-    ].filter((block) => block.text.trim().length > 0),
+    content_blocks: chatBlocks.filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,
   };
 }

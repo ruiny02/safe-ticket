@@ -9,7 +9,7 @@ import {
   type WheelEvent,
 } from "react";
 
-import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
+import { getSafeTicketApiBaseUrl } from "../../shared/runtime-config";
 import { getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
 import type { CaseUmapResponse, PipelineExchangeResponse, ScanResultResponse } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
@@ -24,8 +24,10 @@ import { buildRouteHref, parseReportRoute, shouldRefreshReportData, type ReportV
 import { buildReportBrief } from "./lib/report-brief";
 
 const API_BASE_URL = getSafeTicketApiBaseUrl();
-const FRONTEND_BASE_URL = getSafeTicketFrontendBaseUrl();
+const FRONTEND_BASE_URL = "http://54.180.226.121:3000";
 const DEMO_PAGE_URL = `${FRONTEND_BASE_URL}/product/227242032.html`;
+const DEMO_JOONGNA_CHAT_URL = `${FRONTEND_BASE_URL}/joongna-chat.html`;
+const DEMO_BUNJANG_CHAT_URL = `${FRONTEND_BASE_URL}/bunjang-chat.html`;
 const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
 
 type ProfileMode = "general" | "newcomer" | "cautious";
@@ -1417,7 +1419,15 @@ export function App() {
             <h2>Workspace</h2>
             <a className="dashboard-sidebar-link" href={DEMO_PAGE_URL}>
               <span>{iconSvg("M3 5h14v10H3zM6 8h8v1H6zm0 3h5v1H6z")}</span>
-              <strong>Demo page</strong>
+              <strong>Demo Page · 상품</strong>
+            </a>
+            <a className="dashboard-sidebar-link" href={DEMO_JOONGNA_CHAT_URL}>
+              <span>{iconSvg("M4 5h12v8H8l-4 3V5Zm2 2v1h8V7H6Zm0 3v1h5v-1H6Z")}</span>
+              <strong>Demo Page · 중고나라 채팅</strong>
+            </a>
+            <a className="dashboard-sidebar-link" href={DEMO_BUNJANG_CHAT_URL}>
+              <span>{iconSvg("M4 5h12v8H8l-4 3V5Zm2 2v1h8V7H6Zm0 3v1h5v-1H6Z")}</span>
+              <strong>Demo Page · 번개장터 채팅</strong>
             </a>
             <a className="dashboard-sidebar-link" href={HEALTHCHECK_URL} rel="noreferrer" target="_blank">
               <span>{iconSvg("M10 2l6 3.5v4c0 4.1-2.5 7-6 8.5-3.5-1.5-6-4.4-6-8.5v-4L10 2Zm-1 9h2V6H9v5Zm0 3h2v-2H9v2Z")}</span>

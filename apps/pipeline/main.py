@@ -36,6 +36,13 @@ class MarketplaceSignal(BaseModel):
     value: str
 
 
+class UserProfile(BaseModel):
+    """Optional user profile forwarded by the frontend."""
+
+    age: int | None = Field(default=None, ge=0, le=120)
+    trade_experience_level: Literal["beginner", "intermediate", "advanced"] | None = None
+
+
 class PipelineOutboundPayload(BaseModel):
     """Request schema sent by the backend to the pipeline."""
 
@@ -47,6 +54,7 @@ class PipelineOutboundPayload(BaseModel):
     seller: SellerInfo
     content_blocks: list[ContentBlock]
     marketplace_signals: list[MarketplaceSignal] = Field(default_factory=list)
+    user_profile: UserProfile | None = None
 
 
 class EvidenceItem(BaseModel):

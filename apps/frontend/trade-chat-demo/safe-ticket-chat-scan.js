@@ -1,6 +1,6 @@
 
 (function () {
-  const API_BASE_URL = "http://localhost:8000";
+  const API_BASE_URL = "http://54.180.226.121:8000";
   const DEFAULT_REPORT_APP_BASE_URL = "http://localhost:5173/report/";
   const PANEL_ID = "safe-ticket-chat-scan-panel";
   const HIGHLIGHT_SELECTOR = "mark[data-safe-ticket-chat-highlight='true']";
@@ -512,7 +512,7 @@
     const pageUrl =
       window.location.protocol === "http:" || window.location.protocol === "https:"
         ? window.location.href
-        : `http://localhost:3000/${platform}-chat.html`;
+        : `http://54.180.226.121:3000/${platform}-chat.html`;
 
     return {
       platform,
