@@ -1194,6 +1194,68 @@ svg {
   line-height: 1.7;
 }
 
+.dashboard-seller-report-card {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(62, 201, 114, 0.12), transparent 28%),
+    radial-gradient(circle at 94% 16%, rgba(132, 112, 255, 0.1), transparent 26%),
+    #fff;
+}
+
+.dashboard-seller-report-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.dashboard-seller-report-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-seller-report-summary div {
+  padding: 14px;
+  border: 1px solid var(--gray-100);
+  border-radius: 14px;
+  background: rgba(249, 250, 251, 0.84);
+}
+
+.dashboard-seller-report-summary span,
+.dashboard-seller-report-section strong {
+  display: block;
+}
+
+.dashboard-seller-report-summary span {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-seller-report-summary strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--gray-900);
+  font-size: 18px;
+}
+
+.dashboard-seller-report-section + .dashboard-seller-report-section {
+  margin-top: 18px;
+}
+
+.dashboard-seller-report-section strong {
+  margin-bottom: 8px;
+  color: var(--gray-900);
+  font-size: 15px;
+}
+
+.dashboard-seller-report-section p {
+  margin: 0;
+  color: var(--gray-600);
+  line-height: 1.75;
+}
+
 .dashboard-external-card {
   background:
     radial-gradient(circle at top right, rgba(132, 112, 255, 0.12), transparent 30%),

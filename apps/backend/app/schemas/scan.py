@@ -18,6 +18,8 @@ class SellerInfo(BaseModel):
     # Seller identifiers help match future fraud signals and similar cases.
     seller_id: str
     nickname: str
+    # Public marketplace profile URL used for seller context analysis.
+    profile_url: HttpUrl | None = None
 
 
 class ContentBlock(BaseModel):

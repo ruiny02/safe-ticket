@@ -18,6 +18,9 @@ ALLOWED_PROFILE_HOSTS = {
     "m.joongna.com",
     "junggonara.co.kr",
     "www.junggonara.co.kr",
+    "bunjang.co.kr",
+    "m.bunjang.co.kr",
+    "www.bunjang.co.kr",
 }
 MAX_TEXT_CHARS = 6000
 MAX_PRODUCT_TITLES = 12

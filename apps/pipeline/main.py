@@ -29,6 +29,7 @@ class SellerInfo(BaseModel):
 
     seller_id: str
     nickname: str
+    profile_url: HttpUrl | None = None
 
 
 class ContentBlock(BaseModel):

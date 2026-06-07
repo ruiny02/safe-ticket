@@ -11,6 +11,7 @@ import {
   normalizeMarketplaceSignals,
   parseMoney,
   readMetaContent,
+  toAbsoluteUrl,
 } from "./parser-utils";
 
 const BUNJANG_CHAT_URL_PATTERN = /\/(?:talk|chat|message)(?:[/?#]|$)|[?&](room|chat)/i;
@@ -75,6 +76,28 @@ function extractBunjangSellerId(html: string, sellerNickname: string): string {
     html.match(/"(?:shopId|storeId|sellerId|memberId|userId)"\s*:\s*"?(\\?\d{4,})"?/i)?.[1]?.replace(/\\/g, "");
 
   return explicitId ?? buildFallbackSellerId("bunjang-seller", sellerNickname);
+}
+
+function extractBunjangSellerHref(html: string): string | undefined {
+  return (
+    fallbackMatch(html, /href="([^"]*\/shops\/\d+[^"]*)"/) ??
+    fallbackMatch(html, /href="([^"]*\/shop\/\d+[^"]*)"/)
+  );
+}
+
+function buildBunjangSellerProfileUrl(sellerId: string | undefined, href: string | undefined, pageUrl: string): string | undefined {
+  const absoluteHref = toAbsoluteUrl(href, pageUrl);
+  if (absoluteHref && /^https:\/\/(?:m\.|www\.)?bunjang\.co\.kr\/shops?\/\d+/i.test(absoluteHref)) {
+    return absoluteHref;
+  }
+
+  const idFromHref = fallbackMatch(absoluteHref ?? href ?? "", /\/shops?\/(\d+)/i);
+  const profileSellerId = sellerId && /^\d+$/.test(sellerId) ? sellerId : idFromHref;
+  if (profileSellerId) {
+    return `https://m.bunjang.co.kr/shops/${profileSellerId}`;
+  }
+
+  return undefined;
 }
 
 function extractBunjangMarketplaceSignals(html: string) {
@@ -142,6 +165,7 @@ export function parseBunjangProductHtml(html: string, pageUrl: string): ScanCrea
   const description = extractBunjangDescription(html);
   const sellerNickname = extractBunjangSellerNickname(html);
   const sellerId = extractBunjangSellerId(html, sellerNickname);
+  const sellerHref = extractBunjangSellerHref(html);
   const marketplaceSignals = extractBunjangMarketplaceSignals(html);
   const price =
     parseMoney(priceText) ||
@@ -155,6 +179,7 @@ export function parseBunjangProductHtml(html: string, pageUrl: string): ScanCrea
     seller: {
       seller_id: sellerId,
       nickname: sellerNickname,
+      profile_url: buildBunjangSellerProfileUrl(sellerId, sellerHref, pageUrl),
     },
     content_blocks: [
       {
@@ -186,6 +211,7 @@ export function parseBunjangChatHtml(html: string, pageUrl: string): ScanCreateR
   const sellerId =
     fallbackMatch(html, /data-seller-id="([^"]+)"/) ??
     buildFallbackSellerId("bunjang-chat-seller", normalizeInlineText(decodeFieldText(sellerNicknameRaw)));
+  const sellerHref = fallbackMatch(html, /data-seller-profile-url="([^"]+)"/) ?? extractBunjangSellerHref(html);
   const chatBlocks = extractChatBlocks(html, "bg-chat");
   const pageTitle = normalizeInlineText(decodeFieldText(pageTitleRaw));
   const priceText = normalizeInlineText(decodeFieldText(priceTextRaw));
@@ -200,6 +226,7 @@ export function parseBunjangChatHtml(html: string, pageUrl: string): ScanCreateR
     seller: {
       seller_id: sellerId,
       nickname: sellerNickname,
+      profile_url: buildBunjangSellerProfileUrl(sellerId, sellerHref, pageUrl),
     },
     content_blocks: chatBlocks.filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,

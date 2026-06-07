@@ -40,6 +40,7 @@ describe("parseJoongnaProductHtml", () => {
     expect(parsed.seller).toEqual({
       seller_id: "4099087",
       nickname: "낭닥SJ",
+      profile_url: "https://web.joongna.com/store/4099087",
     });
     expect(parsed.marketplace_signals).toEqual([
       expect.objectContaining({ key: "trust_score", value: "306점" }),
@@ -73,6 +74,7 @@ describe("parseJoongnaProductHtml", () => {
     expect(parsed.seller).toEqual({
       seller_id: "2474236",
       nickname: "AcesHigh",
+      profile_url: "https://web.joongna.com/store/2474236",
     });
     expect(parsed.marketplace_signals).toEqual([]);
     expect(parsed.content_blocks[1].text).toContain("2026 I.O.I Concert Tour: LOOP in SEOUL");
@@ -131,6 +133,7 @@ describe("parseJoongnaProductHtml", () => {
     expect(enhanced.seller).toEqual({
       seller_id: "4099087",
       nickname: "낭닥SJ",
+      profile_url: "https://web.joongna.com/store/4099087",
     });
     expect(isReliableJoongnaProductPayload(enhanced)).toBe(true);
   });
@@ -144,6 +147,7 @@ describe("parseJoongnaProductHtml", () => {
       seller: {
         seller_id: "4099087",
         nickname: "낭닥SJ",
+        profile_url: "https://web.joongna.com/store/4099087",
       },
       content_blocks: [
         { block_id: "title", text: "테스트 상품" },
@@ -241,6 +245,7 @@ describe("parseBunjangProductHtml", () => {
             <p class="_description_15uwa_1">R석 1매 양도합니다.</p>
             <div>배송비 <span>일반 10,000원</span> 구매하기</div>
             <div class="_shopProfileSection_15v9v_24">
+              <a href="/shops/5158822">상점정보</a>
               <span class="Typography_typography__1wr8iu13 Typography_typography_variant_T4__1wr8iu17">총알클로버</span>
               <span>별점 4.9</span>
               <span class="Typography_typography__1wr8iu13 Typography_typography_variant_L8__1wr8iu1u">후기 11</span>
@@ -257,6 +262,7 @@ describe("parseBunjangProductHtml", () => {
     expect(parsed.page_title).toContain("하나비 콘서트 티켓 양도");
     expect(parsed.price).toBe(270000);
     expect(parsed.seller.nickname).toBe("총알클로버");
+    expect(parsed.seller.profile_url).toBe("https://m.bunjang.co.kr/shops/5158822");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("seller_rating");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("review_count");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("transaction_count");
@@ -446,6 +452,7 @@ describe("buildScanPayload", () => {
       seller: {
         seller_id: "4099087",
         nickname: "낭닥SJ",
+        profile_url: "https://web.joongna.com/store/4099087",
       },
       content_blocks: expect.arrayContaining([
         {

@@ -158,6 +158,9 @@ describe("buildDashboardModel", () => {
       accountNumber: "3355-28-8620726",
       recentFraudCases: 3,
       observedAliases: ["낭닥SJ", "급처티켓", "openchat123"],
+      listingTitle: "tuki. 츠키 아시아투어콘서트 정가*~-",
+      priceText: "163,000원",
+      trustSignals: [],
     });
     expect(model.externalLookups).toEqual([
       {

@@ -11,6 +11,7 @@ import {
   normalizeInlineText,
   normalizeMarketplaceSignals,
   parseMoney,
+  toAbsoluteUrl,
 } from "./parser-utils";
 
 const JOONGNA_SUSPICIOUS_SELLER_TOKENS = [
@@ -114,6 +115,21 @@ function extractJoongnaSellerFromWatermark(source: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function buildJoongnaSellerProfileUrl(sellerId: string | undefined, href: string | undefined, pageUrl: string): string | undefined {
+  const absoluteHref = toAbsoluteUrl(href, pageUrl);
+  if (absoluteHref && /^https:\/\/(?:web\.)?joongna\.com\/store\/\d+/i.test(absoluteHref)) {
+    return absoluteHref;
+  }
+
+  const idFromHref = fallbackMatch(absoluteHref ?? href ?? "", /\/store\/(\d+)/i);
+  const profileSellerId = sellerId && /^\d+$/.test(sellerId) ? sellerId : idFromHref;
+  if (profileSellerId) {
+    return `https://web.joongna.com/store/${profileSellerId}`;
+  }
+
+  return undefined;
 }
 
 function extractJoongnaMarketplaceSignals(html: string): MarketplaceSignal[] {
@@ -290,6 +306,7 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
     extractJoongnaNumber(html, "storeSeq") ??
     fallbackMatch(html, /href="\/store\/(\d+)"/) ??
     buildFallbackSellerId("joongna-seller", "unknown");
+  const sellerHref = fallbackMatch(html, /href="([^"]*\/store\/\d+[^"]*)"/);
   const sellerNicknameRaw =
     extractJoongnaString(html, "nickName") ??
     productJsonLd?.offers?.seller?.name ??
@@ -322,6 +339,7 @@ export function parseJoongnaProductHtml(html: string, pageUrl: string): ScanCrea
     seller: {
       seller_id: sellerId,
       nickname: sellerNickname,
+      profile_url: buildJoongnaSellerProfileUrl(sellerId, sellerHref, pageUrl),
     },
     content_blocks: [
       { block_id: "title", text: title },
@@ -363,6 +381,18 @@ export function enhanceJoongnaProductPayloadFromDocument(
     content_blocks: payload.content_blocks.map((block) => ({ ...block })),
     marketplace_signals: payload.marketplace_signals.map((signal) => ({ ...signal })),
   };
+  const sellerProfileUrl = buildJoongnaSellerProfileUrl(
+    sellerId ?? nextPayload.seller.seller_id,
+    sellerAnchor?.getAttribute("href") ?? nextPayload.seller.profile_url ?? undefined,
+    nextPayload.page_url,
+  );
+  const bunjangSellerAnchor = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('a[href*="/shops/"], a[href*="/shop/"]'),
+  ).find((anchor) => /\/shops?\/\d+/i.test(anchor.getAttribute("href") ?? ""));
+  const bunjangSellerProfileUrl = toAbsoluteUrl(
+    bunjangSellerAnchor?.getAttribute("href") ?? nextPayload.seller.profile_url ?? undefined,
+    nextPayload.page_url,
+  );
 
   if (payload.platform === "joonggonara" && titleText.length > 3 && titleText !== payload.page_title) {
     nextPayload.page_title = titleText;
@@ -395,6 +425,14 @@ export function enhanceJoongnaProductPayloadFromDocument(
     } else if (watermarkSeller && !isSuspiciousJoongnaSeller(watermarkSeller)) {
       nextPayload.seller.nickname = watermarkSeller;
     }
+  }
+
+  if (payload.platform === "joonggonara" && sellerProfileUrl) {
+    nextPayload.seller.profile_url = sellerProfileUrl;
+  }
+
+  if (payload.platform === "bunjang" && bunjangSellerProfileUrl) {
+    nextPayload.seller.profile_url = bunjangSellerProfileUrl;
   }
 
   const visibleSignals = extractSignalsFromVisibleText(document.body?.innerText ?? "", payload.platform);
@@ -443,6 +481,7 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
   const sellerId =
     fallbackMatch(html, /data-seller-id="([^"]+)"/) ??
     buildFallbackSellerId("joongna-chat-seller", normalizeInlineText(decodeFieldText(sellerNameRaw)));
+  const sellerHref = fallbackMatch(html, /data-seller-profile-url="([^"]+)"/) ?? fallbackMatch(html, /href="([^"]*\/store\/\d+[^"]*)"/);
   const chatBlocks = extractChatBlocks(html, "jn-chat");
 
   const title = normalizeInlineText(decodeFieldText(titleRaw));
@@ -458,6 +497,7 @@ export function parseJoongnaChatHtml(html: string, pageUrl: string): ScanCreateR
     seller: {
       seller_id: sellerId,
       nickname: sellerNickname,
+      profile_url: buildJoongnaSellerProfileUrl(sellerId, sellerHref, pageUrl),
     },
     content_blocks: chatBlocks.filter((block) => block.text.trim().length > 0),
     marketplace_signals: marketplaceSignals,

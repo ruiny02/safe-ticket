@@ -112,6 +112,18 @@ export function buildFallbackSellerId(prefix: string, nickname: string): string 
   return `${prefix}-${safeNickname}`;
 }
 
+export function toAbsoluteUrl(url: string | undefined | null, baseUrl: string): string | undefined {
+  if (!url?.trim()) {
+    return undefined;
+  }
+
+  try {
+    return new URL(decodeHtmlEntities(url.trim()), baseUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
 export function extractChatBlocks(html: string, prefix = "chat") {
   const matches = html.matchAll(/<([a-z0-9]+)([^>]*data-chat-message[^>]*)>([\s\S]*?)<\/\1>/gi);
 

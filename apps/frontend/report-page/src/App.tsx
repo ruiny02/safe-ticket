@@ -10,8 +10,13 @@ import {
 } from "react";
 
 import { getSafeTicketApiBaseUrl } from "../../shared/runtime-config";
-import { getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
-import type { CaseUmapResponse, PipelineExchangeResponse, ScanResultResponse } from "../../shared/types";
+import { createSellerContextReport, getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
+import type {
+  CaseUmapResponse,
+  PipelineExchangeResponse,
+  ScanResultResponse,
+  SellerContextReportResponse,
+} from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
 import {
@@ -905,6 +910,117 @@ function NarrativeCard({ title, sentences }: { title: string; sentences: string[
   );
 }
 
+function SellerContextReportCard({
+  error,
+  isLoading,
+  profileUrl,
+  report,
+  sellerName,
+}: {
+  error: string | null;
+  isLoading: boolean;
+  profileUrl: string | null;
+  report: SellerContextReportResponse | null;
+  sellerName: string;
+}) {
+  const titleName = report?.seller_name ?? sellerName ?? "unknown";
+  const levelLabel = report?.seller_context_level ?? (profileUrl ? "loading" : "no profile");
+  const positiveSignals = report?.positive_profile_signals ?? [];
+  const riskSignals = report?.current_listing_risk_signals ?? [];
+
+  return (
+    <article className="dashboard-card dashboard-col-12 dashboard-seller-report-card">
+      <header className="dashboard-card-header">
+        <div>
+          <h3>{`판매자: ${titleName} 분석글`}</h3>
+          <p>현재 상품 위험도와 판매자 프로필의 공개 거래 이력을 함께 비교합니다.</p>
+        </div>
+        <span className={`dashboard-pill ${report?.seller_context_level === "high_risk" ? "is-danger" : "is-warning"}`}>
+          {levelLabel}
+        </span>
+      </header>
+      <div className="dashboard-card-body dashboard-seller-report-scroll">
+        {!profileUrl ? (
+          <p className="dashboard-muted-copy">
+            이 scan에는 자동 추출된 판매자 프로필 URL이 없습니다. 중고나라 또는 번개장터 상품 페이지에서 다시 scan하면 자동 분석을 시도합니다.
+          </p>
+        ) : isLoading ? (
+          <p className="dashboard-muted-copy">판매자 프로필을 가져와서 Gemini 분석글을 작성하는 중입니다.</p>
+        ) : error ? (
+          <div className="dashboard-seller-report-section">
+            <strong>판매자 분석을 불러오지 못했습니다</strong>
+            <p>{error}</p>
+            <a className="dashboard-link" href={profileUrl} rel="noreferrer" target="_blank">
+              판매자 프로필 열기
+            </a>
+          </div>
+        ) : report ? (
+          <>
+            <div className="dashboard-seller-report-summary">
+              <div>
+                <span>Context score</span>
+                <strong>{formatPercent(report.seller_context_score)}</strong>
+              </div>
+              <div>
+                <span>Pattern</span>
+                <strong>{report.pattern_consistency}</strong>
+              </div>
+              <div>
+                <span>Source</span>
+                <strong>{report.source}</strong>
+              </div>
+            </div>
+
+            <div className="dashboard-seller-report-section">
+              <strong>요약</strong>
+              <p>{report.summary}</p>
+            </div>
+
+            <div className="dashboard-seller-report-section">
+              <strong>현재 글과 기존 판매 양상 비교</strong>
+              <p>{report.pattern_shift_explanation}</p>
+            </div>
+
+            <div className="dashboard-seller-report-section">
+              <strong>권장 행동</strong>
+              <p>{report.recommendation}</p>
+            </div>
+
+            {positiveSignals.length ? (
+              <div className="dashboard-seller-report-section">
+                <strong>긍정적인 프로필 신호</strong>
+                <div className="dashboard-chip-row">
+                  {positiveSignals.map((signal) => (
+                    <span className="dashboard-pill is-ok" key={signal}>{signal}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {riskSignals.length ? (
+              <div className="dashboard-seller-report-section">
+                <strong>현재 상품 위험 신호</strong>
+                <ul className="dashboard-brief-list">
+                  {riskSignals.map((signal) => (
+                    <li key={signal}>{signal}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="dashboard-seller-report-section">
+              <strong>판매자 프로필</strong>
+              <a className="dashboard-link" href={profileUrl} rel="noreferrer" target="_blank">
+                {profileUrl}
+              </a>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function buildSignalRowsFromDashboard(dashboard: DashboardModel): typeof SIGNAL_ROWS {
   const matchedRows = dashboard.reasons.slice(0, 4).map((reason) => ({
     source: reason.label,
@@ -937,6 +1053,9 @@ export function App() {
   const [scanResult, setScanResult] = useState<ScanResultResponse | null>(null);
   const [pipelineDebug, setPipelineDebug] = useState<PipelineExchangeResponse | null>(null);
   const [caseUmap, setCaseUmap] = useState<CaseUmapResponse | null>(null);
+  const [sellerContextReport, setSellerContextReport] = useState<SellerContextReportResponse | null>(null);
+  const [sellerContextError, setSellerContextError] = useState<string | null>(null);
+  const [isSellerContextLoading, setIsSellerContextLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileMode, setProfileMode] = useState<ProfileMode>("cautious");
   const [account, setAccount] = useState<AccountState | null>(null);
@@ -961,6 +1080,9 @@ export function App() {
           setScanResult(null);
           setPipelineDebug(null);
           setCaseUmap(null);
+          setSellerContextReport(null);
+          setSellerContextError(null);
+          setIsSellerContextLoading(false);
         }
         return nextRoute;
       });
@@ -979,6 +1101,9 @@ export function App() {
       setScanResult(null);
       setPipelineDebug(null);
       setCaseUmap(null);
+      setSellerContextReport(null);
+      setSellerContextError(null);
+      setIsSellerContextLoading(false);
       setError(null);
       return;
     }
@@ -991,6 +1116,9 @@ export function App() {
       setScanResult(null);
       setPipelineDebug(null);
       setCaseUmap(null);
+      setSellerContextReport(null);
+      setSellerContextError(null);
+      setIsSellerContextLoading(false);
 
       try {
         const sampleContext = getSampleScanContext(scanId);
@@ -1033,6 +1161,44 @@ export function App() {
       cancelled = true;
     };
   }, [route.scanId, route.view]);
+
+  useEffect(() => {
+    const profileUrl = pipelineDebug?.outbound_payload.seller.profile_url ?? null;
+    if (route.view !== "reports" || !scanResult || scanResult.status !== "completed" || !profileUrl) {
+      setSellerContextReport(null);
+      setSellerContextError(null);
+      setIsSellerContextLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSellerContextReport(null);
+    setSellerContextError(null);
+    setIsSellerContextLoading(true);
+
+    const load = async () => {
+      try {
+        const report = await createSellerContextReport(API_BASE_URL, scanResult.scan_id, profileUrl);
+        if (!cancelled) {
+          setSellerContextReport(report);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setSellerContextError(nextError instanceof Error ? nextError.message : "Unknown seller report error");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSellerContextLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pipelineDebug, route.view, scanResult]);
 
   const dashboard = useMemo(() => {
     if (!scanResult) {
@@ -1345,6 +1511,9 @@ export function App() {
   };
 
   const renderReportsView = () => {
+    const sellerProfileUrl = pipelineDebug?.outbound_payload.seller.profile_url ?? null;
+    const sellerName = pipelineDebug?.outbound_payload.seller.nickname ?? "unknown";
+
     return (
       <>
         <ShellActionRow view="reports" />
@@ -1409,6 +1578,14 @@ export function App() {
             {reportBrief.sections.map((section) => (
               <NarrativeCard key={section.title} sentences={section.sentences} title={section.title} />
             ))}
+
+            <SellerContextReportCard
+              error={sellerContextError}
+              isLoading={isSellerContextLoading}
+              profileUrl={sellerProfileUrl}
+              report={sellerContextReport}
+              sellerName={sellerName}
+            />
           </section>
         ) : null}
       </>
