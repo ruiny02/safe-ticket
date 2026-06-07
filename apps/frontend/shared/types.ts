@@ -86,6 +86,7 @@ export interface ScanResultResponse {
   risk_level: "low" | "medium" | "high" | null;
   risk_score: number | null;
   risk_points?: number | null;
+  embedding_risk_score?: number | null;
   risk_score_breakdown?: RiskScoreComponent[];
   summary: string | null;
   llm_reasoning?: string | null;
@@ -171,4 +172,35 @@ export interface CaseUmapResponse {
     umap_target_weight: number | null;
   };
   current_scan: CaseUmapCurrentScan | null;
+}
+
+export type RiskMapLabel = "safe" | "borderline" | "fraud" | "current";
+export type RiskMapMode = "embedding" | "final";
+
+export interface RiskMapPoint {
+  case_id: string;
+  label: RiskMapLabel;
+  score: number;
+  x: number;
+  y: number;
+  z: number | null;
+  embedding_risk_score: number;
+  final_score_source: string;
+  title: string | null;
+  platform: string | null;
+  summary: string | null;
+}
+
+export interface RiskMapResponse {
+  model_version: string;
+  projection_type: string;
+  mode: RiskMapMode;
+  score_aligned: boolean;
+  x_axis: string;
+  y_axis: string;
+  z_axis: string | null;
+  reducer: "pca" | "umap" | string;
+  points: RiskMapPoint[];
+  metrics: Record<string, unknown>;
+  warnings: string[];
 }

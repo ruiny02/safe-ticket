@@ -32,10 +32,13 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_chat_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_CHAT_MODEL")
     gemini_analysis_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_ANALYSIS_MODEL")
-    gemini_embedding_model: str = Field(default="gemini-embedding-001", alias="GEMINI_EMBEDDING_MODEL")
+    gemini_embedding_model: str = Field(default="gemini-embedding-2", alias="GEMINI_EMBEDDING_MODEL")
     gemini_scan_analysis_enabled: bool = Field(default=False, alias="GEMINI_SCAN_ANALYSIS_ENABLED")
     gemini_api_timeout_seconds: float = Field(default=8.0, alias="GEMINI_API_TIMEOUT_SECONDS")
     gemini_max_retries: int = Field(default=1, alias="GEMINI_MAX_RETRIES")
+
+    # Risk-space artifacts are trained from existing DB embeddings and reused for scoring/maps.
+    risk_space_artifact_dir: str = Field(default=".artifacts/risk_space", alias="RISK_SPACE_ARTIFACT_DIR")
 
     # Pipeline integration settings control backend-to-pipeline HTTP calls.
     pipeline_base_url: str = Field(default="http://pipeline:8010", alias="PIPELINE_BASE_URL")

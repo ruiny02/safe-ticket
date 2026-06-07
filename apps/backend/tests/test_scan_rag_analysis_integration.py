@@ -19,6 +19,8 @@ from app.services import pipeline_client as pipeline_client_module
 from app.services import scan_service as scan_service_module
 from app.services.llm_scan_analysis import LLMScanAnalysisResult
 from app.services.rag import retrieval as retrieval_module
+from app.services.rag import scoring as rag_scoring_module
+from app.services.risk_space.cosine_scoring import RiskSpaceScore
 
 
 client = TestClient(app)
@@ -105,6 +107,24 @@ def test_scan_result_uses_rag_scoring_and_validated_llm_highlights(monkeypatch: 
         "embed_query_text",
         lambda _text, *, output_dimensionality: [1.0, 0.0, 0.0],
     )
+    monkeypatch.setattr(
+        rag_scoring_module,
+        "score_listing_text",
+        lambda _text: (
+            RiskSpaceScore(
+                embedding_risk_score=0.32,
+                calibrated_pls_score=0.25,
+                prototype_score=0.35,
+                neighbor_score=0.45,
+                prototype_cosines={"safe": 0.1, "fraud": 0.8},
+                prototype_probabilities={"safe": 0.2, "fraud": 0.8},
+                top_neighbors=[],
+                confidence={"valid_neighbors": 0.0},
+            ),
+            None,
+            [],
+        ),
+    )
 
     def mock_analyze(*_args, **_kwargs) -> PipelineInboundPayload:
         return build_pipeline_result()
@@ -161,15 +181,17 @@ def test_scan_result_uses_rag_scoring_and_validated_llm_highlights(monkeypatch: 
     assert body["risk_points"] >= 70
     assert body["risk_score"] == round(body["risk_points"] / 100, 4)
     assert body["risk_level"] == "high"
+    assert body["embedding_risk_score"] == 0.32
     assert body["summary"] == "계좌이체 유도와 적금계좌 패턴 때문에 추가 확인이 필요합니다."
     assert body["llm_reasoning"] == "RAG 유사 사례, 외부조회 결과, 사용자 취약도를 함께 반영했습니다."
     assert [target["matched_text"] for target in body["highlight_targets"]] == ["카카오뱅크"]
     assert body["similar_cases"][0]["case_id"] == "case_fraud_1"
     assert body["similar_cases"][0]["matched_chunk"]
     assert {item["component"] for item in body["risk_score_breakdown"]} >= {
-        "similarity",
+        "embedding_risk_score",
         "savings_account_pattern",
         "user_vulnerability",
+        "final_score",
     }
 
 
@@ -180,6 +202,24 @@ def test_scan_result_forces_200_points_when_external_lookup_is_positive(monkeypa
         retrieval_module,
         "embed_query_text",
         lambda _text, *, output_dimensionality: [1.0, 0.0, 0.0],
+    )
+    monkeypatch.setattr(
+        rag_scoring_module,
+        "score_listing_text",
+        lambda _text: (
+            RiskSpaceScore(
+                embedding_risk_score=0.1,
+                calibrated_pls_score=0.1,
+                prototype_score=0.1,
+                neighbor_score=0.1,
+                prototype_cosines={},
+                prototype_probabilities={},
+                top_neighbors=[],
+                confidence={},
+            ),
+            None,
+            [],
+        ),
     )
 
     monkeypatch.setattr(pipeline_client_module.pipeline_client, "analyze", lambda *_args, **_kwargs: build_pipeline_result())

@@ -23,6 +23,10 @@ function getFrontendBaseUrl(currentUrl, latestScan = null) {
     return latestScan.frontendBaseUrl.replace(/\/+$/, "");
   }
 
+  return getCurrentFrontendBaseUrl(currentUrl);
+}
+
+function getCurrentFrontendBaseUrl(currentUrl) {
   try {
     const parsedUrl = new URL(currentUrl);
     const isSafeTicketFrontend =
@@ -96,15 +100,15 @@ async function run() {
   }
 
   openDemoButton?.addEventListener("click", () => {
-    void openTab(`${getFrontendBaseUrl(url, latestScan)}/product/227242032.html`);
+    void openTab(`${getCurrentFrontendBaseUrl(url)}/product/227242032.html`);
   });
 
   openJoongnaChatDemoButton?.addEventListener("click", () => {
-    void openTab(`${getFrontendBaseUrl(url, latestScan)}/joongna-chat.html`);
+    void openTab(`${getCurrentFrontendBaseUrl(url)}/joongna-chat.html`);
   });
 
   openBunjangChatDemoButton?.addEventListener("click", () => {
-    void openTab(`${getFrontendBaseUrl(url, latestScan)}/bunjang-chat.html`);
+    void openTab(`${getCurrentFrontendBaseUrl(url)}/bunjang-chat.html`);
   });
 
   const storageApi = chrome.storage?.local;

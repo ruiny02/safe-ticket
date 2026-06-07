@@ -3,6 +3,7 @@ import type {
   CaseUmapVariant,
   ExternalLookupResult,
   PipelineExchangeResponse,
+  RiskMapResponse,
   ScanResultResponse,
 } from "../../../shared/types";
 import {
@@ -147,13 +148,19 @@ function isClusterVariant(value: CaseUmapVariant): value is "fraud" | "safe" | "
 
 function buildEmbeddingModel({
   caseUmap,
+  caseRiskMap,
   scanResult,
   highlightCount,
 }: {
   caseUmap: CaseUmapResponse | null;
+  caseRiskMap?: RiskMapResponse | null;
   scanResult: ScanResultResponse;
   highlightCount: number;
 }): DashboardModel["embedding"] {
+  if (caseRiskMap?.points.length) {
+    return buildRiskMapEmbeddingModel(caseRiskMap, scanResult);
+  }
+
   if (!caseUmap?.points.length) {
     const demoEmbedding = buildDemoEmbeddingResult({
       scanId: scanResult.scan_id,
@@ -207,21 +214,110 @@ function buildEmbeddingModel({
   };
 }
 
+function buildRiskMapEmbeddingModel(
+  caseRiskMap: RiskMapResponse,
+  scanResult: ScanResultResponse,
+): DashboardModel["embedding"] {
+  const points = caseRiskMap.points.map((point) => ({
+    id: point.case_id,
+    label: point.title ?? point.case_id,
+    x: point.x,
+    y: point.y,
+    z: point.z ?? 50,
+    x3d: point.x,
+    y3d: point.y,
+    z3d: point.z ?? 50,
+    variant: point.label,
+    riskScore: point.score,
+  }));
+  const clusterCounts = points.reduce(
+    (acc, point) => {
+      if (isClusterVariant(point.variant)) {
+        acc[point.variant] += 1;
+      }
+      return acc;
+    },
+    { fraud: 0, safe: 0, borderline: 0 },
+  );
+  const fallbackNearest =
+    scanResult.risk_level === "low" ? "safe" : scanResult.risk_level === "medium" ? "borderline" : "fraud";
+  const title =
+    caseRiskMap.projection_type === "pls1_semantic_residual_umap_v1"
+      ? "Risk-axis semantic map"
+      : caseRiskMap.projection_type === "pls7_umap_risk_aware_v1"
+        ? "PLS7 risk-aware map"
+      : "Risk-map 시각화";
+  const description =
+    caseRiskMap.projection_type === "pls1_semantic_residual_umap_v1"
+      ? "x축은 calibrated PLS1 위험도 축으로 정렬하고, y/z축은 위험도 1차 방향을 제거한 semantic residual을 UMAP으로 축소해 의미적 이웃 구조를 보여줍니다."
+      : caseRiskMap.projection_type === "pls7_umap_risk_aware_v1"
+        ? "raw embedding을 PLS(7) risk-aware latent space로 변환한 뒤 unsupervised UMAP으로 축소해 유사 위험 패턴의 군집을 보여줍니다."
+      : "PLS risk-axis 점수를 x축에 두고, 점수로 설명되지 않는 residual 구조를 UMAP으로 축소해 2D와 3D에서 보여줍니다.";
+  const pipeline =
+    caseRiskMap.projection_type === "pls1_semantic_residual_umap_v1"
+      ? "raw embedding -> PLS1 risk axis + semantic residual UMAP(2/3)"
+      : caseRiskMap.projection_type === "pls7_umap_risk_aware_v1"
+        ? "raw embedding -> PLS(7) -> weighted UMAP(3)"
+      : `score-aligned PLS risk-map -> residual ${caseRiskMap.reducer.toUpperCase()}(3)`;
+
+  return {
+    title,
+    description,
+    pipeline,
+    points,
+    summary: {
+      nearestCluster: fallbackNearest,
+      clusterCounts,
+      distances: {
+        fraud: riskMapCenterDistance(caseRiskMap, "fraud"),
+        safe: riskMapCenterDistance(caseRiskMap, "safe"),
+        borderline: riskMapCenterDistance(caseRiskMap, "borderline"),
+      },
+    },
+  };
+}
+
+function riskMapCenterDistance(
+  caseRiskMap: RiskMapResponse,
+  label: "fraud" | "safe" | "borderline",
+): number {
+  const points = caseRiskMap.points.filter((point) => point.label === label);
+  const currentPoint = caseRiskMap.points.find((point) => point.label === "current");
+  if (!points.length) {
+    return 0;
+  }
+  if (!currentPoint) {
+    const center = points.reduce((sum, point) => sum + point.score, 0) / points.length;
+    return Math.abs(center - 0.5) * 100;
+  }
+  const center = points.reduce(
+    (acc, point) => ({
+      x: acc.x + point.x / points.length,
+      y: acc.y + point.y / points.length,
+      z: acc.z + (point.z ?? 50) / points.length,
+    }),
+    { x: 0, y: 0, z: 0 },
+  );
+  return Math.hypot(currentPoint.x - center.x, currentPoint.y - center.y, (currentPoint.z ?? 50) - center.z);
+}
+
 export function buildDashboardModel({
   scanResult,
   pipelineDebug,
   caseUmap,
+  caseRiskMap = null,
 }: {
   scanResult: ScanResultResponse;
   pipelineDebug: PipelineExchangeResponse | null;
   caseUmap: CaseUmapResponse | null;
+  caseRiskMap?: RiskMapResponse | null;
 }): DashboardModel {
   const headline = riskHeadline(scanResult.risk_level);
   const seller = pipelineDebug?.outbound_payload.seller;
   const highlightCount = scanResult.highlight_targets.length;
   const similarCaseCount = scanResult.similar_cases.length;
   const riskPercentile = Math.min(99, Math.max(3, Math.round((scanResult.risk_score ?? 0.5) * 100)));
-  const embedding = buildEmbeddingModel({ caseUmap, scanResult, highlightCount });
+  const embedding = buildEmbeddingModel({ caseUmap, caseRiskMap, scanResult, highlightCount });
   const accountNumber = extractAccountNumber(pipelineDebug?.outbound_payload.content_blocks ?? []);
 
   return {

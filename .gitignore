@@ -36,6 +36,7 @@ test-results/
 .playwright-mcp/
 .artifacts/
 artifacts/
+test_safe_ticket.db
 .references/
 bi-weekly-report/
 

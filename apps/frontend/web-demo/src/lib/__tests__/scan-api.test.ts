@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createScan } from "../../../../shared/scan-api";
+import { createScan, getCaseRiskMap } from "../../../../shared/scan-api";
 import type { ScanCreateRequest } from "../../../../shared/types";
 
 const payload: ScanCreateRequest = {
@@ -63,5 +63,40 @@ describe("scan-api helpers", () => {
 
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit & { targetAddressSpace?: string };
     expect(requestInit.targetAddressSpace).toBeUndefined();
+  });
+
+  it("passes scan id to the risk-map request for current scan overlays", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () =>
+        JSON.stringify({
+          model_version: "risk_space_test",
+          projection_type: "pls7_umap_risk_aware_v1",
+          mode: "embedding",
+          score_aligned: false,
+          x_axis: "pls7_umap_component_1",
+          y_axis: "pls7_umap_component_2",
+          z_axis: "pls7_umap_component_3",
+          reducer: "umap",
+          points: [],
+          metrics: {},
+          warnings: [],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCaseRiskMap("http://localhost:8000", {
+      dim: 3,
+      mode: "embedding",
+      reducer: "umap",
+      projection: "pls7_umap",
+      scanId: "scan_overlay",
+    });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "http://localhost:8000/api/v1/cases/risk-map?dim=3&mode=embedding&reducer=umap&projection=pls7_umap&limit=200&scan_id=scan_overlay",
+    );
   });
 });

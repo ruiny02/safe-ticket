@@ -1,6 +1,7 @@
 import type {
   CaseUmapResponse,
   PipelineExchangeResponse,
+  RiskMapResponse,
   ScanCreateRequest,
   ScanQueuedResponse,
   ScanResultResponse,
@@ -264,5 +265,41 @@ export async function getCaseUmap(
     `${baseUrl}/api/v1/cases/umap?${params.toString()}`,
     undefined,
     "Case UMAP request",
+  );
+}
+
+export async function getCaseRiskMap(
+  baseUrl: string,
+  {
+    dim = 3,
+    mode = "embedding",
+    reducer = "umap",
+    projection = "pls7_umap",
+    limit = 200,
+    scanId = null,
+  }: {
+    dim?: 2 | 3;
+    mode?: "embedding" | "final";
+    reducer?: "pca" | "umap";
+    projection?: "pls7_umap" | "score_aligned";
+    limit?: number;
+    scanId?: string | null;
+  } = {},
+): Promise<RiskMapResponse> {
+  const params = new URLSearchParams({
+    dim: String(dim),
+    mode,
+    reducer,
+    projection,
+    limit: String(limit),
+  });
+  if (scanId) {
+    params.set("scan_id", scanId);
+  }
+
+  return requestJson<RiskMapResponse>(
+    `${baseUrl}/api/v1/cases/risk-map?${params.toString()}`,
+    undefined,
+    "Case risk-map request",
   );
 }

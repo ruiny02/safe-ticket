@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -95,6 +95,8 @@ class RiskScoreComponent(BaseModel):
     component: str
     points: int
     reason: str
+    value: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RecommendedAction(BaseModel):
@@ -184,6 +186,9 @@ class ScanResultResponse(BaseModel):
     risk_score: float | None = None
     risk_points: int | None = None
     risk_score_breakdown: list[RiskScoreComponent] = Field(default_factory=list)
+    embedding_risk_score: float | None = None
+    risk_space_model_version: str | None = None
+    projection_type: str | None = None
     summary: str | None = None
     llm_reasoning: str | None = None
     risk_tags: list[str] = Field(default_factory=list)

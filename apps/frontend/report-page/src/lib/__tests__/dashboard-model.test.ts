@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PipelineExchangeResponse, ScanResultResponse } from "../../../../shared/types";
+import type { PipelineExchangeResponse, RiskMapResponse, ScanResultResponse } from "../../../../shared/types";
 import { buildDashboardModel } from "../dashboard-model";
 
 const scanResult: ScanResultResponse = {
@@ -301,5 +301,109 @@ describe("buildDashboardModel", () => {
         borderline: 18,
       },
     });
+  });
+
+  it("uses backend risk-map UMAP data when it is available", () => {
+    const riskMap: RiskMapResponse = {
+      model_version: "risk_space_pls_v1_test",
+      projection_type: "pls1_semantic_residual_umap_v1",
+      mode: "embedding",
+      score_aligned: false,
+      x_axis: "calibrated_pls1_risk_axis",
+      y_axis: "semantic_residual_umap_component_1",
+      z_axis: "semantic_residual_umap_component_2",
+      reducer: "umap",
+      metrics: {},
+      warnings: [],
+      points: [
+        {
+          case_id: "risk_case_high",
+          label: "fraud",
+          score: 0.88,
+          x: 88,
+          y: 22,
+          z: 40,
+          embedding_risk_score: 0.88,
+          final_score_source: "embedding_score",
+          title: "Risk map high",
+          platform: "joonggonara",
+          summary: "risk map high summary",
+        },
+        {
+          case_id: "risk_case_safe",
+          label: "safe",
+          score: 0.08,
+          x: 12,
+          y: 72,
+          z: 61,
+          embedding_risk_score: 0.08,
+          final_score_source: "embedding_score",
+          title: "Risk map safe",
+          platform: "joonggonara",
+          summary: "risk map safe summary",
+        },
+        {
+          case_id: "scan_1234abcd",
+          label: "current",
+          score: 0.57,
+          x: 57,
+          y: 46,
+          z: 52,
+          embedding_risk_score: 0.57,
+          final_score_source: "scan_embedding_score",
+          title: "Current scan",
+          platform: "joonggonara",
+          summary: "current scan summary",
+        },
+      ],
+    };
+
+    const model = buildDashboardModel({
+      scanResult,
+      pipelineDebug,
+      caseUmap: null,
+      caseRiskMap: riskMap,
+    });
+
+    expect(model.embedding.title).toBe("Risk-axis semantic map");
+    expect(model.embedding.pipeline).toBe("raw embedding -> PLS1 risk axis + semantic residual UMAP(2/3)");
+    expect(model.embedding.points).toEqual([
+      {
+        id: "risk_case_high",
+        label: "Risk map high",
+        x: 88,
+        y: 22,
+        z: 40,
+        x3d: 88,
+        y3d: 22,
+        z3d: 40,
+        variant: "fraud",
+        riskScore: 0.88,
+      },
+      {
+        id: "risk_case_safe",
+        label: "Risk map safe",
+        x: 12,
+        y: 72,
+        z: 61,
+        x3d: 12,
+        y3d: 72,
+        z3d: 61,
+        variant: "safe",
+        riskScore: 0.08,
+      },
+      {
+        id: "scan_1234abcd",
+        label: "Current scan",
+        x: 57,
+        y: 46,
+        z: 52,
+        x3d: 57,
+        y3d: 46,
+        z3d: 52,
+        variant: "current",
+        riskScore: 0.57,
+      },
+    ]);
   });
 });

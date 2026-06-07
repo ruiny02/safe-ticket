@@ -152,9 +152,12 @@ class ScanService:
             risk_score=rag_score.risk_score,
             risk_points=rag_score.risk_points,
             risk_score_breakdown=rag_score.breakdown,
+            embedding_risk_score=rag_score.embedding_risk_score,
+            risk_space_model_version=rag_score.risk_space_model_version,
+            projection_type="embedding_pls1_primary_pls7_cosine_v1",
             summary=summary,
             llm_reasoning=llm_reasoning,
-            risk_tags=self._build_risk_tags(inbound_payload.risk_tags, rag_context.scoring_signals),
+            risk_tags=self._build_risk_tags(inbound_payload.risk_tags, rag_context.scoring_signals, rag_score),
             evidence_items=evidence_items,
             highlight_targets=highlight_targets,
             similar_cases=similar_cases or inbound_payload.similar_cases,
@@ -235,7 +238,7 @@ class ScanService:
 
     def _fallback_summary(self, score: RAGScore) -> str:
         """Build a minimal deterministic summary when LLM generation is unavailable."""
-        if score.risk_points == 200:
+        if score.risk_score >= 1.0 and any(item.component == "external_lookup_positive" for item in score.breakdown):
             return "외부 신고 이력이 확인되어 즉시 거래를 중단하고 상세 내용을 확인해야 합니다."
         if score.risk_level == "high":
             return "유사 사례, 계좌 패턴, 사용자 거래 맥락을 종합하면 추가 확인이 필요한 거래입니다."
@@ -243,15 +246,20 @@ class ScanService:
             return "일부 위험 신호가 감지되어 송금 전 추가 확인이 필요합니다."
         return "현재 탐지된 위험 신호는 낮지만, 안전결제와 판매자 확인은 계속 권장됩니다."
 
-    def _build_risk_tags(self, pipeline_tags: list[str], scoring_signals: dict[str, object]) -> list[str]:
+    def _build_risk_tags(
+        self,
+        pipeline_tags: list[str],
+        scoring_signals: dict[str, object],
+        score: RAGScore,
+    ) -> list[str]:
         """Expose stable tags from pipeline and deterministic RAG scoring."""
         tags = list(dict.fromkeys(pipeline_tags))
         if bool(scoring_signals.get("external_lookup_positive")):
             tags.append("external_lookup_positive")
         if bool(scoring_signals.get("has_savings_account_pattern")):
             tags.append("savings_account_pattern")
-        if float(scoring_signals.get("max_similarity_score", 0.0) or 0.0) > 0:
-            tags.append("similar_case_match")
+        if score.embedding_risk_score is not None:
+            tags.append("risk_space_similarity")
         return list(dict.fromkeys(tags))
 
     def _dedupe_evidence_items(self, items: list[EvidenceItem]) -> list[EvidenceItem]:

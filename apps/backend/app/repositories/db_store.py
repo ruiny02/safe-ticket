@@ -171,6 +171,7 @@ class DatabaseStore:
 
     def _scan_from_row(self, row: Scan) -> ScanResultResponse:
         """Convert the ORM row into the API polling response schema."""
+        risk_space_metadata = self._risk_space_metadata(row.risk_score_breakdown_json or [])
         return ScanResultResponse(
             scan_id=row.scan_id,
             status=row.status,  # type: ignore[arg-type]
@@ -178,6 +179,9 @@ class DatabaseStore:
             risk_score=row.risk_score,
             risk_points=row.risk_points,
             risk_score_breakdown=row.risk_score_breakdown_json or [],
+            embedding_risk_score=risk_space_metadata.get("embedding_risk_score"),
+            risk_space_model_version=risk_space_metadata.get("model_version"),
+            projection_type=risk_space_metadata.get("projection_type"),
             summary=row.summary,
             llm_reasoning=row.llm_reasoning,
             risk_tags=row.risk_tags or [],
@@ -202,6 +206,19 @@ class DatabaseStore:
             risk_score=row.risk_score,
             summary=row.summary,
         )
+
+    def _risk_space_metadata(self, breakdown: list[dict]) -> dict[str, object]:
+        """Extract optional risk-space metadata from the JSON breakdown."""
+        for item in breakdown:
+            if item.get("component") != "embedding_risk_score":
+                continue
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            return {
+                "embedding_risk_score": item.get("value"),
+                "model_version": metadata.get("model_version"),
+                "projection_type": metadata.get("projection_type"),
+            }
+        return {}
 
 
 db_store = DatabaseStore()

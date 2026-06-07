@@ -28,7 +28,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-local}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,chrome-extension://piplejjlfnkhpaaepdmmpbljnmcnjaga}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/safe_ticket}
       PIPELINE_BASE_URL: http://pipeline:8010
       PIPELINE_ANALYZE_PATH: ${PIPELINE_ANALYZE_PATH:-/api/v1/analyze}
