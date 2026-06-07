@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
 
-DEFAULT_MODEL = "gemini-embedding-2"
+DEFAULT_MODEL = "gemini-embedding-1"
 DEFAULT_OUTPUT_DIM = 768
 DEFAULT_TASK_TYPE = "RETRIEVAL_DOCUMENT"
 EMBEDDING_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent"
