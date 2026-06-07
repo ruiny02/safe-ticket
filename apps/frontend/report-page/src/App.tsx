@@ -111,6 +111,197 @@ const RECENT_SCANS = [
   { id: "scan_921ce7df", title: "아이돌 팬미팅 양도", tone: "warning" as Tone, summary: "본인 확인 정보 요구와 메신저 이동이 동시에 감지됨" },
 ];
 
+function buildSampleScanResult(
+  scanId: string,
+  riskLevel: NonNullable<ScanResultResponse["risk_level"]>,
+  riskScore: number,
+  summary: string,
+  highlights: Array<{ text: string; reason: string }>,
+  actions: string[],
+): ScanResultResponse {
+  const highlightTargets = highlights.map((item, index) => ({
+    block_id: "body-1",
+    start: index * 10,
+    end: index * 10 + item.text.length,
+    matched_text: item.text,
+    reason_code: `sample-${index}`,
+    reason: item.reason,
+    css_class: riskLevel === "high" ? "safe-ticket-highlight-danger" : "safe-ticket-highlight-warning",
+  }));
+
+  return {
+    scan_id: scanId,
+    status: "completed",
+    risk_level: riskLevel,
+    risk_score: riskScore,
+    summary,
+    risk_tags: highlights.map((item) => item.text),
+    evidence_items: highlightTargets,
+    highlight_targets: highlightTargets,
+    similar_cases: [
+      {
+        case_id: `${scanId}-similar-1`,
+        score: Math.max(0.51, Math.min(0.93, riskScore + 0.08)),
+        summary,
+      },
+    ],
+    recommended_actions: actions.map((action, index) => ({
+      action: `권장 행동 ${index + 1}`,
+      description: action,
+    })),
+    external_lookup_results: [],
+    degraded: false,
+    report_url: null,
+  };
+}
+
+const SAMPLE_SCAN_RESULTS: Record<string, ScanResultResponse> = {
+  scan_41f2a8a9: buildSampleScanResult(
+    "scan_41f2a8a9",
+    "high",
+    0.82,
+    "계좌 재전송 요청과 외부 메신저 이동 문구가 함께 감지돼 위험도가 높습니다.",
+    [
+      { text: "계좌 다시 보내드릴게요", reason: "계좌 재전송 요청이 반복될 때 사칭 또는 대리 판매 가능성을 의심해야 합니다." },
+      { text: "카톡으로 연락 주세요", reason: "플랫폼 밖 메신저 이동은 분쟁 보호 범위를 벗어날 가능성이 큽니다." },
+    ],
+    ["플랫폼 안심결제 여부를 먼저 확인하세요.", "판매자 계정과 계좌 명의가 일치하는지 추가 확인하세요."],
+  ),
+  scan_20ce1f11: buildSampleScanResult(
+    "scan_20ce1f11",
+    "medium",
+    0.56,
+    "급한 입금 유도 표현과 과도한 할인 문구가 함께 잡혀 추가 확인이 필요합니다.",
+    [
+      { text: "오늘 안에 입금 가능하신 분만", reason: "시간 압박 문구는 거래 결정을 서두르게 만듭니다." },
+      { text: "시세보다 싸게", reason: "과도한 할인은 미끼 매물일 가능성이 있습니다." },
+    ],
+    ["판매 내역과 실물 인증을 먼저 요청하세요.", "입금 전 좌석 정보와 예매 내역을 다시 확인하세요."],
+  ),
+  scan_8d93a4bb: buildSampleScanResult(
+    "scan_8d93a4bb",
+    "low",
+    0.14,
+    "현재 규칙 기준으로는 뚜렷한 고위험 신호가 적습니다.",
+    [{ text: "정가 양도", reason: "가격 관련 신호는 있으나 과도한 압박이나 외부 이동은 적습니다." }],
+    ["거래 전 본인 인증과 예매 내역을 한 번 더 확인하세요."],
+  ),
+  scan_921ce7df: buildSampleScanResult(
+    "scan_921ce7df",
+    "medium",
+    0.61,
+    "본인 확인 정보 요구와 메신저 이동 문구가 같이 감지돼 주의가 필요합니다.",
+    [
+      { text: "신분증 일부 보여주세요", reason: "과도한 개인정보 요구는 2차 피해로 이어질 수 있습니다." },
+      { text: "오픈채팅으로 이동", reason: "플랫폼 외부로 이동하면 보호 장치가 약해집니다." },
+    ],
+    ["민감한 개인정보는 가리고 전달하세요.", "플랫폼 내 채팅과 결제 수단을 우선 사용하세요."],
+  ),
+};
+
+const SAMPLE_PIPELINE_DEBUG: Record<string, PipelineExchangeResponse> = {
+  scan_41f2a8a9: {
+    scan_id: "scan_41f2a8a9",
+    outbound_payload: {
+      scan_id: "scan_41f2a8a9",
+      platform: "joonggonara",
+      page_url: "https://web.joongna.com/product/229241708",
+      page_title: "뮤지컬 티켓 양도",
+      price: 180000,
+      seller: { seller_id: "seller-410", nickname: "뮤지컬양도맨" },
+      content_blocks: [{ block_id: "body-1", text: "계좌 다시 보내드릴게요. 카톡으로 연락 주세요." }],
+      marketplace_signals: [],
+      user_profile: null,
+    },
+    inbound_payload: {
+      risk_level: "high",
+      risk_score: 0.82,
+      summary: "계좌 재전송 요청과 외부 메신저 이동 문구가 함께 감지돼 위험도가 높습니다.",
+      risk_tags: ["계좌 다시 보내드릴게요", "카톡으로 연락 주세요"],
+      evidence_items: [],
+      highlight_targets: [],
+      similar_cases: [],
+      recommended_actions: [],
+      degraded: false,
+    },
+  },
+  scan_20ce1f11: {
+    scan_id: "scan_20ce1f11",
+    outbound_payload: {
+      scan_id: "scan_20ce1f11",
+      platform: "bunjang",
+      page_url: "https://m.bunjang.co.kr/products/411763350",
+      page_title: "콘서트 플로어 좌석 급처",
+      price: 95000,
+      seller: { seller_id: "seller-233", nickname: "플로어양도" },
+      content_blocks: [{ block_id: "body-1", text: "오늘 안에 입금 가능하신 분만 연락 주세요. 시세보다 싸게 드려요." }],
+      marketplace_signals: [],
+      user_profile: null,
+    },
+    inbound_payload: {
+      risk_level: "medium",
+      risk_score: 0.56,
+      summary: "급한 입금 유도 표현과 과도한 할인 문구가 함께 잡혀 추가 확인이 필요합니다.",
+      risk_tags: ["오늘 안에 입금 가능하신 분만", "시세보다 싸게"],
+      evidence_items: [],
+      highlight_targets: [],
+      similar_cases: [],
+      recommended_actions: [],
+      degraded: false,
+    },
+  },
+  scan_8d93a4bb: {
+    scan_id: "scan_8d93a4bb",
+    outbound_payload: {
+      scan_id: "scan_8d93a4bb",
+      platform: "joonggonara",
+      page_url: "https://web.joongna.com/product/229245101",
+      page_title: "정가 양도 게시글",
+      price: 230000,
+      seller: { seller_id: "seller-812", nickname: "고상한사고견과류" },
+      content_blocks: [{ block_id: "body-1", text: "정가 양도합니다. 예매 내역 확인 가능합니다." }],
+      marketplace_signals: [],
+      user_profile: null,
+    },
+    inbound_payload: {
+      risk_level: "low",
+      risk_score: 0.14,
+      summary: "현재 규칙 기준으로는 뚜렷한 고위험 신호가 적습니다.",
+      risk_tags: ["정가 양도"],
+      evidence_items: [],
+      highlight_targets: [],
+      similar_cases: [],
+      recommended_actions: [],
+      degraded: false,
+    },
+  },
+  scan_921ce7df: {
+    scan_id: "scan_921ce7df",
+    outbound_payload: {
+      scan_id: "scan_921ce7df",
+      platform: "bunjang",
+      page_url: "https://m.bunjang.co.kr/products/410576644",
+      page_title: "아이돌 팬미팅 양도",
+      price: 72000,
+      seller: { seller_id: "seller-921", nickname: "팬미팅양도" },
+      content_blocks: [{ block_id: "body-1", text: "신분증 일부 보여주세요. 오픈채팅으로 이동 부탁드려요." }],
+      marketplace_signals: [],
+      user_profile: null,
+    },
+    inbound_payload: {
+      risk_level: "medium",
+      risk_score: 0.61,
+      summary: "본인 확인 정보 요구와 메신저 이동 문구가 같이 감지돼 주의가 필요합니다.",
+      risk_tags: ["신분증 일부 보여주세요", "오픈채팅으로 이동"],
+      evidence_items: [],
+      highlight_targets: [],
+      similar_cases: [],
+      recommended_actions: [],
+      degraded: false,
+    },
+  },
+};
+
 function getCurrentRoute() {
   if (typeof window === "undefined") {
     return { view: "dashboard" as const, scanId: null };
@@ -187,14 +378,14 @@ function topActionMeta(view: ReportView) {
   if (view === "reports") {
     return {
       title: "Reports",
-      copy: "scan 단위 핵심 해설 페이지입니다. 길게 늘어놓지 않고, 왜 문제가 됐는지와 어떤 대응이 필요한지만 문장형으로 정리합니다.",
+      copy: "한 건의 scan을 짧고 선명하게 정리한 해설 페이지입니다. 왜 위험하다고 봤는지와 지금 어떤 대응이 필요한지만 문장 중심으로 보여줍니다.",
       pill: "Narrative",
     };
   }
 
   return {
     title: "Dashboard",
-    copy: "현재 scan 기준으로 어떤 신호가 잡혔는지, 임베딩 공간에서 어디에 놓이는지, 판매자와 원문 근거가 어떻게 연결되는지 카드 중심으로 보여주는 분석 대시보드입니다.",
+    copy: "현재 스캔의 핵심 신호, 판매자 정보, 외부 조회 결과, 임베딩 위치를 한 화면에서 빠르게 확인하는 분석 대시보드입니다.",
     pill: "Workspace",
   };
 }
@@ -209,6 +400,19 @@ function iconSvg(path: string) {
 
 function IconButton({ children }: { children: ReactNode }) {
   return <button className="dashboard-topicon" type="button">{children}</button>;
+}
+
+function getSampleScanContext(scanId: string) {
+  const scanResult = SAMPLE_SCAN_RESULTS[scanId];
+  if (!scanResult) {
+    return null;
+  }
+
+  return {
+    scanResult,
+    pipelineDebug: SAMPLE_PIPELINE_DEBUG[scanId] ?? null,
+    caseUmap: null,
+  };
 }
 
 function OverviewCard({
@@ -575,61 +779,76 @@ function formatDistance(value: number | undefined) {
 }
 
 function SellerObservationCard({
+  listingTitle,
   sellerName,
-  primaryAlias,
-  accountNumber,
-  recentFraudCases,
-  observedAliases,
+  priceText,
+  trustSignals,
+  className,
 }: {
+  listingTitle: string;
   sellerName: string;
-  primaryAlias: string;
-  accountNumber: string;
-  recentFraudCases: number;
-  observedAliases: string[];
+  priceText: string;
+  trustSignals: DashboardModel["sellerObservation"]["trustSignals"];
+  className?: string;
 }) {
   return (
-    <article className="dashboard-card dashboard-col-4">
+    <article className={className ? `dashboard-card ${className}` : "dashboard-card dashboard-col-12"}>
       <header className="dashboard-card-header">
         <div>
-          <h3>판매자 / 작성자 관찰 정보</h3>
-          <p>닉네임, 계좌, 최근 관찰 사례를 하나의 카드로 묶었습니다.</p>
+          <h3>현재 거래</h3>
+          <p>현재 스캔에 포함된 판매자, 가격, 신뢰지표를 한 번에 확인합니다.</p>
         </div>
-        <span className="dashboard-pill is-warning">Observed</span>
+        <span className="dashboard-pill is-warning">Captured</span>
       </header>
       <div className="dashboard-card-body">
         <div className="dashboard-observation-grid">
+          <div className="dashboard-observation-item dashboard-observation-item-full">
+            <span>제목</span>
+            <strong>{listingTitle}</strong>
+          </div>
           <div className="dashboard-observation-item">
-            <span>판매자 이름</span>
+            <span>판매자</span>
             <strong>{sellerName}</strong>
           </div>
           <div className="dashboard-observation-item">
-            <span>주요 닉네임</span>
-            <strong>{primaryAlias}</strong>
-          </div>
-          <div className="dashboard-observation-item">
-            <span>계좌번호</span>
-            <strong>{accountNumber}</strong>
-          </div>
-          <div className="dashboard-observation-item">
-            <span>최근 사기 거래 내역</span>
-            <strong>{recentFraudCases}건</strong>
+            <span>가격</span>
+            <strong>{priceText}</strong>
           </div>
         </div>
-        <div className="dashboard-chip-row">
-          {observedAliases.map((alias) => (
-            <span className="dashboard-pill is-neutral" key={alias}>
-              {alias}
-            </span>
-          ))}
+        <div className="dashboard-observation-signals">
+          <span>신뢰 지표</span>
+          {trustSignals.length ? (
+            <ul
+              className="dashboard-signal-list"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(Math.max(trustSignals.length, 1), 4)}, minmax(0, 1fr))`,
+              }}
+            >
+              {trustSignals.map((signal) => (
+                <li key={`${signal.key}-${signal.value}`}>
+                  <strong>{signal.label}</strong>
+                  <p>{signal.value}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="dashboard-muted-copy">현재 스캔 payload에 포함된 신뢰지표는 없습니다.</p>
+          )}
         </div>
       </div>
     </article>
   );
 }
 
-function ExternalLookupCard({ dashboard }: { dashboard: DashboardModel }) {
+function ExternalLookupCard({
+  dashboard,
+  className,
+}: {
+  dashboard: DashboardModel;
+  className?: string;
+}) {
   return (
-    <article className="dashboard-card dashboard-col-12 dashboard-external-card">
+    <article className={className ? `dashboard-card dashboard-external-card ${className}` : "dashboard-card dashboard-col-12 dashboard-external-card"}>
       <header className="dashboard-card-header">
         <div>
           <h3>External verification</h3>
@@ -698,13 +917,7 @@ function buildSignalRowsFromDashboard(dashboard: DashboardModel): typeof SIGNAL_
   return matchedRows.length > 0 ? matchedRows : SIGNAL_ROWS;
 }
 
-function ShellActionRow({
-  view,
-  addViewHref,
-}: {
-  view: ReportView;
-  addViewHref: string;
-}) {
+function ShellActionRow({ view }: { view: ReportView }) {
   const meta = topActionMeta(view);
 
   return (
@@ -713,21 +926,6 @@ function ShellActionRow({
         <div className="dashboard-eyebrow">{meta.pill}</div>
         <h1>{meta.title}</h1>
         <p>{meta.copy}</p>
-      </div>
-
-      <div className="dashboard-actions-right">
-        <button className="dashboard-btn dashboard-btn-muted" type="button">
-          {iconSvg("M3 4h14v2H3zM6 9h8v2H6zM8 14h4v2H8z")}
-          <span>Filter</span>
-        </button>
-        <button className="dashboard-btn dashboard-btn-muted" type="button">
-          {iconSvg("M5 2h1v2h8V2h1v2h2v13H3V4zm11 5H4v8h12z")}
-          <span>Apr 13, 2026</span>
-        </button>
-        <a className="dashboard-btn dashboard-btn-primary" href={addViewHref}>
-          {iconSvg("M10 4v12M4 10h12")}
-          <span>Add View</span>
-        </a>
       </div>
     </div>
   );
@@ -795,6 +993,18 @@ export function App() {
       setCaseUmap(null);
 
       try {
+        const sampleContext = getSampleScanContext(scanId);
+        if (sampleContext) {
+          if (cancelled) {
+            return;
+          }
+
+          setScanResult(sampleContext.scanResult);
+          setPipelineDebug(sampleContext.pipelineDebug);
+          setCaseUmap(sampleContext.caseUmap);
+          return;
+        }
+
         const [result, debug, umap] = await Promise.all([
           pollScanResult(scanId),
           getPipelineDebug(API_BASE_URL, scanId),
@@ -892,12 +1102,11 @@ export function App() {
   };
 
   const renderDashboardView = () => {
-    const outboundPayload = pipelineDebug?.outbound_payload;
     const signalRows = dashboard ? buildSignalRowsFromDashboard(dashboard) : SIGNAL_ROWS;
 
     return (
       <>
-        <ShellActionRow addViewHref={reportsHref} view="dashboard" />
+        <ShellActionRow view="dashboard" />
 
         {route.scanId ? (
           isScanContextLoading ? (
@@ -939,41 +1148,13 @@ export function App() {
                 title={dashboard.overview.label}
               />
 
-              <ExternalLookupCard dashboard={dashboard} />
-
-              <article className="dashboard-card dashboard-col-8">
-                <header className="dashboard-card-header">
-                  <div>
-                    <h3>Top signals</h3>
-                    <p>현재 분석에서 실제로 flag가 선 문구와, 어느 지점에서 판단에 반영됐는지 보여줍니다.</p>
-                  </div>
-                  <span className="dashboard-pill is-warning">Active scan</span>
-                </header>
-                <div className="dashboard-card-body dashboard-table-wrap">
-                  <table className="dashboard-table">
-                    <thead>
-                      <tr>
-                        <th>Signal</th>
-                        <th>Flag</th>
-                        <th>Location</th>
-                        <th>Excerpt</th>
-                        <th>Detail</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {signalRows.map((row) => (
-                        <tr key={row.source}>
-                          <td>{row.source}</td>
-                          <td><span className={signalPillClass(row.status)}>{row.status}</span></td>
-                          <td>{row.location}</td>
-                          <td>{row.excerpt}</td>
-                          <td>{row.detail}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
+              <SellerObservationCard
+                className="dashboard-col-12"
+                listingTitle={dashboard.sellerObservation.listingTitle}
+                priceText={dashboard.sellerObservation.priceText}
+                sellerName={dashboard.sellerObservation.sellerName}
+                trustSignals={dashboard.sellerObservation.trustSignals}
+              />
 
               <article className="dashboard-card dashboard-col-12 dashboard-embedding-card">
                 <header className="dashboard-card-header">
@@ -1006,38 +1187,47 @@ export function App() {
                 </div>
               </article>
 
-              <SellerObservationCard
-                accountNumber={dashboard.sellerObservation.accountNumber}
-                observedAliases={dashboard.sellerObservation.observedAliases}
-                primaryAlias={dashboard.sellerObservation.primaryAlias}
-                recentFraudCases={dashboard.sellerObservation.recentFraudCases}
-                sellerName={dashboard.sellerObservation.sellerName}
-              />
+              <ExternalLookupCard dashboard={dashboard} />
 
-              <article className="dashboard-card dashboard-col-4">
+              <article className="dashboard-card dashboard-col-12">
                 <header className="dashboard-card-header">
                   <div>
-                    <h3>Why flagged</h3>
-                    <p>문제 이유</p>
+                    <h3>Top signals</h3>
+                    <p>현재 분석에서 실제로 잡힌 핵심 신호와, 각 신호가 어떤 이유로 중요해졌는지 정리합니다.</p>
                   </div>
+                  <span className="dashboard-pill is-warning">Active scan</span>
                 </header>
-                <div className="dashboard-card-body">
-                  <ul className="dashboard-detail-list">
-                    {dashboard.reasons.map((reason) => (
-                      <li key={`${reason.label}-${reason.value}`}>
-                        <strong>{reason.label}</strong>
-                        <p>{reason.value}</p>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="dashboard-card-body dashboard-table-wrap">
+                  <table className="dashboard-table">
+                    <thead>
+                      <tr>
+                        <th>Signal</th>
+                        <th>Flag</th>
+                        <th>Location</th>
+                        <th>Excerpt</th>
+                        <th>Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {signalRows.map((row) => (
+                        <tr key={row.source}>
+                          <td>{row.source}</td>
+                          <td><span className={signalPillClass(row.status)}>{row.status}</span></td>
+                          <td>{row.location}</td>
+                          <td>{row.excerpt}</td>
+                          <td>{row.detail}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </article>
 
-              <article className="dashboard-card dashboard-col-8">
+              <article className="dashboard-card dashboard-col-12">
                 <header className="dashboard-card-header">
                   <div>
                     <h3>Next actions</h3>
-                    <p>권장 확인 사항</p>
+                    <p>지금 바로 확인하거나 멈춰야 할 다음 행동입니다.</p>
                   </div>
                 </header>
                 <div className="dashboard-card-body">
@@ -1051,47 +1241,21 @@ export function App() {
                   </ul>
                 </div>
               </article>
-
-              <article className="dashboard-card dashboard-col-12">
-                <header className="dashboard-card-header">
-                  <div>
-                    <h3>Source trace</h3>
-                    <p>원문 / 판매자 정보</p>
-                  </div>
-                  <span className="dashboard-pill is-neutral">captured payload</span>
-                </header>
-                <div className="dashboard-card-body dashboard-source-grid">
-                  <div className="dashboard-source-box">
-                    <strong>원본 게시글</strong>
-                    <p>{outboundPayload?.page_title}</p>
-                    <small>{outboundPayload?.page_url}</small>
-                  </div>
-                  <div className="dashboard-source-box">
-                    <strong>판매자</strong>
-                    <p>{outboundPayload?.seller.nickname}</p>
-                    <small>{outboundPayload?.seller.seller_id}</small>
-                  </div>
-                  <div className="dashboard-source-box dashboard-source-full">
-                    <strong>수집된 본문 블록</strong>
-                    <pre>{outboundPayload?.content_blocks.map((block) => block.text).join("\n\n")}</pre>
-                  </div>
-                </div>
-              </article>
             </section>
           ) : null
         ) : (
           <section className="dashboard-grid">
             <OverviewCard
-              description="최근 보호 지표를 하나의 카드에서 함께 보고, 어떤 축에서 검토가 필요한지 바로 읽도록 정리했습니다."
+              description="최근 보호 지표를 먼저 보고, 그다음 어떤 경고 신호가 현재 게시글에서 발견됐는지 이어서 확인합니다."
               items={DASHBOARD_OVERVIEW_ITEMS}
               title="Risk overview"
             />
 
-            <article className="dashboard-card dashboard-col-8">
+            <article className="dashboard-card dashboard-col-12">
               <header className="dashboard-card-header">
                 <div>
                   <h3>Top signals</h3>
-                  <p>현재 데모 게시글에서 실제로 어디에 걸렸는지와, 아직 안 잡힌 항목을 함께 보여줍니다.</p>
+                  <p>현재 데모 게시글에서 실제로 감지된 신호와 아직 찾지 못한 항목을 함께 보여줍니다.</p>
                 </div>
                 <span className="dashboard-pill is-warning">Current post</span>
               </header>
@@ -1152,7 +1316,7 @@ export function App() {
               </div>
             </article>
 
-            <article className="dashboard-card dashboard-col-4">
+            <article className="dashboard-card dashboard-col-12">
               <header className="dashboard-card-header">
                 <div>
                   <h3>Recent scans</h3>
@@ -1181,11 +1345,9 @@ export function App() {
   };
 
   const renderReportsView = () => {
-    const topHighlights = scanResult?.highlight_targets.slice(0, 3) ?? [];
-
     return (
       <>
-        <ShellActionRow addViewHref={DEMO_PAGE_URL} view="reports" />
+        <ShellActionRow view="reports" />
 
         {!route.scanId ? (
           <section className="dashboard-grid">
@@ -1241,21 +1403,12 @@ export function App() {
                     <small>{scanResult.similar_cases.length} similar cases</small>
                   </div>
                 </div>
-                <div className="dashboard-highlight-row">
-                  {topHighlights.map((target) => (
-                    <span className="dashboard-highlight-pill" key={`${target.matched_text}-${target.start}`}>
-                      {target.matched_text}
-                    </span>
-                  ))}
-                </div>
               </div>
             </article>
 
             {reportBrief.sections.map((section) => (
               <NarrativeCard key={section.title} sentences={section.sentences} title={section.title} />
             ))}
-
-            <ExternalLookupCard dashboard={dashboard} />
           </section>
         ) : null}
       </>
@@ -1264,7 +1417,7 @@ export function App() {
 
   const renderSettingsView = () => (
     <>
-      <ShellActionRow addViewHref={HEALTHCHECK_URL} view="settings" />
+      <ShellActionRow view="settings" />
 
       {!account ? (
         <section className="dashboard-grid dashboard-settings-login-only">

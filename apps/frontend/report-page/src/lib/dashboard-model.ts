@@ -2,6 +2,7 @@ import type {
   CaseUmapResponse,
   CaseUmapVariant,
   ExternalLookupResult,
+  MarketplaceSignal,
   PipelineExchangeResponse,
   ScanResultResponse,
 } from "../../../shared/types";
@@ -73,8 +74,11 @@ export interface DashboardModel {
     };
   };
   sellerObservation: {
+    listingTitle: string;
     sellerName: string;
     primaryAlias: string;
+    priceText: string;
+    trustSignals: MarketplaceSignal[];
     accountNumber: string;
     recentFraudCases: number;
     observedAliases: string[];
@@ -88,6 +92,14 @@ export interface DashboardModel {
 
 function toPercent(value: number): string {
   return `${Math.round(value * 100)}점`;
+}
+
+function formatPrice(value: number | null | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "미확인";
+  }
+
+  return `${value.toLocaleString("ko-KR")}원`;
 }
 
 function riskHeadline(riskLevel: ScanResultResponse["risk_level"]): { title: string; tone: Tone } {
@@ -226,7 +238,7 @@ export function buildDashboardModel({
 
   return {
     hero: {
-      eyebrow: `scan ${scanResult.scan_id}`,
+      eyebrow: "SCAN RESULT",
       title: headline.title,
       summary:
         scanResult.summary ??
@@ -264,8 +276,11 @@ export function buildDashboardModel({
       summary: embedding.summary,
     },
     sellerObservation: {
+      listingTitle: pipelineDebug?.outbound_payload.page_title ?? "미확인",
       sellerName: seller?.nickname ?? "미확인",
       primaryAlias: seller?.nickname ?? "미확인",
+      priceText: formatPrice(pipelineDebug?.outbound_payload.price),
+      trustSignals: pipelineDebug?.outbound_payload.marketplace_signals ?? [],
       accountNumber,
       recentFraudCases: similarCaseCount + 1,
       observedAliases: [seller?.nickname ?? "미확인", "급처티켓", "openchat123"],
