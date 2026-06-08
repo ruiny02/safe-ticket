@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -38,8 +38,15 @@ class MarketplaceSignal(BaseModel):
     value: str
 
 
+class UserRiskContext(BaseModel):
+    """Normalized internal user context used only for RAG risk calibration."""
+
+    age_group: Literal["under_30", "30_59", "60_plus", "unknown"] = "unknown"
+    trade_experience: Literal["high", "medium", "low", "unknown"] = "unknown"
+
+
 class UserProfile(BaseModel):
-    """Optional user information used for personalized risk weighting."""
+    """Optional public user information used for personalized risk weighting."""
 
     age: int | None = Field(default=None, ge=0, le=120)
     trade_experience_level: Literal["beginner", "intermediate", "advanced"] | None = None
@@ -86,6 +93,19 @@ class SimilarCase(BaseModel):
     case_id: str
     score: float
     summary: str
+    matched_chunk: str | None = None
+    risk_level: Literal["low", "medium", "high"] | None = None
+    risk_flags: list[str] = Field(default_factory=list)
+
+
+class RiskScoreComponent(BaseModel):
+    """One deterministic contribution to the final risk score."""
+
+    component: str
+    points: int
+    reason: str
+    value: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RecommendedAction(BaseModel):
@@ -173,7 +193,13 @@ class ScanResultResponse(BaseModel):
     # The remaining fields appear once the pipeline has produced a result.
     risk_level: Literal["low", "medium", "high"] | None = None
     risk_score: float | None = None
+    risk_points: int | None = None
+    risk_score_breakdown: list[RiskScoreComponent] = Field(default_factory=list)
+    embedding_risk_score: float | None = None
+    risk_space_model_version: str | None = None
+    projection_type: str | None = None
     summary: str | None = None
+    llm_reasoning: str | None = None
     risk_tags: list[str] = Field(default_factory=list)
     evidence_items: list[EvidenceItem] = Field(default_factory=list)
     highlight_targets: list[EvidenceItem] = Field(default_factory=list)
@@ -182,4 +208,3 @@ class ScanResultResponse(BaseModel):
     external_lookup_results: list[ExternalLookupResponse] = Field(default_factory=list)
     degraded: bool = False
     report_url: str | None = None
-

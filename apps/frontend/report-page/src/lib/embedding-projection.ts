@@ -10,6 +10,7 @@ export interface EmbeddingProjectionPoint {
   y3d?: number;
   z3d?: number;
   variant: EmbeddingProjectionVariant;
+  riskScore?: number;
 }
 
 export interface EmbeddingCamera {
@@ -36,6 +37,26 @@ function normalizeCoordinate(value: number) {
 
 function getPointRadius(variant: EmbeddingProjectionVariant) {
   return variant === "current" ? 2.55 : 1.28;
+}
+
+export function buildStarPolygonPoints({
+  centerX,
+  centerY,
+  outerRadius,
+  innerRadius,
+}: {
+  centerX: number;
+  centerY: number;
+  outerRadius: number;
+  innerRadius: number;
+}): string {
+  return Array.from({ length: 10 }, (_, index) => {
+    const angle = -Math.PI / 2 + index * (Math.PI / 5);
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
+    return `${x.toFixed(3)},${y.toFixed(3)}`;
+  }).join(" ");
 }
 
 export function projectEmbeddingPoint3D(

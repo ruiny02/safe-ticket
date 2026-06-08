@@ -9,6 +9,8 @@ from app.schemas.scan import (
     ScanListResponse,
     ScanResultResponse,
 )
+from app.schemas.risk_map import ScanRiskProjectionResponse
+from app.services.risk_space.service import build_scan_projection_response
 from app.services.scan_service import scan_service
 
 
@@ -57,3 +59,15 @@ def get_pipeline_debug(scan_id: str) -> PipelineExchangeResponse:
     if exchange is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="scan not found")
     return exchange
+
+
+@router.get("/{scan_id}/risk-projection", response_model=ScanRiskProjectionResponse)
+def get_scan_risk_projection(
+    scan_id: str,
+    mode: str = Query(default="final", pattern="^(embedding|final)$"),
+) -> ScanRiskProjectionResponse:
+    """Return score-aligned risk-space projection for a completed scan."""
+    projection = build_scan_projection_response(scan_id=scan_id, mode=mode)
+    if projection is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="scan not found")
+    return projection

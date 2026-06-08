@@ -135,11 +135,12 @@ def test_seller_context_report_uses_scan_and_profile_context(monkeypatch: pytest
 
     scan_response = client.post("/api/v1/scans/sync", json=build_scan_payload())
     assert scan_response.status_code == 200
+    scan_body = scan_response.json()
 
     response = client.post(
         "/api/v1/sellers/context-report",
         json={
-            "scan_id": scan_response.json()["scan_id"],
+            "scan_id": scan_body["scan_id"],
             "profile_url": "https://web.joongna.com/store/code-shop",
         },
     )
@@ -151,7 +152,7 @@ def test_seller_context_report_uses_scan_and_profile_context(monkeypatch: pytest
     assert body["source"] == "gemini"
     assert body["profile_snapshot"]["trust_index"] == 394
     assert observed == {
-        "risk_score": 0.84,
+        "risk_score": scan_body["risk_score"],
         "page_title": "Concert ticket transfer",
         "seller_name": "배그최저가코드상점",
     }

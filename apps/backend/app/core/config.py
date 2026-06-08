@@ -33,16 +33,21 @@ class Settings(BaseSettings):
 
     # Gemini API settings are role-specific so each AI task can move models independently.
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_chat_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_CHAT_MODEL")
-    gemini_analysis_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_ANALYSIS_MODEL")
-    gemini_embedding_model: str = Field(default="gemini-embedding-001", alias="GEMINI_EMBEDDING_MODEL")
+    gemini_chat_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_CHAT_MODEL")
+    gemini_analysis_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_ANALYSIS_MODEL")
+    gemini_embedding_model: str = Field(default="gemini-embedding-2", alias="GEMINI_EMBEDDING_MODEL")
+    gemini_scan_analysis_enabled: bool = Field(default=False, alias="GEMINI_SCAN_ANALYSIS_ENABLED")
     gemini_api_timeout_seconds: float = Field(default=30.0, alias="GEMINI_API_TIMEOUT_SECONDS")
+    gemini_max_retries: int = Field(default=1, alias="GEMINI_MAX_RETRIES")
 
     # External lookup automation uses a user-created TheCheat browser session if available.
     external_lookup_enabled: bool = Field(default=True, alias="EXTERNAL_LOOKUP_ENABLED")
     sync_external_lookup_enabled: bool = Field(default=False, alias="SYNC_EXTERNAL_LOOKUP_ENABLED")
     external_lookup_timeout_ms: int = Field(default=15000, alias="EXTERNAL_LOOKUP_TIMEOUT_MS")
     thecheat_cdp_url: str = Field(default="", alias="THECHEAT_CDP_URL")
+
+    # Risk-space artifacts are trained from existing DB embeddings and reused for scoring/maps.
+    risk_space_artifact_dir: str = Field(default=".artifacts/risk_space", alias="RISK_SPACE_ARTIFACT_DIR")
 
     model_config = SettingsConfigDict(
         env_file=".env",

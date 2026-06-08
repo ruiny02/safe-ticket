@@ -972,16 +972,35 @@ svg {
 .embedding-point.current,
 .embedding-3d-point.current,
 .embedding-legend-dot.current {
-  fill: var(--gray-900);
-  background: var(--gray-900);
+  fill: var(--violet-600);
+  background: var(--violet-600);
 }
 
 .embedding-current-ring,
-.embedding-3d-current-halo {
+.embedding-3d-current-halo,
+.embedding-current-star-halo,
+.embedding-3d-current-star-halo {
   fill: none;
-  stroke: rgba(132, 112, 255, 0.42);
-  stroke-width: 0.8;
+  stroke: rgba(124, 58, 237, 0.42);
+  stroke-linejoin: round;
+  stroke-width: 0.72;
   vector-effect: non-scaling-stroke;
+}
+
+.embedding-current-star,
+.embedding-3d-current-star {
+  fill: var(--violet-600);
+  stroke: rgba(255, 255, 255, 0.98);
+  stroke-linejoin: round;
+  stroke-width: 0.62;
+  filter: drop-shadow(0 3px 7px rgba(124, 58, 237, 0.34));
+  vector-effect: non-scaling-stroke;
+}
+
+.embedding-current-star-halo,
+.embedding-3d-current-star-halo {
+  fill: rgba(139, 92, 246, 0.16);
+  stroke-width: 0.62;
 }
 
 .dashboard-embedding-plot-caption {

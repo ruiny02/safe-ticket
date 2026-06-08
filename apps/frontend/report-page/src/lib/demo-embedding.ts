@@ -13,6 +13,7 @@ export interface DemoEmbeddingPoint {
   y3d?: number;
   z3d?: number;
   variant: DemoEmbeddingVariant;
+  riskScore?: number;
 }
 
 interface RawPoint {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildStarPolygonPoints,
   projectEmbeddingPoint3D,
   projectEmbeddingPoints3D,
   type EmbeddingProjectionPoint,
@@ -60,5 +61,12 @@ describe("embedding 3D projection", () => {
     expect(projected.screenX).toBe(76.4);
     expect(projected.screenY).toBe(63.2);
     expect(projected.depth).toBe(0.84);
+  });
+
+  it("builds a five-point star polygon for the current scan marker", () => {
+    const points = buildStarPolygonPoints({ centerX: 50, centerY: 40, outerRadius: 5, innerRadius: 2.2 });
+
+    expect(points.split(" ")).toHaveLength(10);
+    expect(points).toContain("50.000,35.000");
   });
 });

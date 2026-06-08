@@ -111,6 +111,8 @@ class Scan(Base):
     status: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
     risk_level: Mapped[str | None] = mapped_column(String(16), nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    risk_points: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    risk_score_breakdown_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     llm_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     risk_tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)

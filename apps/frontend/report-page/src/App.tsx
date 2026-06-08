@@ -9,17 +9,18 @@ import {
   type WheelEvent,
 } from "react";
 
-import { getSafeTicketApiBaseUrl } from "../../shared/runtime-config";
-import { createSellerContextReport, getCaseUmap, getPipelineDebug, getScan } from "../../shared/scan-api";
+import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
+import { createSellerContextReport, getCaseRiskMap, getPipelineDebug, getScan } from "../../shared/scan-api";
 import type {
-  CaseUmapResponse,
   PipelineExchangeResponse,
+  RiskMapResponse,
   ScanResultResponse,
   SellerContextReportResponse,
 } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
 import {
+  buildStarPolygonPoints,
   projectEmbeddingAxis3D,
   projectEmbeddingPoint3D,
   projectEmbeddingPoints3D,
@@ -29,7 +30,7 @@ import { buildRouteHref, parseReportRoute, shouldRefreshReportData, type ReportV
 import { buildReportBrief } from "./lib/report-brief";
 
 const API_BASE_URL = getSafeTicketApiBaseUrl();
-const FRONTEND_BASE_URL = "http://54.180.226.121:3000";
+const FRONTEND_BASE_URL = getSafeTicketFrontendBaseUrl();
 const DEMO_PAGE_URL = `${FRONTEND_BASE_URL}/product/227242032.html`;
 const DEMO_JOONGNA_CHAT_URL = `${FRONTEND_BASE_URL}/joongna-chat.html`;
 const DEMO_BUNJANG_CHAT_URL = `${FRONTEND_BASE_URL}/bunjang-chat.html`;
@@ -457,6 +458,7 @@ function OverviewCard({
 
 function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
   const currentPoint = points.find((point) => point.variant === "current");
+  const historicalPoints = points.filter((point) => point.variant !== "current");
 
   return (
     <div className="dashboard-embedding-plot-shell is-2d">
@@ -478,18 +480,15 @@ function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
         ))}
         <line className="embedding-axis-line" x1="8" x2="94" y1="92" y2="92" />
         <line className="embedding-axis-line" x1="8" x2="8" y1="8" y2="92" />
-        <text className="embedding-axis-label" x="90" y="88">UMAP 1</text>
-        <text className="embedding-axis-label is-y" x="12" y="13">UMAP 2</text>
-        {points.map((point) => (
+        <text className="embedding-axis-label" x="78" y="88">PLS1 risk</text>
+        <text className="embedding-axis-label is-y" x="12" y="13">Semantic residual</text>
+        {historicalPoints.map((point) => (
           <g key={point.id}>
-            {point.variant === "current" ? (
-              <circle className="embedding-current-ring" cx={point.x} cy={point.y} r="4.7" />
-            ) : null}
             <circle
               className={`embedding-point ${point.variant}`}
               cx={point.x}
               cy={point.y}
-              r={point.variant === "current" ? 2.65 : 1.2}
+              r="1.2"
             />
           </g>
         ))}
@@ -497,6 +496,24 @@ function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
           <>
             <line className="embedding-current-guide" x1={currentPoint.x} x2={currentPoint.x} y1="8" y2="92" />
             <line className="embedding-current-guide" x1="8" x2="94" y1={currentPoint.y} y2={currentPoint.y} />
+            <polygon
+              className="embedding-current-star-halo"
+              points={buildStarPolygonPoints({
+                centerX: currentPoint.x,
+                centerY: currentPoint.y,
+                outerRadius: 5.2,
+                innerRadius: 2.3,
+              })}
+            />
+            <polygon
+              className="embedding-current-star"
+              points={buildStarPolygonPoints({
+                centerX: currentPoint.x,
+                centerY: currentPoint.y,
+                outerRadius: 3.9,
+                innerRadius: 1.7,
+              })}
+            />
           </>
         ) : null}
       </svg>
@@ -589,7 +606,10 @@ function PointTooltip({ point }: { point: ProjectedEmbeddingPoint }) {
       }}
     >
       <strong>{point.label}</strong>
-      <span>{point.variant} / z {point.z.toFixed(1)}</span>
+      <span>
+        {typeof point.riskScore === "number" ? `risk ${Math.round(point.riskScore * 100)} / ` : ""}
+        z {point.z.toFixed(1)}
+      </span>
     </div>
   );
 }
@@ -600,6 +620,8 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
   const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
   const dragStartRef = useRef<{ pointerX: number; pointerY: number; pitch: number; yaw: number } | null>(null);
   const projectedPoints = useMemo(() => projectEmbeddingPoints3D(points, camera), [camera, points]);
+  const historicalProjectedPoints = projectedPoints.filter((point) => point.variant !== "current");
+  const currentProjectedPoint = projectedPoints.find((point) => point.variant === "current") ?? null;
   const axes = useMemo(
     () => [
       ["x", projectEmbeddingAxis3D("x", camera)],
@@ -719,7 +741,7 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
               </text>
             </g>
           ))}
-          {projectedPoints.map((point) => (
+          {historicalProjectedPoints.map((point) => (
             <g
               className={`embedding-3d-point-group ${point.variant}`}
               key={point.id}
@@ -727,9 +749,6 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
               onMouseEnter={() => setHoveredPointId(point.id)}
               onMouseLeave={() => setHoveredPointId(null)}
             >
-              {point.variant === "current" ? (
-                <circle className="embedding-3d-current-halo" cx={point.screenX} cy={point.screenY} r={point.radius + 2.7} />
-              ) : null}
               <circle
                 className={`embedding-3d-point ${point.variant}`}
                 cx={point.screenX}
@@ -738,6 +757,34 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
               />
             </g>
           ))}
+          {currentProjectedPoint ? (
+            <g
+              className="embedding-3d-point-group current"
+              key={currentProjectedPoint.id}
+              opacity={currentProjectedPoint.opacity}
+              onMouseEnter={() => setHoveredPointId(currentProjectedPoint.id)}
+              onMouseLeave={() => setHoveredPointId(null)}
+            >
+              <polygon
+                className="embedding-3d-current-star-halo"
+                points={buildStarPolygonPoints({
+                  centerX: currentProjectedPoint.screenX,
+                  centerY: currentProjectedPoint.screenY,
+                  outerRadius: currentProjectedPoint.radius + 4.1,
+                  innerRadius: currentProjectedPoint.radius + 1.1,
+                })}
+              />
+              <polygon
+                className="embedding-3d-current-star"
+                points={buildStarPolygonPoints({
+                  centerX: currentProjectedPoint.screenX,
+                  centerY: currentProjectedPoint.screenY,
+                  outerRadius: currentProjectedPoint.radius + 2.3,
+                  innerRadius: currentProjectedPoint.radius * 0.82,
+                })}
+              />
+            </g>
+          ) : null}
         </svg>
         {hoveredPoint ? <PointTooltip point={hoveredPoint} /> : null}
       </div>
@@ -751,7 +798,7 @@ function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
       <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
         <div>
           <strong>Embedding projection studio</strong>
-          <span>위험도 순서형 target으로 완만하게 조정한 Supervised UMAP(2/3)을 분석합니다.</span>
+          <span>PLS1 risk axis와 semantic residual UMAP을 결합해 위험도 순서와 의미적 이웃을 함께 봅니다.</span>
         </div>
         <ClusterLegend />
       </div>
@@ -759,14 +806,14 @@ function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
         <section className="dashboard-embedding-view-card is-2d">
           <div className="dashboard-embedding-view-head">
             <strong>2D density slice</strong>
-            <span>Supervised UMAP(2)</span>
+            <span>PLS1 risk x residual UMAP</span>
           </div>
           <EmbeddingMap points={points} />
         </section>
         <section className="dashboard-embedding-view-card is-3d">
           <div className="dashboard-embedding-view-head">
             <strong>3D orbit field</strong>
-            <span>Supervised UMAP(3)</span>
+            <span>Risk axis + residual depth</span>
           </div>
           <EmbeddingMap3D points={points} />
         </section>
@@ -777,10 +824,6 @@ function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function formatDistance(value: number | undefined) {
-  return typeof value === "number" ? value.toFixed(3) : "-";
 }
 
 function SellerObservationCard({
@@ -1052,7 +1095,7 @@ export function App() {
   const [route, setRoute] = useState(initialRoute);
   const [scanResult, setScanResult] = useState<ScanResultResponse | null>(null);
   const [pipelineDebug, setPipelineDebug] = useState<PipelineExchangeResponse | null>(null);
-  const [caseUmap, setCaseUmap] = useState<CaseUmapResponse | null>(null);
+  const [caseRiskMap, setCaseRiskMap] = useState<RiskMapResponse | null>(null);
   const [sellerContextReport, setSellerContextReport] = useState<SellerContextReportResponse | null>(null);
   const [sellerContextError, setSellerContextError] = useState<string | null>(null);
   const [isSellerContextLoading, setIsSellerContextLoading] = useState(false);
@@ -1079,7 +1122,7 @@ export function App() {
           setError(null);
           setScanResult(null);
           setPipelineDebug(null);
-          setCaseUmap(null);
+          setCaseRiskMap(null);
           setSellerContextReport(null);
           setSellerContextError(null);
           setIsSellerContextLoading(false);
@@ -1100,7 +1143,7 @@ export function App() {
     if (route.view === "settings" || !route.scanId) {
       setScanResult(null);
       setPipelineDebug(null);
-      setCaseUmap(null);
+      setCaseRiskMap(null);
       setSellerContextReport(null);
       setSellerContextError(null);
       setIsSellerContextLoading(false);
@@ -1115,7 +1158,7 @@ export function App() {
       setError(null);
       setScanResult(null);
       setPipelineDebug(null);
-      setCaseUmap(null);
+      setCaseRiskMap(null);
       setSellerContextReport(null);
       setSellerContextError(null);
       setIsSellerContextLoading(false);
@@ -1129,14 +1172,13 @@ export function App() {
 
           setScanResult(sampleContext.scanResult);
           setPipelineDebug(sampleContext.pipelineDebug);
-          setCaseUmap(sampleContext.caseUmap);
+          setCaseRiskMap(null);
           return;
         }
 
-        const [result, debug, umap] = await Promise.all([
+        const [result, debug] = await Promise.all([
           pollScanResult(scanId),
           getPipelineDebug(API_BASE_URL, scanId),
-          getCaseUmap(API_BASE_URL, scanId).catch(() => null),
         ]);
 
         if (cancelled) {
@@ -1145,7 +1187,24 @@ export function App() {
 
         setScanResult(result);
         setPipelineDebug(debug);
-        setCaseUmap(umap);
+        // Keep the legacy /cases/umap code available, but prefer the risk-space map only.
+        void getCaseRiskMap(API_BASE_URL, {
+          dim: 3,
+          mode: "embedding",
+          reducer: "umap",
+          projection: "pls7_umap",
+          scanId,
+        })
+          .then((riskMap) => {
+            if (!cancelled) {
+              setCaseRiskMap(riskMap);
+            }
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setCaseRiskMap(null);
+            }
+          });
       } catch (nextError) {
         if (cancelled) {
           return;
@@ -1208,9 +1267,10 @@ export function App() {
     return buildDashboardModel({
       scanResult,
       pipelineDebug,
-      caseUmap,
+      caseUmap: null,
+      caseRiskMap,
     });
-  }, [caseUmap, pipelineDebug, scanResult]);
+  }, [caseRiskMap, pipelineDebug, scanResult]);
   const reportBrief = useMemo(() => {
     if (!scanResult || !dashboard) {
       return null;
@@ -1336,18 +1396,6 @@ export function App() {
                       <span>nearest label group</span>
                       <strong>{dashboard.embedding.summary.nearestCluster}</strong>
                     </div>
-                    <div>
-                      <span>fraud center</span>
-                      <strong>{formatDistance(dashboard.embedding.summary.distances.fraud)}</strong>
-                    </div>
-                    <div>
-                      <span>borderline center</span>
-                      <strong>{formatDistance(dashboard.embedding.summary.distances.borderline)}</strong>
-                    </div>
-                    <div>
-                      <span>safe center</span>
-                      <strong>{formatDistance(dashboard.embedding.summary.distances.safe)}</strong>
-                    </div>
                   </div>
                   <EmbeddingMapExplorer points={dashboard.embedding.points} />
                 </div>
@@ -1455,7 +1503,7 @@ export function App() {
               <header className="dashboard-card-header">
                 <div>
                   <h3>Embedding map</h3>
-                  <p>원본 임베딩을 PCA(50)와 supervised UMAP으로 축소한 뒤, 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
+                  <p>원본 임베딩을 PLS7 risk-aware latent space로 변환한 뒤 unsupervised UMAP으로 축소해 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
                 </div>
                 <span className="dashboard-pill is-neutral">{dashboardEmbedding.pipeline}</span>
               </header>
@@ -1464,18 +1512,6 @@ export function App() {
                   <div>
                     <span>nearest label group</span>
                     <strong>{dashboardEmbedding.summary.nearestCluster}</strong>
-                  </div>
-                  <div>
-                    <span>fraud center</span>
-                    <strong>{formatDistance(dashboardEmbedding.summary.distances.fraud)}</strong>
-                  </div>
-                  <div>
-                    <span>borderline center</span>
-                    <strong>{formatDistance(dashboardEmbedding.summary.distances.borderline)}</strong>
-                  </div>
-                  <div>
-                    <span>safe center</span>
-                    <strong>{formatDistance(dashboardEmbedding.summary.distances.safe)}</strong>
                   </div>
                 </div>
                 <EmbeddingMapExplorer points={dashboardEmbedding.points} />

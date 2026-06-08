@@ -25,6 +25,10 @@ function getFrontendBaseUrl(currentUrl, latestScan = null) {
     return latestScan.frontendBaseUrl.replace(/\/+$/, "");
   }
 
+  return getCurrentFrontendBaseUrl(currentUrl);
+}
+
+function getCurrentFrontendBaseUrl(currentUrl) {
   try {
     const parsedUrl = new URL(currentUrl);
     const isSafeTicketFrontend =
