@@ -344,7 +344,6 @@ export function buildDashboardModel({
   const seller = pipelineDebug?.outbound_payload.seller;
   const highlightCount = scanResult.highlight_targets.length;
   const similarCaseCount = scanResult.similar_cases.length;
-  const riskPercentile = Math.min(99, Math.max(3, Math.round((scanResult.risk_score ?? 0.5) * 100)));
   const embedding = buildEmbeddingModel({ caseUmap, caseRiskMap, scanResult });
   const accountNumber = extractAccountNumber(pipelineDebug?.outbound_payload.content_blocks ?? []);
 
@@ -367,16 +366,16 @@ export function buildDashboardModel({
           tone: headline.tone,
         },
         {
-          label: "Protected buyers",
-          value: `${Math.max(200, 240 + highlightCount * 18)}`,
-          detail: "계정 보호 기준으로 재가공된 사용자 수",
-          tone: "ok",
+          label: "Flagged text",
+          value: `${highlightCount}`,
+          detail: "원문에서 backend가 위험 근거로 표시한 문구 수",
+          tone: highlightCount > 0 ? headline.tone : "ok",
         },
         {
-          label: "Manual review",
-          value: `${Math.max(9, similarCaseCount + highlightCount)}`,
-          detail: `상위 ${riskPercentile}% 위험 구간`,
-          tone: "warning",
+          label: "Similar cases",
+          value: `${similarCaseCount}`,
+          detail: "RAG 검색으로 연결된 유사 거래 사례 수",
+          tone: similarCaseCount > 0 ? "warning" : "ok",
         },
       ],
     },

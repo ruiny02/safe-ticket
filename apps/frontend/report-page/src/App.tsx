@@ -64,15 +64,15 @@ const DASHBOARD_OVERVIEW_ITEMS = [
     tone: "danger" as const,
   },
   {
-    label: "Protected buyers",
-    value: "312",
-    detail: "최근 7일 동안 보호 기준으로 재가공된 사용자 수",
+    label: "Flagged text",
+    value: "0",
+    detail: "원문에서 backend가 위험 근거로 표시한 문구 수",
     tone: "ok" as const,
   },
   {
-    label: "Manual review",
-    value: "19",
-    detail: "수동 검토로 넘긴 거래. watchlist 기준 -4%",
+    label: "Similar cases",
+    value: "0",
+    detail: "RAG 검색으로 연결된 유사 거래 사례 수",
     tone: "warning" as const,
   },
 ];
@@ -809,13 +809,13 @@ function SellerContextReportCard({
           {levelLabel}
         </span>
       </header>
-      <div className="dashboard-card-body dashboard-seller-report-scroll">
+      <div className="dashboard-card-body">
         {!profileUrl ? (
           <p className="dashboard-muted-copy">
             이 scan에는 자동 추출된 판매자 프로필 URL이 없습니다. 중고나라 또는 번개장터 상품 페이지에서 다시 scan하면 자동 분석을 시도합니다.
           </p>
         ) : isLoading ? (
-          <p className="dashboard-muted-copy">판매자 프로필을 가져와서 Gemini 분석글을 작성하는 중입니다.</p>
+          <p className="dashboard-muted-copy">판매자 프로필과 현재 상품 위험도를 비교하는 중입니다.</p>
         ) : error ? (
           <div className="dashboard-seller-report-section">
             <strong>판매자 분석을 불러오지 못했습니다</strong>
@@ -834,10 +834,6 @@ function SellerContextReportCard({
               <div>
                 <span>Pattern</span>
                 <strong>{report.pattern_consistency}</strong>
-              </div>
-              <div>
-                <span>Source</span>
-                <strong>{report.source}</strong>
               </div>
             </div>
 

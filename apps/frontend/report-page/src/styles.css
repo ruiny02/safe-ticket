@@ -1294,15 +1294,9 @@ svg {
     #fff;
 }
 
-.dashboard-seller-report-scroll {
-  max-height: 420px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-
 .dashboard-seller-report-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
