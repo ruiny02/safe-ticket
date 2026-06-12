@@ -1301,6 +1301,189 @@ svg {
   margin-bottom: 18px;
 }
 
+.dashboard-seller-report-loading {
+  display: grid;
+  grid-template-columns: minmax(176px, 220px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  min-height: 174px;
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid rgba(132, 112, 255, 0.18);
+  border-radius: 22px;
+  background:
+    linear-gradient(115deg, rgba(248, 247, 255, 0.94) 0%, rgba(255, 255, 255, 0.86) 46%, rgba(240, 253, 244, 0.62) 100%),
+    rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.dashboard-seller-report-dossier {
+  position: relative;
+  min-height: 134px;
+  padding: 15px;
+  overflow: hidden;
+  border: 1px solid rgba(132, 112, 255, 0.16);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 250, 255, 0.82)),
+    #fff;
+  box-shadow:
+    0 18px 44px rgba(31, 41, 55, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.dashboard-seller-report-dossier::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(132, 112, 255, 0.14), transparent);
+  transform: translateX(-120%);
+  animation: seller-report-scanline 1.9s ease-in-out infinite;
+}
+
+.dashboard-seller-report-dossier-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dashboard-seller-report-avatar-skeleton {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(132, 112, 255, 0.46) 0 20%, transparent 21%),
+    radial-gradient(circle at 50% 104%, rgba(132, 112, 255, 0.26) 0 42%, transparent 43%),
+    rgba(132, 112, 255, 0.1);
+}
+
+.dashboard-seller-report-status-stamp {
+  padding: 5px 8px;
+  border: 1px solid rgba(132, 112, 255, 0.2);
+  border-radius: 999px;
+  color: #6f5cf3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-seller-report-skeleton-line {
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 11px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.dashboard-seller-report-skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
+  transform: translateX(-110%);
+  animation: seller-report-shimmer 1.45s ease-in-out infinite;
+}
+
+.dashboard-seller-report-skeleton-line.is-name {
+  width: 72%;
+}
+
+.dashboard-seller-report-skeleton-line.is-meta {
+  width: 48%;
+  margin-top: 10px;
+}
+
+.dashboard-seller-report-checklist {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.dashboard-seller-report-checklist span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-seller-report-checklist i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.1);
+  animation: seller-report-check-glow 1.8s ease-in-out infinite;
+}
+
+.dashboard-seller-report-checklist span:nth-child(2) i {
+  background: #f59e0b;
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.1);
+  animation-delay: 0.2s;
+}
+
+.dashboard-seller-report-checklist span:nth-child(3) i {
+  background: #8470ff;
+  box-shadow: 0 0 0 5px rgba(132, 112, 255, 0.1);
+  animation-delay: 0.4s;
+}
+
+.dashboard-seller-report-loading-copy span {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(132, 112, 255, 0.1);
+  color: #6f5cf3;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-seller-report-loading-copy strong {
+  display: block;
+  color: var(--gray-900);
+  font-size: 17px;
+  letter-spacing: -0.03em;
+}
+
+.dashboard-seller-report-loading-copy p {
+  margin: 8px 0 0;
+  color: var(--gray-500);
+  line-height: 1.65;
+}
+
+.dashboard-seller-report-progress {
+  width: min(340px, 100%);
+  height: 8px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(132, 112, 255, 0.1);
+}
+
+.dashboard-seller-report-progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8470ff, #22c55e);
+  animation: seller-report-progress 1.8s ease-in-out infinite;
+}
+
 .dashboard-seller-report-summary div {
   padding: 14px;
   border: 1px solid var(--gray-100);
@@ -1709,6 +1892,50 @@ svg {
   }
 }
 
+@keyframes seller-report-scanline {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  62%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes seller-report-shimmer {
+  to {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes seller-report-check-glow {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes seller-report-progress {
+  0% {
+    transform: translateX(-104%);
+  }
+
+  55% {
+    transform: translateX(86%);
+  }
+
+  100% {
+    transform: translateX(150%);
+  }
+}
+
 @media (max-width: 1240px) {
   .dashboard-col-4,
   .dashboard-col-5,
@@ -1766,6 +1993,14 @@ svg {
   .dashboard-list-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .dashboard-seller-report-loading {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-seller-report-dossier {
+    width: 100%;
   }
 }
 

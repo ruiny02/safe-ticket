@@ -815,7 +815,29 @@ function SellerContextReportCard({
             이 scan에는 자동 추출된 판매자 프로필 URL이 없습니다. 중고나라 또는 번개장터 상품 페이지에서 다시 scan하면 자동 분석을 시도합니다.
           </p>
         ) : isLoading ? (
-          <p className="dashboard-muted-copy">판매자 프로필과 현재 상품 위험도를 비교하는 중입니다.</p>
+          <div className="dashboard-seller-report-loading" role="status" aria-live="polite">
+            <div className="dashboard-seller-report-dossier" aria-hidden="true">
+              <div className="dashboard-seller-report-dossier-header">
+                <span className="dashboard-seller-report-avatar-skeleton" />
+                <span className="dashboard-seller-report-status-stamp">profiling</span>
+              </div>
+              <span className="dashboard-seller-report-skeleton-line is-name" />
+              <span className="dashboard-seller-report-skeleton-line is-meta" />
+              <div className="dashboard-seller-report-checklist">
+                <span><i />프로필 이력</span>
+                <span><i />거래 신호</span>
+                <span><i />현재 scan</span>
+              </div>
+            </div>
+            <div className="dashboard-seller-report-loading-copy">
+              <span>seller context</span>
+              <strong>판매자 프로필을 분석하고 있습니다</strong>
+              <p>공개 거래 이력과 현재 scan 위험 근거를 비교해 판매자 분석글을 생성하는 중입니다.</p>
+              <div className="dashboard-seller-report-progress" aria-hidden="true">
+                <span />
+              </div>
+            </div>
+          </div>
         ) : error ? (
           <div className="dashboard-seller-report-section">
             <strong>판매자 분석을 불러오지 못했습니다</strong>

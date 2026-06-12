@@ -6,10 +6,11 @@ import {
   type ChatConversationMessage,
 } from "../../shared/chat-api";
 import {
-  enhanceJoongnaProductPayloadFromDocument,
-  isReliableJoongnaProductPayload,
-} from "../../shared/joonggonara";
-import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
+  buildScanPayload,
+  enhanceMarketplacePayloadFromDocument,
+  isReliableMarketplacePayload,
+  parseMarketplacePageHtml,
+} from "../../shared/marketplace";
 import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
 import { createScan, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
@@ -329,8 +330,8 @@ export function App({ pageUrl }: AppProps) {
     try {
       const sourceHtml = await readMarketplaceHtml(activePageUrl);
       const parsedPayload = buildScanPayload(parseMarketplacePageHtml(sourceHtml, activePageUrl));
-      const nextPayload = enhanceJoongnaProductPayloadFromDocument(document, parsedPayload);
-      const isReliablePayload = isReliableJoongnaProductPayload(nextPayload);
+      const nextPayload = enhanceMarketplacePayloadFromDocument(document, parsedPayload);
+      const isReliablePayload = isReliableMarketplacePayload(nextPayload);
 
       if (requestId !== parseRequestIdRef.current || activePageUrl !== readCurrentPageUrl()) {
         return false;
@@ -559,7 +560,7 @@ export function App({ pageUrl }: AppProps) {
     let scheduled = 0;
 
     const syncVisibleDetails = () => {
-      const nextPayload = enhanceJoongnaProductPayloadFromDocument(document, payload);
+      const nextPayload = enhanceMarketplacePayloadFromDocument(document, payload);
 
       if (JSON.stringify(nextPayload) !== JSON.stringify(payload)) {
         setPayload(nextPayload);

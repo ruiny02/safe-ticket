@@ -15,4 +15,15 @@ describe("seller report UI copy", () => {
     expect(appSource).not.toContain("dashboard-seller-report-scroll");
     expect(stylesSource).not.toContain(".dashboard-seller-report-scroll");
   });
+
+  it("uses an animated loading state while the seller profile report is being generated", () => {
+    expect(appSource).toContain("dashboard-seller-report-loading");
+    expect(appSource).toContain("dashboard-seller-report-dossier");
+    expect(appSource).toContain("판매자 프로필을 분석하고 있습니다");
+    expect(stylesSource).toContain(".dashboard-seller-report-loading");
+    expect(stylesSource).toContain("seller-report-shimmer");
+    expect(stylesSource).toContain("seller-report-scanline");
+    expect(appSource).not.toContain("dashboard-seller-report-loading-ring");
+    expect(appSource).not.toContain("dashboard-seller-report-loading-dot");
+  });
 });

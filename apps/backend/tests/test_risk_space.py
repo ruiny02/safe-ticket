@@ -218,7 +218,7 @@ def test_train_risk_space_model_scores_synthetic_fraud_above_safe() -> None:
     assert safe_score.coordinates.x2d < fraud_score.coordinates.x2d
     assert report["selected_candidate"]["pls_components"] >= 1
     assert report["selected_candidate"]["scoring_variant"] != "full_pls_16d_cosine"
-    assert artifact.score_weights == {"pls": 0.8, "prototype": 0.1, "neighbor": 0.1}
+    assert artifact.score_weights == {"pls": 0.7, "prototype": 0.15, "neighbor": 0.15}
     assert artifact.metrics["selected_active_model_reason"]
     assert report["metrics"]["class_mean_scores"]
 
@@ -248,8 +248,22 @@ def test_score_uses_pls1_primary_and_pls7_cosine_stabilizers() -> None:
         + artifact.score_weights["neighbor"] * risk_score.neighbor_score
     )
     assert risk_score.embedding_risk_score == pytest.approx(expected)
-    assert artifact.score_weights["prototype"] == pytest.approx(0.1)
-    assert artifact.score_weights["neighbor"] == pytest.approx(0.1)
+    assert artifact.score_weights["pls"] == pytest.approx(0.7)
+    assert artifact.score_weights["prototype"] == pytest.approx(0.15)
+    assert artifact.score_weights["neighbor"] == pytest.approx(0.15)
+
+
+def test_runtime_training_can_skip_full_candidate_search() -> None:
+    seed_pls7_cases_for_map()
+    dataset = load_case_embedding_dataset()
+
+    artifact, report = train_risk_space_model(dataset, candidate_mode="active")
+
+    assert artifact.scoring_variant == "weighted_pls7_cosine"
+    assert artifact.score_weights == {"pls": 0.7, "prototype": 0.15, "neighbor": 0.15}
+    assert report["selected_candidate"]["scoring_variant"] == "weighted_pls7_cosine"
+    assert report["diagnostic_baselines"] == {}
+    assert len(report["candidate_results"]) == 1
 
 
 def test_training_report_flags_leakage_uncertainty_and_duplicate_groups() -> None:

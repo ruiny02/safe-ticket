@@ -41,7 +41,7 @@ class MarketplaceSignal(BaseModel):
 class UserRiskContext(BaseModel):
     """Normalized internal user context used only for RAG risk calibration."""
 
-    age_group: Literal["under_30", "30_59", "60_plus", "unknown"] = "unknown"
+    age_group: Literal["under_30", "30_49", "30_59", "50_69", "60_plus", "70_plus", "unknown"] = "unknown"
     trade_experience: Literal["high", "medium", "low", "unknown"] = "unknown"
 
 

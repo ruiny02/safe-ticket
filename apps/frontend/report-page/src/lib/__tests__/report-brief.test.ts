@@ -87,19 +87,19 @@ const pipelineDebug: PipelineExchangeResponse = {
 };
 
 describe("buildReportBrief", () => {
-  it("builds concise narrative sections from the active scan context", () => {
+  it("builds expanded narrative sections without the duplicated seller observation section", () => {
     const dashboard = buildDashboardModel({ scanResult, pipelineDebug, caseUmap: null });
     const brief = buildReportBrief({ scanResult, dashboard, pipelineDebug });
 
     expect(brief.sections.map((section) => section.title)).toEqual([
       "판단 요약",
       "문제 핵심",
-      "판매자 관찰",
       "권장 대응",
       "원문 근거",
     ]);
+    expect(brief.sections.some((section) => section.title === "판매자 관찰")).toBe(false);
+    expect(brief.sections.every((section) => section.sentences.length >= 4)).toBe(true);
     expect(brief.sections[1]?.sentences.join(" ")).toContain("카카오뱅크");
-    expect(brief.sections[2]?.sentences.join(" ")).toContain("낭닥SJ");
-    expect(brief.sections[3]?.sentences).toContain("예금주, 은행명, 계좌번호를 다시 확인하세요.");
+    expect(brief.sections[2]?.sentences).toContain("예금주, 은행명, 계좌번호를 다시 확인하세요.");
   });
 });

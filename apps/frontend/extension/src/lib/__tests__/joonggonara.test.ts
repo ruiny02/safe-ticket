@@ -3,7 +3,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { parseBunjangChatHtml, parseBunjangPageHtml, parseBunjangProductHtml } from "../../../../shared/bunjang";
+import {
+  enhanceBunjangProductPayloadFromDocument,
+  parseBunjangChatHtml,
+  parseBunjangPageHtml,
+  parseBunjangProductHtml,
+} from "../../../../shared/bunjang";
 import { extractChatBlocksFromDocument } from "../../../../shared/parser-utils";
 import {
   buildScanPayload,
@@ -191,6 +196,7 @@ describe("parseJoongnaChatHtml", () => {
     expect(parsed.seller).toEqual({
       seller_id: "store-463",
       nickname: "similis",
+      profile_url: "https://web.joongna.com/store/463",
     });
     expect(parsed.marketplace_signals.some((signal) => signal.key === "safe_payment")).toBe(false);
     expect(parsed.content_blocks.some((block) => block.block_id === "jn-chat-004")).toBe(true);
@@ -268,6 +274,30 @@ describe("parseBunjangProductHtml", () => {
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("transaction_count");
   });
 
+  it("extracts a live bunjang seller name from a visible Typography T4 span", () => {
+    const html = `
+      <html>
+        <head><title>번개장터 티켓</title></head>
+        <body>
+          <span class="Typography_typography__1wr8iu13 Typography_typography_variant_T4__1wr8iu17 _productName_15v9v_11">세븐틴 콘서트 티켓</span>
+          <span class="Typography_typography__1wr8iu13 Typography_typography_variant_T2__1wr8iu15">120,000원</span>
+          <p class="_description_15uwa_1">중콘 1매 양도합니다.</p>
+          <a href="/shops/5158822">상점정보</a>
+          <span class="Typography_typography__1wr8iu13 Typography_typography_variant_T4__1wr8iu17" style="--colorVariants__1wr8iu10: #191919;">냠냠씽씽</span>
+          <span>후기 13</span>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseBunjangProductHtml(html, "https://m.bunjang.co.kr/products/401504836");
+
+    expect(parsed.seller.nickname).toBe("냠냠씽씽");
+    expect(parsed.seller.profile_url).toBe("https://m.bunjang.co.kr/shops/5158822");
+    expect(parsed.marketplace_signals).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "review_count", value: "13" })]),
+    );
+  });
+
   it("hydrates bunjang rating and satisfaction signals from visible DOM text", () => {
     const payload = {
       platform: "bunjang" as const,
@@ -308,6 +338,128 @@ describe("parseBunjangProductHtml", () => {
         expect.objectContaining({ key: "satisfaction_count", value: "100%" }),
       ]),
     );
+  });
+
+  it("hydrates live bunjang product title, price, and seller from rendered DOM", () => {
+    const payload = {
+      platform: "bunjang" as const,
+      page_url: "https://m.bunjang.co.kr/products/401504836",
+      page_title: "번개장터",
+      price: 0,
+      seller: {
+        seller_id: "bunjang-seller-unknown",
+        nickname: "unknown",
+      },
+      content_blocks: [{ block_id: "title", text: "번개장터" }],
+      marketplace_signals: [],
+    };
+    const titleNode = {
+      textContent: "샤이니 콘서트 티켓 양도",
+      getAttribute: (name: string) => (name === "class" ? "_productName_15v9v_11 Typography_typography_variant_T4__1wr8iu17" : ""),
+    };
+    const priceNode = {
+      textContent: "130,000원",
+      getAttribute: (name: string) => (name === "class" ? "Typography_typography_variant_T2__1wr8iu15" : ""),
+    };
+    const sellerNode = {
+      textContent: "냠냠씽씽",
+      getAttribute: (name: string) => (name === "class" ? "Typography_typography_variant_T4__1wr8iu17" : ""),
+    };
+    const sellerAnchor = {
+      textContent: "상점정보",
+      getAttribute: (name: string) => (name === "href" ? "/shops/5158822" : ""),
+    };
+    const document = {
+      body: {
+        innerText: "샤이니 콘서트 티켓 양도\n130,000원\n냠냠씽씽\n후기 13",
+      },
+      querySelector: (selector: string) => {
+        if (selector.includes("_productName_")) {
+          return titleNode;
+        }
+        if (selector.includes("_description_")) {
+          return null;
+        }
+        return null;
+      },
+      querySelectorAll: (selector: string) => {
+        if (selector.includes("Typography_typography_variant_T2") || selector.includes("Typography_typography_variant_S1")) {
+          return [priceNode];
+        }
+        if (selector.includes("Typography_typography_variant_T4")) {
+          return [titleNode, sellerNode];
+        }
+        if (selector.includes("/shops/") || selector.includes("/shop/")) {
+          return [sellerAnchor];
+        }
+        return [];
+      },
+      documentElement: {
+        outerHTML: "",
+      },
+    } as unknown as Document;
+
+    const enhanced = enhanceBunjangProductPayloadFromDocument(document, payload);
+
+    expect(enhanced.page_title).toBe("샤이니 콘서트 티켓 양도");
+    expect(enhanced.price).toBe(130000);
+    expect(enhanced.seller.nickname).toBe("냠냠씽씽");
+    expect(enhanced.seller.seller_id).toBe("5158822");
+    expect(enhanced.seller.profile_url).toBe("https://m.bunjang.co.kr/shops/5158822");
+    expect(enhanced.marketplace_signals).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "review_count", value: "13" })]),
+    );
+  });
+
+  it("hydrates bunjang profile URL from rendered review statistics resource URL", () => {
+    const payload = {
+      platform: "bunjang" as const,
+      page_url: "https://m.bunjang.co.kr/products/411942584",
+      page_title: "DAY6 데이식스 앙콘 콘서트첫콘 S6 2n번 양도",
+      price: 1200000,
+      seller: {
+        seller_id: "bunjang-seller-%EC%A7%80%EA%B5%AC%EB%B3%84123",
+        nickname: "지구별123",
+      },
+      content_blocks: [{ block_id: "title", text: "DAY6 데이식스 앙콘 콘서트첫콘 S6 2n번 양도" }],
+      marketplace_signals: [],
+    };
+    const sellerNode = {
+      textContent: "지구별123",
+      getAttribute: (name: string) => (name === "class" ? "Typography_typography_variant_T4__1wr8iu17" : ""),
+    };
+    const document = {
+      body: {
+        innerText: "지구별123\n5\n・\n후기 22\n・\n거래내역 59",
+      },
+      defaultView: {
+        performance: {
+          getEntriesByType: (type: string) =>
+            type === "resource"
+              ? [
+                  {
+                    name: "https://api.bunjang.co.kr/api/review/v2/users/84036735/reviews-statistics",
+                  },
+                ]
+              : [],
+        },
+      },
+      querySelector: () => null,
+      querySelectorAll: (selector: string) => {
+        if (selector.includes("Typography_typography_variant_T4")) {
+          return [sellerNode];
+        }
+        return [];
+      },
+      documentElement: {
+        outerHTML: "",
+      },
+    } as unknown as Document;
+
+    const enhanced = enhanceBunjangProductPayloadFromDocument(document, payload);
+
+    expect(enhanced.seller.seller_id).toBe("84036735");
+    expect(enhanced.seller.profile_url).toBe("https://m.bunjang.co.kr/shops/84036735");
   });
 
   it("hydrates live chat messages from rendered bunjang chat DOM", () => {
@@ -382,6 +534,7 @@ describe("parseBunjangChatHtml", () => {
     expect(parsed.page_title.length).toBeGreaterThan(3);
     expect(parsed.price).toBe(950000);
     expect(parsed.seller.seller_id).toBe("bunjang-user-5158822");
+    expect(parsed.seller.profile_url).toBe("https://m.bunjang.co.kr/shops/5158822");
     expect(parsed.marketplace_signals.map((signal) => signal.key)).toContain("transaction_count");
     expect(parsed.content_blocks.some((block) => block.block_id === "bg-chat-004")).toBe(true);
     expect(parsed.content_blocks.at(-1)?.text).toContain("1102-1234-5678");

@@ -7,7 +7,7 @@ import json
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from sklearn.cross_decomposition import PLSRegression
@@ -32,9 +32,10 @@ WEIGHT_CANDIDATES = (
     {"pls": 0.80, "prototype": 0.10, "neighbor": 0.10},
     {"pls": 0.70, "prototype": 0.15, "neighbor": 0.15},
 )
-ACTIVE_SCORE_WEIGHTS = {"pls": 0.80, "prototype": 0.10, "neighbor": 0.10}
+ACTIVE_SCORE_WEIGHTS = {"pls": 0.70, "prototype": 0.15, "neighbor": 0.15}
 TAU_CANDIDATES = (0.05, 0.10, 0.15, 0.20)
 ACTIVE_PLS_COMPONENTS = 7
+CandidateMode = Literal["full", "active"]
 
 
 @dataclass(frozen=True)
@@ -56,16 +57,26 @@ class CandidateConfig:
         return "pca" if self.pca_components else "none"
 
 
-def train_and_save_active_artifact(*, reducer: str = "pca", dry_run: bool = False) -> tuple[RiskSpaceArtifact, dict[str, Any]]:
+def train_and_save_active_artifact(
+    *,
+    reducer: str = "pca",
+    dry_run: bool = False,
+    candidate_mode: CandidateMode = "full",
+) -> tuple[RiskSpaceArtifact, dict[str, Any]]:
     """Train the best available artifact and save it as active unless dry-run."""
     dataset = load_case_embedding_dataset()
-    artifact, report = train_risk_space_model(dataset, reducer=reducer)
+    artifact, report = train_risk_space_model(dataset, reducer=reducer, candidate_mode=candidate_mode)
     if not dry_run:
         save_artifact(artifact, activate=True)
     return artifact, report
 
 
-def train_risk_space_model(dataset: RiskSpaceDataset, *, reducer: str = "pca") -> tuple[RiskSpaceArtifact, dict[str, Any]]:
+def train_risk_space_model(
+    dataset: RiskSpaceDataset,
+    *,
+    reducer: str = "pca",
+    candidate_mode: CandidateMode = "full",
+) -> tuple[RiskSpaceArtifact, dict[str, Any]]:
     """Train, evaluate, refit, and build a risk-space artifact from DB embeddings."""
     if dataset.x_raw.shape[0] == 0:
         raise ValueError("no eligible case embeddings found")
@@ -82,13 +93,17 @@ def train_risk_space_model(dataset: RiskSpaceDataset, *, reducer: str = "pca") -
     best_config: CandidateConfig | None = None
     best_score = -float("inf")
 
-    for config in _candidate_configs(dataset, train_indices):
-        result = _evaluate_candidate(dataset, train_indices, val_indices, config)
-        candidate_results.append(result)
-        selection_score = _selection_score(result)
-        if selection_score > best_score:
-            best_score = selection_score
-            best_config = config
+    if candidate_mode == "active":
+        best_config = _active_candidate_config(dataset, train_indices)
+        candidate_results.append(_candidate_result_stub(best_config))
+    else:
+        for config in _candidate_configs(dataset, train_indices):
+            result = _evaluate_candidate(dataset, train_indices, val_indices, config)
+            candidate_results.append(result)
+            selection_score = _selection_score(result)
+            if selection_score > best_score:
+                best_score = selection_score
+                best_config = config
 
     if best_config is None:
         best_config = CandidateConfig(
@@ -103,7 +118,13 @@ def train_risk_space_model(dataset: RiskSpaceDataset, *, reducer: str = "pca") -
         )
         warnings.append("fallback_default_candidate_used")
 
-    artifact = _fit_final_artifact(dataset, best_config, reducer=reducer, warnings=warnings)
+    artifact = _fit_final_artifact(
+        dataset,
+        best_config,
+        reducer=reducer,
+        warnings=warnings,
+        include_top_k_purity=candidate_mode == "full",
+    )
     report = {
         "sample_counts": dataset.sample_counts,
         "embedding_dim": dataset.embedding_dim,
@@ -240,6 +261,52 @@ def _candidate_configs(dataset: RiskSpaceDataset, train_indices: np.ndarray) -> 
     return configs
 
 
+def _active_candidate_config(dataset: RiskSpaceDataset, train_indices: np.ndarray) -> CandidateConfig:
+    """Return the service-policy scorer without running the full diagnostic search."""
+    n_train = len(train_indices)
+    embedding_dim = dataset.x_raw.shape[1]
+    bounded_pls7 = min(ACTIVE_PLS_COMPONENTS, n_train - 2, embedding_dim)
+    if bounded_pls7 >= 2:
+        return CandidateConfig(
+            pca_components=None,
+            pls_components=bounded_pls7,
+            score_weights=ACTIVE_SCORE_WEIGHTS,
+            scoring_variant="weighted_pls7_cosine",
+            component_weights=(),
+            prototype_strategy="weighted_low_dim_cosine",
+            neighbor_strategy="weighted_low_dim_cosine",
+            risk_axis_tau=0.10,
+        )
+
+    return CandidateConfig(
+        pca_components=None,
+        pls_components=max(1, min(1, n_train - 1, embedding_dim)),
+        score_weights=ACTIVE_SCORE_WEIGHTS,
+        scoring_variant="pls_axis_risk_density",
+        component_weights=(1.0,),
+        prototype_strategy="risk_axis_centroid_distance",
+        neighbor_strategy="risk_axis_density",
+        risk_axis_tau=0.10,
+    )
+
+
+def _candidate_result_stub(config: CandidateConfig) -> dict[str, Any]:
+    """Return lightweight report metadata for runtime active training."""
+    return {
+        "preprocessor_type": config.preprocessor_type,
+        "pca_components": config.pca_components,
+        "pls_components": config.pls_components,
+        "score_weights": config.score_weights,
+        "scoring_variant": config.scoring_variant,
+        "component_weights": list(config.component_weights),
+        "prototype_strategy": config.prototype_strategy,
+        "neighbor_strategy": config.neighbor_strategy,
+        "risk_axis_tau": config.risk_axis_tau,
+        "diagnostic_only": config.diagnostic_only,
+        "runtime_active_config": True,
+    }
+
+
 def _evaluate_candidate(
     dataset: RiskSpaceDataset,
     train_indices: np.ndarray,
@@ -302,6 +369,7 @@ def _fit_final_artifact(
     *,
     reducer: str,
     warnings: list[str],
+    include_top_k_purity: bool = True,
 ) -> RiskSpaceArtifact:
     artifact = _fit_artifact_for_indices(
         dataset,
@@ -311,7 +379,7 @@ def _fit_final_artifact(
         model_version=new_model_version(),
     )
     artifact.warnings.extend(warnings)
-    artifact.metrics = _final_metrics(artifact, dataset)
+    artifact.metrics = _final_metrics(artifact, dataset, include_top_k_purity=include_top_k_purity)
     return artifact
 
 
@@ -596,7 +664,12 @@ def _dataset_diagnostics(dataset: RiskSpaceDataset) -> dict[str, Any]:
     }
 
 
-def _final_metrics(artifact: RiskSpaceArtifact, dataset: RiskSpaceDataset) -> dict[str, Any]:
+def _final_metrics(
+    artifact: RiskSpaceArtifact,
+    dataset: RiskSpaceDataset,
+    *,
+    include_top_k_purity: bool = True,
+) -> dict[str, Any]:
     scores = [
         score_query_in_artifact(artifact=artifact, query_embedding=row, exclude_case_id=case_id).embedding_risk_score
         for row, case_id in zip(dataset.x_raw, dataset.case_ids, strict=True)
@@ -619,17 +692,17 @@ def _final_metrics(artifact: RiskSpaceArtifact, dataset: RiskSpaceDataset) -> di
         "mae_to_label_value": _safe_mae(scores, dataset.y),
         "class_mean_scores": class_means,
         "class_mean_ordered": _class_means_ordered(class_means),
-        "top_k_purity": _top_k_purity(artifact),
+        "top_k_purity": _top_k_purity(artifact) if include_top_k_purity else {},
         "component_risk_correlations": component_correlations,
         "pls_components": int(artifact.historical_z.shape[1]),
         "pls_y_cumulative_explained": y_cumulative_explained,
         "pls_y_incremental_explained": y_incremental_explained,
         "component_weights": artifact.component_weights,
         "selected_active_model_reason": (
-            "Selected the service-policy scorer with 0.80 PLS1 calibrated score and "
-            "0.10/0.10 weighted PLS7 prototype/neighbor cosine stabilizers."
+            "Selected the service-policy scorer with 0.70 PLS1 calibrated score and "
+            "0.15/0.15 weighted PLS7 prototype/neighbor cosine stabilizers."
         ),
-        "risk_target_source": "case_risk_score_continuous_pls7_v1",
+        "risk_target_source": "case_risk_score_continuous_pls7_v2",
         "scoring_variant": artifact.scoring_variant,
         "scoring_strategy": artifact.scoring_strategy,
         "score_weights": artifact.score_weights,
