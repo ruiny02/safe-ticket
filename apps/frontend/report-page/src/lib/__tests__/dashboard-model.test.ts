@@ -126,7 +126,7 @@ const pipelineDebug: PipelineExchangeResponse = {
 };
 
 describe("buildDashboardModel", () => {
-  it("builds a report-page dashboard model with consolidated overview, seller observation, and embedding metadata", () => {
+  it("builds a report-page dashboard model with consolidated overview and seller observation", () => {
     const model = buildDashboardModel({
       scanResult,
       pipelineDebug,
@@ -140,17 +140,14 @@ describe("buildDashboardModel", () => {
       "Protected buyers",
       "Manual review",
     ]);
-    expect(model.embedding.pipeline).toBe("Raw embedding -> PCA(50) -> UMAP(3)");
-    expect(model.embedding.points.length).toBeGreaterThanOrEqual(60);
-    expect(model.embedding.points.some((point) => point.variant === "current")).toBe(true);
-    expect(model.embedding.points.some((point) => point.variant === "fraud")).toBe(true);
-    expect(model.embedding.points.some((point) => point.variant === "safe")).toBe(true);
-    expect(model.embedding.points.some((point) => point.variant === "borderline")).toBe(true);
+    expect(model.embedding.title).toBe("임베딩 시각화 대기");
+    expect(model.embedding.pipeline).toBe("backend risk-map required");
+    expect(model.embedding.points).toEqual([]);
     expect(model.embedding.summary.nearestCluster).toBe("fraud");
     expect(model.embedding.summary.clusterCounts).toEqual({
-      fraud: 24,
-      safe: 24,
-      borderline: 18,
+      fraud: 0,
+      safe: 0,
+      borderline: 0,
     });
     expect(model.sellerObservation).toEqual({
       sellerName: "낭닥SJ",

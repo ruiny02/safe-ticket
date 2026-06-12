@@ -2,17 +2,15 @@
 
 중고나라와 번개장터 거래 채팅을 흉내낸 정적 페이지입니다.
 
-현재 Chrome extension은 이 폴더를 직접 로드하지 않습니다. 단일 확장 진입점은 `apps/frontend/web-demo`입니다. `pnpm --dir apps/frontend/web-demo build` 후 `apps/frontend/web-demo/dist`를 Chrome에서 Load unpacked로 로드합니다.
+현재 Chrome extension은 이 폴더를 직접 로드하지 않습니다. 단일 확장 진입점은 `apps/frontend/extension`입니다. `pnpm --dir apps/frontend/extension build` 후 `apps/frontend/extension/dist`를 Chrome에서 Load unpacked로 로드합니다.
 
 ## Files
 
 - `joongna-chat.html`: 중고나라 거래 채팅 데모
 - `bunjang-chat.html`: 번개장터 거래 채팅 데모
 - `styles.css`: 두 데모 페이지 공통 스타일
-- `demo-parser.js`: 메시지를 읽어 숨겨진 payload와 `window.safeTicketDemoPayload`를 만드는 샘플 parser
-- `safe-ticket-page-parser.js`: 통합 전 plain JavaScript parser 참고 파일
-- `safe-ticket-chat-scan.js`: 통합 전 overlay 참고 파일
-- `safe-ticket-external-lookup-display.js`: external lookup 표시 helper 참고 파일
+- 이 폴더에는 더 이상 별도 extension manifest나 overlay script를 두지 않습니다.
+- parsing, scan 요청, external lookup 표시는 통합 extension의 TypeScript 코드에서 처리합니다.
 
 ## Parser Hooks
 
@@ -51,11 +49,11 @@
 
 ## Chrome Extension Loading
 
-1. `pnpm --dir apps/frontend/web-demo build`로 통합 extension을 빌드합니다.
+1. `pnpm --dir apps/frontend/extension build`로 통합 extension을 빌드합니다.
 2. Chrome에서 `chrome://extensions`를 엽니다.
 3. `개발자 모드`를 켭니다.
 4. `압축해제된 확장 프로그램을 로드합니다`를 누릅니다.
-5. `apps/frontend/web-demo/dist`를 선택합니다.
+5. `apps/frontend/extension/dist`를 선택합니다.
 6. 아래 페이지에 접속한 뒤 새로고침합니다.
 
 ```text

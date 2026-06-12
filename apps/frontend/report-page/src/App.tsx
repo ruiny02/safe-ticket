@@ -19,7 +19,7 @@ import type {
   UserTradeExperienceLevel,
 } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
-import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
+import type { EmbeddingPoint } from "./lib/embedding-types";
 import {
   buildStarPolygonPoints,
   projectEmbeddingAxis3D,
@@ -41,6 +41,13 @@ const USER_PROFILE_STORAGE_KEY = "safeTicketUserProfile";
 type Tone = "danger" | "warning" | "ok" | "neutral";
 type SignalFlag = "Matched" | "Review" | "Not found";
 type ProfileSaveStatus = "자동 저장" | "저장됨";
+type SignalRow = {
+  source: string;
+  status: SignalFlag;
+  location: string;
+  excerpt: string;
+  detail: string;
+};
 
 const EXPERIENCE_LEVELS: UserTradeExperienceLevel[] = ["beginner", "intermediate", "advanced"];
 const EXPERIENCE_LABELS: Record<UserTradeExperienceLevel, string> = {
@@ -68,50 +75,6 @@ const DASHBOARD_OVERVIEW_ITEMS = [
     detail: "수동 검토로 넘긴 거래. watchlist 기준 -4%",
     tone: "warning" as const,
   },
-];
-
-const SIGNAL_ROWS: Array<{
-  source: string;
-  status: SignalFlag;
-  location: string;
-  excerpt: string;
-  detail: string;
-}> = [
-  {
-    source: "적금통장 패턴",
-    status: "Matched",
-    location: "상품 본문 > 계좌 번호",
-    excerpt: "3355-28-8620726",
-    detail: "카카오뱅크 355 패턴과 유사한 계좌 형식",
-  },
-  {
-    source: "모니터링 은행명",
-    status: "Matched",
-    location: "상품 본문 > 입금 은행",
-    excerpt: "카카오뱅크",
-    detail: "사기 악용 빈도가 높은 은행명 언급",
-  },
-  {
-    source: "시간 압박 표현",
-    status: "Review",
-    location: "상품 본문 > 거래 설명",
-    excerpt: "답변 지연 시 다음 분께 넘어갈 수 있습니다.",
-    detail: "거래 결정을 서두르게 만드는 문구",
-  },
-  {
-    source: "외부 메신저 이동",
-    status: "Not found",
-    location: "-",
-    excerpt: "-",
-    detail: "현재 데모 게시글에서는 직접 매칭되지 않음",
-  },
-];
-
-const RECENT_SCANS = [
-  { id: "scan_41f2a8a9", title: "뮤지컬 티켓 양도", tone: "danger" as Tone, summary: "계좌 재전송과 외부 메신저 이동이 함께 감지됨" },
-  { id: "scan_20ce1f11", title: "콘서트 플로어 좌석 급처", tone: "warning" as Tone, summary: "급한 입금 유도 표현과 과도한 할인 문구 감지" },
-  { id: "scan_8d93a4bb", title: "정가 양도 게시글", tone: "ok" as Tone, summary: "현재 규칙 기준 뚜렷한 경고는 적음" },
-  { id: "scan_921ce7df", title: "아이돌 팬미팅 양도", tone: "warning" as Tone, summary: "본인 확인 정보 요구와 메신저 이동이 동시에 감지됨" },
 ];
 
 function emptyUserProfile(): UserProfile {
@@ -160,197 +123,6 @@ function saveReportUserProfile(profile: UserProfile): void {
 
   window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
 }
-
-function buildSampleScanResult(
-  scanId: string,
-  riskLevel: NonNullable<ScanResultResponse["risk_level"]>,
-  riskScore: number,
-  summary: string,
-  highlights: Array<{ text: string; reason: string }>,
-  actions: string[],
-): ScanResultResponse {
-  const highlightTargets = highlights.map((item, index) => ({
-    block_id: "body-1",
-    start: index * 10,
-    end: index * 10 + item.text.length,
-    matched_text: item.text,
-    reason_code: `sample-${index}`,
-    reason: item.reason,
-    css_class: riskLevel === "high" ? "safe-ticket-highlight-danger" : "safe-ticket-highlight-warning",
-  }));
-
-  return {
-    scan_id: scanId,
-    status: "completed",
-    risk_level: riskLevel,
-    risk_score: riskScore,
-    summary,
-    risk_tags: highlights.map((item) => item.text),
-    evidence_items: highlightTargets,
-    highlight_targets: highlightTargets,
-    similar_cases: [
-      {
-        case_id: `${scanId}-similar-1`,
-        score: Math.max(0.51, Math.min(0.93, riskScore + 0.08)),
-        summary,
-      },
-    ],
-    recommended_actions: actions.map((action, index) => ({
-      action: `권장 행동 ${index + 1}`,
-      description: action,
-    })),
-    external_lookup_results: [],
-    degraded: false,
-    report_url: null,
-  };
-}
-
-const SAMPLE_SCAN_RESULTS: Record<string, ScanResultResponse> = {
-  scan_41f2a8a9: buildSampleScanResult(
-    "scan_41f2a8a9",
-    "high",
-    0.82,
-    "계좌 재전송 요청과 외부 메신저 이동 문구가 함께 감지돼 위험도가 높습니다.",
-    [
-      { text: "계좌 다시 보내드릴게요", reason: "계좌 재전송 요청이 반복될 때 사칭 또는 대리 판매 가능성을 의심해야 합니다." },
-      { text: "카톡으로 연락 주세요", reason: "플랫폼 밖 메신저 이동은 분쟁 보호 범위를 벗어날 가능성이 큽니다." },
-    ],
-    ["플랫폼 안심결제 여부를 먼저 확인하세요.", "판매자 계정과 계좌 명의가 일치하는지 추가 확인하세요."],
-  ),
-  scan_20ce1f11: buildSampleScanResult(
-    "scan_20ce1f11",
-    "medium",
-    0.56,
-    "급한 입금 유도 표현과 과도한 할인 문구가 함께 잡혀 추가 확인이 필요합니다.",
-    [
-      { text: "오늘 안에 입금 가능하신 분만", reason: "시간 압박 문구는 거래 결정을 서두르게 만듭니다." },
-      { text: "시세보다 싸게", reason: "과도한 할인은 미끼 매물일 가능성이 있습니다." },
-    ],
-    ["판매 내역과 실물 인증을 먼저 요청하세요.", "입금 전 좌석 정보와 예매 내역을 다시 확인하세요."],
-  ),
-  scan_8d93a4bb: buildSampleScanResult(
-    "scan_8d93a4bb",
-    "low",
-    0.14,
-    "현재 규칙 기준으로는 뚜렷한 고위험 신호가 적습니다.",
-    [{ text: "정가 양도", reason: "가격 관련 신호는 있으나 과도한 압박이나 외부 이동은 적습니다." }],
-    ["거래 전 본인 인증과 예매 내역을 한 번 더 확인하세요."],
-  ),
-  scan_921ce7df: buildSampleScanResult(
-    "scan_921ce7df",
-    "medium",
-    0.61,
-    "본인 확인 정보 요구와 메신저 이동 문구가 같이 감지돼 주의가 필요합니다.",
-    [
-      { text: "신분증 일부 보여주세요", reason: "과도한 개인정보 요구는 2차 피해로 이어질 수 있습니다." },
-      { text: "오픈채팅으로 이동", reason: "플랫폼 외부로 이동하면 보호 장치가 약해집니다." },
-    ],
-    ["민감한 개인정보는 가리고 전달하세요.", "플랫폼 내 채팅과 결제 수단을 우선 사용하세요."],
-  ),
-};
-
-const SAMPLE_PIPELINE_DEBUG: Record<string, PipelineExchangeResponse> = {
-  scan_41f2a8a9: {
-    scan_id: "scan_41f2a8a9",
-    outbound_payload: {
-      scan_id: "scan_41f2a8a9",
-      platform: "joonggonara",
-      page_url: "https://web.joongna.com/product/229241708",
-      page_title: "뮤지컬 티켓 양도",
-      price: 180000,
-      seller: { seller_id: "seller-410", nickname: "뮤지컬양도맨" },
-      content_blocks: [{ block_id: "body-1", text: "계좌 다시 보내드릴게요. 카톡으로 연락 주세요." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "high",
-      risk_score: 0.82,
-      summary: "계좌 재전송 요청과 외부 메신저 이동 문구가 함께 감지돼 위험도가 높습니다.",
-      risk_tags: ["계좌 다시 보내드릴게요", "카톡으로 연락 주세요"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-  scan_20ce1f11: {
-    scan_id: "scan_20ce1f11",
-    outbound_payload: {
-      scan_id: "scan_20ce1f11",
-      platform: "bunjang",
-      page_url: "https://m.bunjang.co.kr/products/411763350",
-      page_title: "콘서트 플로어 좌석 급처",
-      price: 95000,
-      seller: { seller_id: "seller-233", nickname: "플로어양도" },
-      content_blocks: [{ block_id: "body-1", text: "오늘 안에 입금 가능하신 분만 연락 주세요. 시세보다 싸게 드려요." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "medium",
-      risk_score: 0.56,
-      summary: "급한 입금 유도 표현과 과도한 할인 문구가 함께 잡혀 추가 확인이 필요합니다.",
-      risk_tags: ["오늘 안에 입금 가능하신 분만", "시세보다 싸게"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-  scan_8d93a4bb: {
-    scan_id: "scan_8d93a4bb",
-    outbound_payload: {
-      scan_id: "scan_8d93a4bb",
-      platform: "joonggonara",
-      page_url: "https://web.joongna.com/product/229245101",
-      page_title: "정가 양도 게시글",
-      price: 230000,
-      seller: { seller_id: "seller-812", nickname: "고상한사고견과류" },
-      content_blocks: [{ block_id: "body-1", text: "정가 양도합니다. 예매 내역 확인 가능합니다." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "low",
-      risk_score: 0.14,
-      summary: "현재 규칙 기준으로는 뚜렷한 고위험 신호가 적습니다.",
-      risk_tags: ["정가 양도"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-  scan_921ce7df: {
-    scan_id: "scan_921ce7df",
-    outbound_payload: {
-      scan_id: "scan_921ce7df",
-      platform: "bunjang",
-      page_url: "https://m.bunjang.co.kr/products/410576644",
-      page_title: "아이돌 팬미팅 양도",
-      price: 72000,
-      seller: { seller_id: "seller-921", nickname: "팬미팅양도" },
-      content_blocks: [{ block_id: "body-1", text: "신분증 일부 보여주세요. 오픈채팅으로 이동 부탁드려요." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "medium",
-      risk_score: 0.61,
-      summary: "본인 확인 정보 요구와 메신저 이동 문구가 같이 감지돼 주의가 필요합니다.",
-      risk_tags: ["신분증 일부 보여주세요", "오픈채팅으로 이동"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-};
 
 function getCurrentRoute() {
   if (typeof window === "undefined") {
@@ -452,19 +224,6 @@ function IconButton({ children }: { children: ReactNode }) {
   return <button className="dashboard-topicon" type="button">{children}</button>;
 }
 
-function getSampleScanContext(scanId: string) {
-  const scanResult = SAMPLE_SCAN_RESULTS[scanId];
-  if (!scanResult) {
-    return null;
-  }
-
-  return {
-    scanResult,
-    pipelineDebug: SAMPLE_PIPELINE_DEBUG[scanId] ?? null,
-    caseUmap: null,
-  };
-}
-
 function OverviewCard({
   title,
   description,
@@ -500,7 +259,7 @@ function OverviewCard({
   );
 }
 
-function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
+function EmbeddingMap({ points }: { points: EmbeddingPoint[] }) {
   const currentPoint = points.find((point) => point.variant === "current");
   const historicalPoints = points.filter((point) => point.variant !== "current");
 
@@ -658,7 +417,7 @@ function PointTooltip({ point }: { point: ProjectedEmbeddingPoint }) {
   );
 }
 
-function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
+function EmbeddingMap3D({ points }: { points: EmbeddingPoint[] }) {
   const [camera, setCamera] = useState({ pitch: -31, yaw: 42, zoom: 1 });
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
@@ -836,7 +595,20 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
   );
 }
 
-function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
+function EmbeddingMapExplorer({ points }: { points: EmbeddingPoint[] }) {
+  if (!points.length) {
+    return (
+      <div className="dashboard-embedding-panel">
+        <div className="dashboard-card dashboard-empty">
+          <div className="dashboard-card-body">
+            <h3>시각화할 임베딩 좌표가 없습니다</h3>
+            <p>backend risk-map 응답이 없는 경우 임의 좌표를 표시하지 않습니다. 스캔을 먼저 실행한 뒤 다시 열어 주세요.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-embedding-panel">
       <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
@@ -1108,7 +880,7 @@ function SellerContextReportCard({
   );
 }
 
-function buildSignalRowsFromDashboard(dashboard: DashboardModel): typeof SIGNAL_ROWS {
+function buildSignalRowsFromDashboard(dashboard: DashboardModel): SignalRow[] {
   const matchedRows = dashboard.reasons.slice(0, 4).map((reason) => ({
     source: reason.label,
     status: "Matched" as const,
@@ -1117,7 +889,7 @@ function buildSignalRowsFromDashboard(dashboard: DashboardModel): typeof SIGNAL_
     detail: reason.value,
   }));
 
-  return matchedRows.length > 0 ? matchedRows : SIGNAL_ROWS;
+  return matchedRows;
 }
 
 function ShellActionRow({ view }: { view: ReportView }) {
@@ -1131,6 +903,23 @@ function ShellActionRow({ view }: { view: ReportView }) {
         <p>{meta.copy}</p>
       </div>
     </div>
+  );
+}
+
+function ScanFirstPrompt({ view }: { view: "dashboard" | "reports" }) {
+  return (
+    <section className="dashboard-card dashboard-empty">
+      <div className="dashboard-card-body">
+        <h3>스캔 결과를 먼저 선택해 주세요</h3>
+        <p>
+          확장 프로그램에서 스캔을 실행하면 {view === "dashboard" ? "대시보드" : "리포트"}가 해당 scan 결과를
+          불러와 위험 신호, 유사 사례, 외부 조회 결과를 표시합니다.
+        </p>
+        <p className="dashboard-muted-copy">
+          데모 페이지나 실제 중고나라 상품 페이지에서 safe-ticket 패널을 열고 스캔을 먼저 실행해 주세요.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -1201,18 +990,6 @@ export function App() {
       setIsSellerContextLoading(false);
 
       try {
-        const sampleContext = getSampleScanContext(scanId);
-        if (sampleContext) {
-          if (cancelled) {
-            return;
-          }
-
-          setScanResult(sampleContext.scanResult);
-          setPipelineDebug(sampleContext.pipelineDebug);
-          setCaseRiskMap(null);
-          return;
-        }
-
         const [result, debug] = await Promise.all([
           pollScanResult(scanId),
           getPipelineDebug(API_BASE_URL, scanId),
@@ -1319,16 +1096,6 @@ export function App() {
       pipelineDebug,
     });
   }, [dashboard, pipelineDebug, scanResult]);
-  const dashboardEmbedding = useMemo(
-    () =>
-      buildDemoEmbeddingResult({
-        scanId: "dashboard-demo",
-        riskLevel: "high",
-        highlightCount: 5,
-      }),
-    [],
-  );
-
   const mainHref = buildRouteHref("dashboard", route.scanId);
   const reportsHref = buildRouteHref("reports", route.scanId);
   const settingsHref = buildRouteHref("settings");
@@ -1360,7 +1127,7 @@ export function App() {
   };
 
   const renderDashboardView = () => {
-    const signalRows = dashboard ? buildSignalRowsFromDashboard(dashboard) : SIGNAL_ROWS;
+    const signalRows = dashboard ? buildSignalRowsFromDashboard(dashboard) : [];
 
     return (
       <>
@@ -1453,9 +1220,9 @@ export function App() {
                         <th>Excerpt</th>
                         <th>Detail</th>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {signalRows.map((row) => (
+                  </thead>
+                  <tbody>
+                    {signalRows.length ? signalRows.map((row) => (
                         <tr key={row.source}>
                           <td>{row.source}</td>
                           <td><span className={signalPillClass(row.status)}>{row.status}</span></td>
@@ -1463,9 +1230,13 @@ export function App() {
                           <td>{row.excerpt}</td>
                           <td>{row.detail}</td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    )) : (
+                      <tr>
+                        <td colSpan={5}>현재 scan에서 표시할 주요 신호가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
                 </div>
               </article>
 
@@ -1489,91 +1260,7 @@ export function App() {
               </article>
             </section>
           ) : null
-        ) : (
-          <section className="dashboard-grid">
-            <OverviewCard
-              description="최근 보호 지표를 먼저 보고, 그다음 어떤 경고 신호가 현재 게시글에서 발견됐는지 이어서 확인합니다."
-              items={DASHBOARD_OVERVIEW_ITEMS}
-              title="Risk overview"
-            />
-
-            <article className="dashboard-card dashboard-col-12">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Top signals</h3>
-                  <p>현재 데모 게시글에서 실제로 감지된 신호와 아직 찾지 못한 항목을 함께 보여줍니다.</p>
-                </div>
-                <span className="dashboard-pill is-warning">Current post</span>
-              </header>
-              <div className="dashboard-card-body dashboard-table-wrap">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Signal</th>
-                      <th>Flag</th>
-                      <th>Location</th>
-                      <th>Excerpt</th>
-                      <th>Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {SIGNAL_ROWS.map((row) => (
-                      <tr key={row.source}>
-                        <td>{row.source}</td>
-                        <td><span className={signalPillClass(row.status)}>{row.status}</span></td>
-                        <td>{row.location}</td>
-                        <td>{row.excerpt}</td>
-                        <td>{row.detail}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article className="dashboard-card dashboard-col-12 dashboard-embedding-card">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Embedding map</h3>
-                  <p>원본 임베딩을 PLS7 risk-aware latent space로 변환한 뒤 unsupervised UMAP으로 축소해 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
-                </div>
-                <span className="dashboard-pill is-neutral">{dashboardEmbedding.pipeline}</span>
-              </header>
-              <div className="dashboard-card-body">
-                <div className="dashboard-embedding-summary-strip">
-                  <div>
-                    <span>nearest label group</span>
-                    <strong>{dashboardEmbedding.summary.nearestCluster}</strong>
-                  </div>
-                </div>
-                <EmbeddingMapExplorer points={dashboardEmbedding.points} />
-              </div>
-            </article>
-
-            <article className="dashboard-card dashboard-col-12">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Recent scans</h3>
-                  <p>최근 스캔된 거래 요약</p>
-                </div>
-                <a className="dashboard-link" href={reportsHref}>View reports</a>
-              </header>
-              <div className="dashboard-card-body">
-                <div className="dashboard-list">
-                  {RECENT_SCANS.map((scan) => (
-                    <a className="dashboard-list-row" href={`#/reports/${scan.id}`} key={scan.id}>
-                      <div>
-                        <strong>{scan.title}</strong>
-                        <p>{scan.summary}</p>
-                      </div>
-                      <span className={`dashboard-pill ${getToneClass(scan.tone)}`}>{toneLabel(scan.tone)}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </article>
-          </section>
-        )}
+        ) : <ScanFirstPrompt view="dashboard" />}
       </>
     );
   };
@@ -1587,29 +1274,7 @@ export function App() {
         <ShellActionRow view="reports" />
 
         {!route.scanId ? (
-          <section className="dashboard-grid">
-            <article className="dashboard-card dashboard-col-12">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Recent reports</h3>
-                  <p>최근 스캔 결과를 열어 상세 분석으로 이동합니다. 실제 서비스에서는 사용자별 저장 report 목록이 이 자리를 대체합니다.</p>
-                </div>
-              </header>
-              <div className="dashboard-card-body">
-                <div className="dashboard-list">
-                  {RECENT_SCANS.map((scan) => (
-                    <a className="dashboard-list-row" href={`#/reports/${scan.id}`} key={scan.id}>
-                      <div>
-                        <strong>{scan.title}</strong>
-                        <p>{scan.summary}</p>
-                      </div>
-                      <span className={`dashboard-pill ${getToneClass(scan.tone)}`}>{toneLabel(scan.tone)}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </article>
-          </section>
+          <ScanFirstPrompt view="reports" />
         ) : isScanContextLoading ? (
           <section className="dashboard-card dashboard-empty">
             <div className="dashboard-card-body">

@@ -12,7 +12,7 @@ import {
   externalLookupTitle,
   formatExternalLookupKeyword,
 } from "../../../shared/external-lookup-display";
-import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./demo-embedding";
+import type { EmbeddingPoint } from "./embedding-types";
 
 type Tone = "danger" | "warning" | "ok";
 
@@ -59,7 +59,7 @@ export interface DashboardModel {
     title: string;
     description: string;
     pipeline: string;
-    points: DemoEmbeddingPoint[];
+    points: EmbeddingPoint[];
     summary: {
       nearestCluster: "fraud" | "safe" | "borderline";
       clusterCounts: {
@@ -172,30 +172,36 @@ function buildEmbeddingModel({
   caseUmap,
   caseRiskMap,
   scanResult,
-  highlightCount,
 }: {
   caseUmap: CaseUmapResponse | null;
   caseRiskMap?: RiskMapResponse | null;
   scanResult: ScanResultResponse;
-  highlightCount: number;
 }): DashboardModel["embedding"] {
   if (caseRiskMap?.points.length) {
     return buildRiskMapEmbeddingModel(caseRiskMap, scanResult);
   }
 
   if (!caseUmap?.points.length) {
-    const demoEmbedding = buildDemoEmbeddingResult({
-      scanId: scanResult.scan_id,
-      riskLevel: scanResult.risk_level,
-      highlightCount,
-    });
     return {
-      title: "임베딩 공간 시각화",
+      title: "임베딩 시각화 대기",
       description:
-        "데모 임베딩 DB를 만들고, 원본 임베딩에서 PCA(50)를 거쳐 UMAP(3)로 축소한 좌표를 2D와 3D로 함께 보여줍니다.",
-      pipeline: demoEmbedding.pipeline,
-      points: demoEmbedding.points,
-      summary: demoEmbedding.summary,
+        "backend risk-map 응답이 도착하면 실제 DB 임베딩 기반 2D/3D 시각화를 표시합니다. 먼저 확장 프로그램에서 스캔을 실행하고 결과를 불러와 주세요.",
+      pipeline: "backend risk-map required",
+      points: [],
+      summary: {
+        nearestCluster:
+          scanResult.risk_level === "low" ? "safe" : scanResult.risk_level === "medium" ? "borderline" : "fraud",
+        clusterCounts: {
+          fraud: 0,
+          safe: 0,
+          borderline: 0,
+        },
+        distances: {
+          fraud: 0,
+          safe: 0,
+          borderline: 0,
+        },
+      },
     };
   }
 
@@ -339,7 +345,7 @@ export function buildDashboardModel({
   const highlightCount = scanResult.highlight_targets.length;
   const similarCaseCount = scanResult.similar_cases.length;
   const riskPercentile = Math.min(99, Math.max(3, Math.round((scanResult.risk_score ?? 0.5) * 100)));
-  const embedding = buildEmbeddingModel({ caseUmap, caseRiskMap, scanResult, highlightCount });
+  const embedding = buildEmbeddingModel({ caseUmap, caseRiskMap, scanResult });
   const accountNumber = extractAccountNumber(pipelineDebug?.outbound_payload.content_blocks ?? []);
 
   return {

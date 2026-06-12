@@ -39,8 +39,8 @@
 
 ### partial 결과
 다음 상황에서는 `partial` 을 허용한다.
-- OpenAI timeout
-- OpenAI rate limit
+- LLM provider timeout
+- LLM provider rate limit
 - LLM 설명 생성 실패
 
 이 경우에도 아래 결과는 반환 가능하게 설계한다.
@@ -50,8 +50,8 @@
 
 ## 타임아웃 / 재시도 전략
 - `POST /scans` 응답 목표: **즉시 202 반환**
-- 외부 LLM 호출 timeout: `OPENAI_API_TIMEOUT_SECONDS` (기본 8초)
-- LLM 재시도: `OPENAI_MAX_RETRIES` (기본 1회)
+- 외부 LLM 호출 timeout: `.env` 의 provider별 timeout 설정
+- LLM 재시도: provider별 retry 설정
 - 429 / 5xx 는 짧은 backoff 후 재시도
 - 그래도 실패하면 `partial` 처리
 

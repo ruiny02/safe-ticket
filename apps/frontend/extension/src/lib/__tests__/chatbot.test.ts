@@ -119,4 +119,25 @@ describe("chatbot helpers", () => {
     expect(reply).toContain("판매자: 고상한사고견과류");
     expect(reply).not.toContain("현재 위험도는");
   });
+
+  it("explains similar cases without temporary demo wording", () => {
+    const reply = buildAssistantReply({
+      payload,
+      scanResult: {
+        ...scanResult,
+        similar_cases: [
+          {
+            case_id: "case_1",
+            score: 0.82,
+            summary: "오픈채팅 이동 후 선입금을 요구한 티켓 거래 사례",
+          },
+        ],
+      },
+      prompt: "유사 사례를 알려줘",
+    });
+
+    expect(reply).toContain("현재 스캔 결과와 가장 가까운 유사 사례입니다.");
+    expect(reply).toContain("오픈채팅 이동 후 선입금을 요구한 티켓 거래 사례");
+    expect(reply).not.toContain("임시 데이터");
+  });
 });

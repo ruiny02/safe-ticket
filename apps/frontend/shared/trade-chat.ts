@@ -170,7 +170,7 @@ export function parseTradeChatDocument(documentRef: Document, pageUrl: string): 
       nickname: getText("[data-seller-name]", documentRef) || "unknown",
     },
     buyer: {
-      nickname: getText("[data-buyer-name]", documentRef) || "safe-buyer",
+      nickname: getText("[data-buyer-name]", documentRef) || "unknown",
     },
     chat_messages: chatMessages,
     source_text_blocks: sourceTextBlocks,

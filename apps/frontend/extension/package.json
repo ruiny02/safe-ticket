@@ -1,5 +1,5 @@
 {
-  "name": "@safe-ticket/web-demo",
+  "name": "@safe-ticket/extension",
   "private": true,
   "version": "0.0.0",
   "type": "module",

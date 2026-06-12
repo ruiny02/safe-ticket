@@ -2,140 +2,81 @@
 
 ## 전체 구성
 
-이 프로젝트는 **Chrome Extension + Web Report Page + Backend API + PostgreSQL/pgvector + Data Pipeline** 구조로 구성된다.
+Safe Ticket은 거래 화면에서 사기 위험 신호를 읽고, backend 분석 결과를 extension과 report page에 다시 보여주는 구조다.
 
-### 시스템이 제공하려는 가치
-- 거래가 실제로 이루어지는 화면에서 사기 위험 신호를 빠르게 보여준다.
-- 단순 경고가 아니라 **근거와 대응 가이드**를 함께 제공한다.
-- 더 자세한 분석은 웹 리포트 페이지에서 확인하게 한다.
-- 수집한 과거 사례를 기반으로 **설명 가능한 탐지**를 지향한다.
+```text
+Chrome Extension / Demo Pages
+          │
+          ▼
+      FastAPI Backend
+          │
+   ┌──────┴──────────────┐
+   ▼                     ▼
+PostgreSQL + pgvector   External Lookup
+   ▲                     │
+   │                     ▼
+Data Pipeline        Police / TheCheat
+          │
+          ▼
+     RAG / LLM 설명
+```
 
-### 구성 요소
+## 구성 요소
 
-#### 1. Chrome Extension
-- 특정 거래 사이트의 게시글 페이지에서 동작한다.
-- 제목, 본문, 가격, 판매자 정보, 연락처/계좌/메신저 ID 등 페이지 내 텍스트와 메타데이터를 읽는다.
-- 위험 문구나 의심 구간을 하이라이트한다.
-- `scan panel` 에서 위험 수준, 요약 메시지, 즉시 행동 가이드를 짧게 보여준다.
-- `chat panel` 에서 현재 결과를 바탕으로 추가 질문을 받을 수 있게 설계한다.
-- `report page` 로 이동하는 진입점을 제공한다.
+### Chrome Extension
+- 실제 상품 페이지와 demo chat page에서 동작한다.
+- 제목, 가격, 판매자, 본문, 계좌/전화번호 후보를 파싱한다.
+- scan 생성과 결과 polling을 담당한다.
+- 위험 문구를 DOM에 하이라이트한다.
+- dashboard/report page로 이동하는 버튼을 제공한다.
 
-#### 2. Web Report Page
-- 특정 `scan_id` 기준으로 분석 결과를 상세하게 보여준다.
-- extension 에서 클릭해서 들어오는 `report page` 역할을 담당한다.
-- 위험 점수, 근거 문장, 유사 사례, 대응 가이드를 정리한다.
-- **UMAP 2차원 시각화**를 통해 현재 게시글과 과거 사례가 임베딩 공간에서 얼마나 가까운지 보여준다.
-- **k-NN 근접 이웃 보기**를 통해 가장 가까운 사례들을 별도로 표시한다.
-- 기타 통계 패널(위험 태그 분포, 유사 사례 개수, 판매자 관찰 횟수 등)을 제공한다.
-- 판매자 닉네임 / 계좌 / 연락처 / 메신저 ID 등을 기반으로 **과거 관찰 이력**을 요약해서 보여줄 수 있게 설계한다.
-- 로그인 없이 입력한 **사용자 맥락**(나이, 중고 거래 경험 수준)을 위험도 계산에 반영해 더 보수적인 설명과 가이드를 제공할 수 있게 설계한다.
-- 외부 조회 / 신고 연계가 가능하면 경찰청 / 더치트 같은 외부 서비스와 연결되는 보조 카드도 둘 수 있게 열어둔다.
+### Report Page
+- 특정 `scan_id` 기준 상세 분석 화면이다.
+- dashboard, narrative report, settings view로 구성된다.
+- backend risk-map 좌표를 사용해 embedding/risk space 시각화를 보여준다.
+- scan이 없으면 임의 결과를 만들지 않고 scan 실행 안내를 보여준다.
 
-#### 3. Backend API
-- 크롬 확장 프로그램과 웹 페이지가 호출하는 API를 제공한다.
-- 스캔 요청을 받고, 상태를 저장하고, 결과를 조회 가능하게 한다.
-- 유사 사례 검색은 **RAG 방식으로 pgvector에 저장된 임베딩들 간 유사도 비교**를 기본으로 한다.
-- 향후에는 스캔 결과 기반 대화 API와 사용자 피드백 저장 API를 함께 제공한다.
-- 결과를 동기식으로 한 번에 반환하지 않고, **비동기 스캔 + polling** 방식으로 처리한다.
-
-#### 4. Database
-- PostgreSQL에 스캔 결과, 사례 메타데이터, 피드백, 판매자 관찰 이력 등을 저장한다.
-- pgvector를 사용해 청크 임베딩과 유사도 검색을 처리한다.
-
-#### 5. Data Pipeline
-- 크롤링, 정제, 중복 제거, 엔티티 추출, 임베딩 생성, 적재를 담당한다.
-- 수집한 데이터를 RAG 검색용 사례 데이터셋으로 만든다.
-
-### 데이터셋 구축에 사용하는 주요 후보 소스
-- 당근마켓
-- 중고나라
-- 번개장터
-- 인터파크
-- 더치트
-- 하급심 민사재판 / 하급심 민사 판결문
-
-> 실제 수집 대상은 소스 접근성, 공개 범위, 약관, 크롤링 가능 여부에 따라 조정될 수 있다.
-
----
-
-## 기술 스택
-
-### Backend
-- **FastAPI**
-- **Pydantic**
-- **SQLAlchemy**
-- **Alembic**
+### Backend API
+- scan lifecycle을 관리한다.
+- rule-based signal, external lookup, RAG retrieval, LLM 설명 생성, score 계산을 조합한다.
+- 결과는 `GET /api/v1/scans/{scan_id}` 로 extension과 report page가 함께 사용한다.
 
 ### Database
-- **PostgreSQL**
-- **pgvector**
+- PostgreSQL + pgvector를 사용한다.
+- scan result, case metadata, chunk embedding, feedback, lookup result 저장에 사용한다.
 
-### AI / Retrieval
-- **OpenAI API**
-- **LangGraph**
-- **Rule-based Detection**
-- **RAG (pgvector 기반 검색)**
+### Pipeline
+- raw post 수집, 정제, chunking, embedding 생성, DB 적재를 담당한다.
+- report page의 유사 사례 검색과 risk-map 시각화의 기반 데이터를 만든다.
 
-### Frontend
-- **React**
-- **Tailwind CSS**
-- **Chrome Extension**
-- **Figma** (화면 설계 / UI 초안)
+## 온라인 분석 흐름
+1. 사용자가 거래 페이지를 연다.
+2. Extension이 페이지를 파싱한다.
+3. `POST /api/v1/scans` 로 scan을 생성한다.
+4. Backend가 background task에서 분석한다.
+5. Extension은 `GET /api/v1/scans/{scan_id}` 를 polling 한다.
+6. 완료 결과가 오면 panel, highlight, external lookup card, report link를 갱신한다.
+7. 사용자는 report page에서 더 자세한 설명과 시각화를 확인한다.
 
-### Data Pipeline
-- **Python**
-- **Airflow** (후보)
-- **Kafka** (후보)
+## 분석 구성
+- deterministic scoring
+  - 외부조회 positive
+  - PLS 기반 risk score
+  - prototype / neighbor similarity
+  - 적금계좌 rule
+  - 사용자 맥락 가산점
+- RAG context
+  - 현재 게시글
+  - 유사 사례 top-k
+  - rule 결과
+  - 외부조회 결과
+  - 사용자 맥락
+- LLM
+  - report 문장 생성
+  - 하이라이트 후보 생성
+  - chatbot 답변 보조
 
-### Infra / Dev
-- **Docker**
-- **Docker Compose**
-- **GitHub**
-
----
-
-## 서비스 흐름
-
-### A. 온라인 분석 흐름
-1. 사용자가 거래 게시글 페이지를 연다.
-2. Chrome Extension이 제목 / 본문 / 가격 / 판매자 정보 / 엔티티 후보를 읽는다.
-3. Extension은 `POST /api/v1/scans` 로 분석 요청을 보낸다.
-4. Backend는 요청을 검증한 뒤 **스캔 작업을 생성하고 즉시 `202 Accepted`** 를 반환한다.
-5. Extension은 `scan_id` 를 받아 `GET /api/v1/scans/{scan_id}` 로 상태를 polling 한다.
-6. Backend 내부에서는 다음 순서로 분석한다.
-   - 입력 정리
-   - 엔티티 추출
-   - 규칙 기반 위험 신호 탐지
-   - pgvector 기반 유사 사례 검색
-   - RAG 기반 유사 사례 검색과 LLM 설명 생성
-   - 결과 저장
-7. 분석이 끝나면 Extension `scan panel` 은 하이라이트와 요약을 렌더링한다.
-8. 사용자는 `chat panel` 에서 추가 질문을 이어가거나, `report page` 로 이동해 더 자세한 결과를 본다.
-
-### B. 오프라인 데이터 파이프라인 흐름
-1. 후보 소스에서 사례 데이터를 수집한다.
-2. 정제 / 중복 제거 / 라벨링 / 엔티티 추출을 수행한다.
-3. 문서를 chunk 단위로 나눈다.
-4. 임베딩을 생성한다.
-5. PostgreSQL + pgvector에 적재한다.
-6. 웹 리포트와 백엔드 검색 로직에서 해당 사례를 사용한다.
-
----
-
-## 메모
-- 확장 프로그램은 `scan panel` 과 `chat panel` 로 역할을 나누고, 웹 리포트 페이지는 `report page` 로서 상세 설명과 시각화에 집중한다.
-- 스캔 API는 사용자 대기 시간을 줄이기 위해 **비동기 + polling** 구조를 기본으로 둔다.
-- 2차원 시각화는 UMAP 중심으로 시작하고, t-SNE는 비교 실험 후보로 둔다.
-- k-NN은 “가장 가까운 유사 사례를 보여주는 이웃 탐색” 용도로 사용하고, 시각화 보조 신호로 함께 활용한다.
-- `report page` 대시보드는 단순 결과 나열보다, 비숙련 사용자도 “얼마나 위험한지 / 왜 그런지 / 어떻게 행동해야 하는지”를 이해하게 하는 설명형 UI를 목표로 한다.
-
-
----
-
-
-## 프로젝트 완성 후 추가적으로 해볼 것
-- 학교 GPU 서버를 빌려 **vLLM 기반 self-hosted 추론 서버**를 직접 운영한다.
-- 티켓 / 암표뿐 아니라 **중고, 양도, 일반 거래 사기**까지 범용적으로 확장한다.
-- 유사 사례 임베딩 시각화를 **3차원**으로 확장한다.
-- **CI/CD** 를 붙여 자동 테스트와 배포 흐름을 실험한다.
-- 개인정보 보호를 위한 **비식별화 기술**을 본격적으로 적용한다.
+## 운영 메모
+- 로컬 개발과 서버 배포는 API/Frontend base URL을 build-time env로 분리한다.
+- DB volume은 삭제하지 않는다.
+- TheCheat 조회는 사용자가 noVNC browser에서 로그인/OTP를 한 뒤 backend가 같은 browser session을 재사용한다.

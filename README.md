@@ -68,19 +68,19 @@ Notes:
 In a new terminal:
 
 ```bash
-pnpm --dir apps/frontend/web-demo build
+pnpm --dir apps/frontend/extension build
 ```
 
 Build output:
 
-- `apps/frontend/web-demo/dist`
+- `apps/frontend/extension/dist`
 
 ### 4. Load the Extension in Chrome
 
 1. Open `chrome://extensions`.
 2. Enable Developer mode.
 3. Click `Load unpacked`.
-4. Select `apps/frontend/web-demo/dist`.
+4. Select `apps/frontend/extension/dist`.
 
 If the extension is already loaded, rebuild the extension and click `Reload` in `chrome://extensions`; you do not need to remove and reinstall it.
 

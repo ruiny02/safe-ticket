@@ -1,22 +1,22 @@
 # Project Scope
 
-## 현재 단계에서 구현 대상으로 보는 것
-- 저장소 구조를 고정한다.
-- Docker Compose로 `db / backend / frontend / pipeline` 컨테이너가 모두 올라오는지 확인한다.
-- 백엔드 / 프론트엔드 / 파이프라인에 최소 placeholder를 두고 네트워크 연결과 환경변수 구조를 맞춘다.
-- 이후 FastAPI, React, 파이프라인 코드를 붙일 수 있도록 문서와 설정을 먼저 정리한다.
-- Health endpoint 와 placeholder 페이지 정도의 **기초 코드 스캐폴드**까지는 허용한다.
+## 현재 발표 빌드 범위
+- Chrome Extension 하나로 상품 상세 페이지와 거래 채팅 데모를 모두 처리한다.
+- Extension은 페이지 텍스트를 파싱해 `POST /api/v1/scans` 로 보내고, `GET /api/v1/scans/{scan_id}` 를 polling 한다.
+- Backend는 rule, 외부조회, 유사 사례 검색, LLM/RAG 설명 생성을 조합해 scan result를 만든다.
+- Report page는 scan result를 기준으로 dashboard, narrative report, settings 화면을 제공한다.
+- Settings는 로그인 없이 사용자 맥락만 입력한다.
+  - 나이
+  - 중고거래 경험: 초급 / 중급 / 고급
 
-## 현재 단계에서 하지 않을 것
-- 실제 사기 탐지 로직 완성
-- 실제 LLM 추론 호출 완성
-- 로그인 / 인증 구현
-- 관리자 기능 구현
-- 운영 자동화 구현
+## 현재 범위에서 제외
+- 로그인 / 회원가입 / 계정 인증
+- 자동 신고 제출
+- 외부 서비스 OTP 자동화
+- 운영용 개인정보 저장 정책 완성
 
-## 다 구현한 뒤 더 해볼 것
-- 학교 GPU 서버를 빌려 **vLLM 기반 self-hosted 추론 서버**를 직접 운영한다.
-- 티켓 / 암표뿐 아니라 **중고, 양도, 일반 거래 사기**까지 범용적으로 확장한다.
-- 유사 사례 임베딩 시각화를 **3차원**으로 확장한다.
-- **CI/CD** 를 붙여 자동 테스트와 배포 흐름을 실험한다.
-- 개인정보 보호를 위한 **비식별화 기술**을 본격적으로 적용한다.
+## 다음 확장 후보
+- 실제 서비스 배포용 HTTPS / 도메인 / 인증 구성
+- lookup 결과 캐싱과 보존 정책
+- extension UI와 report page의 공통 컴포넌트 정리
+- 더 많은 marketplace/chat layout 파서 추가

@@ -36,17 +36,21 @@ describe("report page shell", () => {
     expect(html).not.toContain(">Main<");
     expect(html).not.toContain("Intelligence");
     expect(html).not.toContain("Scan workspace");
-    expect(html).toContain("Risk overview");
-    expect(html).toContain("Top signals");
+    expect(html).toContain("스캔 결과를 먼저 선택해 주세요");
+    expect(html).toContain("확장 프로그램에서 스캔을 실행하면");
+    expect(html).not.toContain("Risk overview");
+    expect(html).not.toContain("Top signals");
   });
 
-  it("renders a reports index when no scan id is selected and shows the account footer", () => {
+  it("renders a scan-first prompt in reports when no scan id is selected", () => {
     const html = renderWithHash("#/reports");
 
     expect(html).toContain("Reports");
-    expect(html).toContain("Recent reports");
+    expect(html).toContain("스캔 결과를 먼저 선택해 주세요");
+    expect(html).toContain("확장 프로그램에서 스캔을 실행하면");
     expect(html).toContain("safe-ticket");
     expect(html).toContain("Scan workspace");
+    expect(html).not.toContain("Recent reports");
   });
 
   it("renders settings as user risk profile controls without demo login UI", () => {

@@ -46,8 +46,8 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build web demo and extension
-        run: pnpm --dir apps/frontend/web-demo build
+      - name: Build Chrome extension
+        run: pnpm --dir apps/frontend/extension build
 
       - name: Build report page
         run: pnpm --dir apps/frontend/report-page build

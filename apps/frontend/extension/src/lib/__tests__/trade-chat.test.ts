@@ -30,7 +30,7 @@ describe("trade chat parser helpers", () => {
         nickname: "빠른거래",
       },
       buyer: {
-        nickname: "safe-buyer",
+        nickname: "unknown",
       },
       chat_messages: [
         {

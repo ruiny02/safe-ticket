@@ -123,9 +123,9 @@ pnpm --dir apps/frontend/report-page build
 
 관련 파일:
 
-- `apps/frontend/web-demo/public/manifest.json`
-- `apps/frontend/web-demo/public/popup.js`
-- `apps/frontend/web-demo/src/content-root.ts`
+- `apps/frontend/extension/public/manifest.json`
+- `apps/frontend/extension/public/popup.js`
+- `apps/frontend/extension/src/content-root.ts`
 - `apps/frontend/shared/page-target.ts`
 - `apps/frontend/shared/runtime-config.ts`
 
@@ -143,7 +143,7 @@ pnpm --dir apps/frontend/report-page build
 ```bash
 VITE_SAFE_TICKET_API_BASE_URL=http://localhost:8000 \
 VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://localhost:3000 \
-pnpm --dir apps/frontend/web-demo build
+pnpm --dir apps/frontend/extension build
 ```
 
 서버 extension build 예시:
@@ -152,7 +152,7 @@ pnpm --dir apps/frontend/web-demo build
 SERVER_HOST=your.server.example \
 VITE_SAFE_TICKET_API_BASE_URL=http://${SERVER_HOST}:8000 \
 VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://${SERVER_HOST}:3000 \
-pnpm --dir apps/frontend/web-demo build
+pnpm --dir apps/frontend/extension build
 ```
 
 서버용 extension에서 주의할 점:
@@ -280,7 +280,7 @@ args:
 ### 공통 테스트
 
 ```bash
-pnpm --dir apps/frontend/web-demo test
+pnpm --dir apps/frontend/extension test
 pnpm --dir apps/frontend/report-page test
 pytest apps/backend/tests
 docker compose config
@@ -312,7 +312,7 @@ docker compose config
 
 먼저 확인할 것:
 
-- `apps/frontend/web-demo/dist`를 다시 build했는가
+- `apps/frontend/extension/dist`를 다시 build했는가
 - Chrome에서 Reload했는가
 - `manifest.json` host permission이 맞는가
 - backend CORS에 extension ID가 들어갔는가

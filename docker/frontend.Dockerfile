@@ -24,8 +24,6 @@ COPY apps/frontend/demo/joongna-product-demo /app/apps/frontend/site
 COPY apps/frontend/trade-chat-demo/joongna-chat.html /app/apps/frontend/site/joongna-chat.html
 COPY apps/frontend/trade-chat-demo/bunjang-chat.html /app/apps/frontend/site/bunjang-chat.html
 COPY apps/frontend/trade-chat-demo/styles.css /app/apps/frontend/site/styles.css
-COPY apps/frontend/trade-chat-demo/demo-parser.js /app/apps/frontend/site/demo-parser.js
-COPY apps/frontend/trade-chat-demo/safe-ticket-page-parser.js /app/apps/frontend/site/safe-ticket-page-parser.js
 COPY --from=report-builder /app/apps/frontend/report-page/dist /app/apps/frontend/site/report
 
 EXPOSE 3000
