@@ -32,10 +32,12 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/safe_ticket}
       FRONTEND_REPORT_BASE_URL: ${FRONTEND_REPORT_BASE_URL:-http://localhost:3000/report/#/reports}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.5-flash}
-      GEMINI_ANALYSIS_MODEL: ${GEMINI_ANALYSIS_MODEL:-gemini-2.5-flash}
-      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-3.1-flash-lite}
+      GEMINI_ANALYSIS_MODEL: ${GEMINI_ANALYSIS_MODEL:-gemini-3.1-flash-lite}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-2}
+      GEMINI_SCAN_ANALYSIS_ENABLED: ${GEMINI_SCAN_ANALYSIS_ENABLED:-false}
       GEMINI_API_TIMEOUT_SECONDS: ${GEMINI_API_TIMEOUT_SECONDS:-30}
+      RISK_SPACE_ARTIFACT_DIR: ${RISK_SPACE_ARTIFACT_DIR:-/app/.artifacts/risk_space}
       PIPELINE_BASE_URL: http://pipeline:8010
       PIPELINE_ANALYZE_PATH: ${PIPELINE_ANALYZE_PATH:-api/v1/analyze}
       PIPELINE_TIMEOUT_SECONDS: ${PIPELINE_TIMEOUT_SECONDS:-60}
@@ -44,6 +46,8 @@ services:
       THECHEAT_CDP_URL: ${THECHEAT_CDP_URL:-http://lookup-browser:9223}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - risk_space_artifacts:/app/.artifacts/risk_space
     depends_on:
       db:
         condition: service_healthy
@@ -97,8 +101,8 @@ services:
       PIPELINE_PORT: ${PIPELINE_PORT:-8010}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/safe_ticket}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_ANALYSIS_MODEL: ${GEMINI_ANALYSIS_MODEL:-gemini-2.5-flash}
-      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
+      GEMINI_ANALYSIS_MODEL: ${GEMINI_ANALYSIS_MODEL:-gemini-3.1-flash-lite}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-2}
       SEED_PIPELINE_MEMORY: ${SEED_PIPELINE_MEMORY:-true}
     ports:
       - "127.0.0.1:${PIPELINE_PORT:-8010}:8010"
@@ -114,3 +118,4 @@ services:
 volumes:
   pgdata:
   lookup_browser_profile:
+  risk_space_artifacts:
