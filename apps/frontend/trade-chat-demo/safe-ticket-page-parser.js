@@ -24,7 +24,7 @@
       return window.location.href;
     }
 
-    return `http://54.180.226.121:3000/${platform}-chat.html`;
+    return `http://localhost:3000/${platform}-chat.html`;
   }
 
   function inferPlatform(root) {

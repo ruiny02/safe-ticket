@@ -31,8 +31,22 @@ export function buildReportBrief({
 }): ReportBrief {
   const outboundPayload = pipelineDebug?.outbound_payload;
   const sellerName = dashboard.sellerObservation.sellerName;
-  const aliases = dashboard.sellerObservation.observedAliases.join(", ");
+  const aliases = dashboard.sellerObservation.observedAliases;
   const keyActions = dashboard.actions.slice(0, 2).map((action) => action.value);
+  const accountNumber = dashboard.sellerObservation.accountNumber;
+  const similarCaseCount = dashboard.sellerObservation.recentFraudCases;
+  const accountSentence =
+    accountNumber === "미확인"
+      ? `${sellerName} 판매글에서 자동 추출된 계좌번호는 아직 확인되지 않았습니다.`
+      : `${sellerName} 판매글에서 ${accountNumber} 계좌가 관찰됐습니다.`;
+  const similarCaseSentence =
+    similarCaseCount > 0
+      ? `현재 게시글은 유사 사례 ${similarCaseCount}건과 함께 비교됐습니다.`
+      : "현재 게시글과 직접 연결된 유사 사례는 아직 충분하지 않습니다.";
+  const aliasSentence =
+    aliases.length > 0
+      ? `확인된 판매자 닉네임은 ${aliases.join(", ")} 입니다.`
+      : "추가로 확인된 판매자 별칭은 없습니다.";
 
   return {
     sections: [
@@ -54,8 +68,9 @@ export function buildReportBrief({
       {
         title: "판매자 관찰",
         sentences: [
-          `${sellerName} 명의 게시글에서 ${dashboard.sellerObservation.accountNumber} 계좌가 관찰됐고, 최근 ${dashboard.sellerObservation.recentFraudCases}건 사례와 함께 비교되고 있습니다.`,
-          `현재 연결된 주요 닉네임은 ${aliases} 입니다.`,
+          accountSentence,
+          similarCaseSentence,
+          aliasSentence,
         ],
       },
       {

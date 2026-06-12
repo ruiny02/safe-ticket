@@ -44,10 +44,10 @@
 - 오늘 안에 입금, 다음 분께 넘김 같은 시간 압박
 - 농협 304, 케이뱅크 1102, 카카오뱅크 355 계좌 패턴
 
-스캔 완료 후 통합 패널에서 아래 링크가 활성화됩니다.
+스캔 완료 후 통합 패널에서 아래 링크가 활성화됩니다. 주소는 build 시점의 `VITE_SAFE_TICKET_FRONTEND_BASE_URL` 또는 현재 demo 서버 origin을 기준으로 만들어집니다.
 
-- 대시보드: `http://54.180.226.121:3000/report/#/dashboard?scanId=<scan_id>`
-- 리포트: `http://54.180.226.121:3000/report/#/reports/<scan_id>`
+- 대시보드: `<FRONTEND_BASE_URL>/report/#/dashboard?scanId=<scan_id>`
+- 리포트: `<FRONTEND_BASE_URL>/report/#/reports/<scan_id>`
 
 ## Chrome Extension Loading
 
@@ -59,9 +59,9 @@
 6. 아래 페이지에 접속한 뒤 새로고침합니다.
 
 ```text
-http://54.180.226.121:3000/product/227242032.html
-http://54.180.226.121:3000/joongna-chat.html
-http://54.180.226.121:3000/bunjang-chat.html
+http://localhost:3000/product/227242032.html
+http://localhost:3000/joongna-chat.html
+http://localhost:3000/bunjang-chat.html
 ```
 
-주의: HTML 파일을 `file://`로 직접 열면 백엔드 CORS 설정에 따라 요청이 막힐 수 있습니다. AWS preview 또는 허용된 origin으로 서빙하세요.
+주의: HTML 파일을 `file://`로 직접 열면 백엔드 CORS 설정에 따라 요청이 막힐 수 있습니다. Docker frontend 또는 허용된 서버 origin으로 서빙하세요.

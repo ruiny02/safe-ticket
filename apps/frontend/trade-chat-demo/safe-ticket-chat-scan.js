@@ -1,7 +1,16 @@
 
 (function () {
-  const API_BASE_URL = "http://54.180.226.121:8000";
-  const DEFAULT_REPORT_APP_BASE_URL = "http://localhost:5173/report/";
+  const DEFAULT_FRONTEND_BASE_URL =
+    window.SAFE_TICKET_FRONTEND_BASE_URL ||
+    (window.location.protocol === "http:" || window.location.protocol === "https:"
+      ? `${window.location.protocol}//${window.location.hostname}:3000`
+      : "http://localhost:3000");
+  const API_BASE_URL =
+    window.SAFE_TICKET_API_BASE_URL ||
+    (window.location.protocol === "http:" || window.location.protocol === "https:"
+      ? `${window.location.protocol}//${window.location.hostname}:8000`
+      : "http://127.0.0.1:8000");
+  const DEFAULT_REPORT_APP_BASE_URL = `${DEFAULT_FRONTEND_BASE_URL}/report/`;
   const PANEL_ID = "safe-ticket-chat-scan-panel";
   const HIGHLIGHT_SELECTOR = "mark[data-safe-ticket-chat-highlight='true']";
   const LOCAL_RISK_RULES = [
@@ -512,7 +521,7 @@
     const pageUrl =
       window.location.protocol === "http:" || window.location.protocol === "https:"
         ? window.location.href
-        : `http://54.180.226.121:3000/${platform}-chat.html`;
+        : `${DEFAULT_FRONTEND_BASE_URL}/${platform}-chat.html`;
 
     return {
       platform,

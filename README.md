@@ -84,6 +84,15 @@ Build output:
 
 If the extension is already loaded, rebuild the extension and click `Reload` in `chrome://extensions`; you do not need to remove and reinstall it.
 
+### 4-1. Set User Risk Context
+
+The extension popup keeps the current MVP account-free. It only stores local user context used for risk calibration:
+
+- age
+- secondhand trade experience: beginner / intermediate / advanced
+
+The same profile controls are also shown in the report page Settings view. No login, signup, or authentication flow is included in the current presentation build.
+
 ### 5. Verify the MVP
 
 1. Open `http://localhost:3000/product/227242032.html` or `http://localhost:3000/joongna-chat.html`.

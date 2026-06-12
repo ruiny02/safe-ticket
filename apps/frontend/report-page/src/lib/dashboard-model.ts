@@ -131,6 +131,16 @@ function extractAccountNumber(contentBlocks: { text: string }[]): string {
   return match?.[0] ?? "미확인";
 }
 
+function uniqueVisibleValues(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value) && value !== "미확인"),
+    ),
+  );
+}
+
 function lookupTone(result: ExternalLookupResult): Tone {
   if (result.status === "failed" || result.risk_found === true) {
     return "danger";
@@ -378,8 +388,8 @@ export function buildDashboardModel({
       priceText: formatPrice(pipelineDebug?.outbound_payload.price),
       trustSignals: pipelineDebug?.outbound_payload.marketplace_signals ?? [],
       accountNumber,
-      recentFraudCases: similarCaseCount + 1,
-      observedAliases: [seller?.nickname ?? "미확인", "급처티켓", "openchat123"],
+      recentFraudCases: similarCaseCount,
+      observedAliases: uniqueVisibleValues([seller?.nickname]),
     },
     sellerSignals: [
       {

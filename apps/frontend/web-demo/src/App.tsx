@@ -30,7 +30,6 @@ import {
   buildDashboardPageUrl,
   buildReportListUrl,
   buildReportPageUrl,
-  buildSettingsPageUrl,
 } from "./lib/report-link";
 
 const API_BASE_URL = getSafeTicketApiBaseUrl();
@@ -800,16 +799,6 @@ export function App({ pageUrl }: AppProps) {
           </div>
         </div>
         <div className="safe-ticket-header-actions">
-          {!isCollapsed ? (
-            <a
-              className="safe-ticket-icon-button safe-ticket-link-button safe-ticket-header-login-button"
-              href={buildSettingsPageUrl()}
-              rel="noreferrer"
-              target="_blank"
-            >
-              로그인
-            </a>
-          ) : null}
           <button
             className="safe-ticket-icon-button"
             onClick={() => setIsCollapsed((value) => !value)}

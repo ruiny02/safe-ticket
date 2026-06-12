@@ -31,7 +31,7 @@ describe("scan-api helpers", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await createScan("http://54.180.226.121:8000", payload);
+    await createScan("http://203.0.113.10:8000", payload);
 
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit & { targetAddressSpace?: string };
     expect(requestInit.targetAddressSpace).toBeUndefined();

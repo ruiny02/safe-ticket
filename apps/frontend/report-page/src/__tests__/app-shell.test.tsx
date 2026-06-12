@@ -48,4 +48,17 @@ describe("report page shell", () => {
     expect(html).toContain("safe-ticket");
     expect(html).toContain("Scan workspace");
   });
+
+  it("renders settings as user risk profile controls without demo login UI", () => {
+    const html = renderWithHash("#/settings");
+
+    expect(html).toContain("사용자 정보 설정");
+    expect(html).toContain("자동 저장");
+    expect(html).toContain("중고거래 경험");
+    expect(html).toContain("입력한 나이와 거래 경험은 맞춤형 위험도 계산에 활용됩니다.");
+    expect(html).not.toContain("Account & login");
+    expect(html).not.toContain("회원가입");
+    expect(html).not.toContain("데모용 로컬 로그인 상태");
+    expect(html).not.toContain("로그인 필요 모드");
+  });
 });

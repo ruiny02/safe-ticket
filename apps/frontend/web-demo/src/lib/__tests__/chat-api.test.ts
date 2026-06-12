@@ -98,7 +98,7 @@ describe("chat-api helpers", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await requestRemoteChatReply("http://54.180.226.121:8000", {
+    await requestRemoteChatReply("http://203.0.113.10:8000", {
       prompt: "테스트",
       page_url: payload.page_url,
       scan_id: scanResult.scan_id,

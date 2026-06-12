@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type PointerEvent,
   type ReactNode,
   type WheelEvent,
@@ -16,6 +15,8 @@ import type {
   RiskMapResponse,
   ScanResultResponse,
   SellerContextReportResponse,
+  UserProfile,
+  UserTradeExperienceLevel,
 } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
 import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
@@ -35,22 +36,18 @@ const DEMO_PAGE_URL = `${FRONTEND_BASE_URL}/product/227242032.html`;
 const DEMO_JOONGNA_CHAT_URL = `${FRONTEND_BASE_URL}/joongna-chat.html`;
 const DEMO_BUNJANG_CHAT_URL = `${FRONTEND_BASE_URL}/bunjang-chat.html`;
 const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
+const USER_PROFILE_STORAGE_KEY = "safeTicketUserProfile";
 
-type ProfileMode = "general" | "newcomer" | "cautious";
 type Tone = "danger" | "warning" | "ok" | "neutral";
-
-type PreferencesState = {
-  emailAlerts: boolean;
-  autoOpenReport: boolean;
-  loginRequired: boolean;
-};
-
-type AccountState = {
-  name: string;
-  email: string;
-};
-
 type SignalFlag = "Matched" | "Review" | "Not found";
+type ProfileSaveStatus = "자동 저장" | "저장됨";
+
+const EXPERIENCE_LEVELS: UserTradeExperienceLevel[] = ["beginner", "intermediate", "advanced"];
+const EXPERIENCE_LABELS: Record<UserTradeExperienceLevel, string> = {
+  beginner: "초급",
+  intermediate: "중급",
+  advanced: "고급",
+};
 
 const DASHBOARD_OVERVIEW_ITEMS = [
   {
@@ -116,6 +113,53 @@ const RECENT_SCANS = [
   { id: "scan_8d93a4bb", title: "정가 양도 게시글", tone: "ok" as Tone, summary: "현재 규칙 기준 뚜렷한 경고는 적음" },
   { id: "scan_921ce7df", title: "아이돌 팬미팅 양도", tone: "warning" as Tone, summary: "본인 확인 정보 요구와 메신저 이동이 동시에 감지됨" },
 ];
+
+function emptyUserProfile(): UserProfile {
+  return {
+    age: null,
+    trade_experience_level: null,
+  };
+}
+
+function normalizeUserProfile(value: unknown): UserProfile {
+  if (!value || typeof value !== "object") {
+    return emptyUserProfile();
+  }
+
+  const rawProfile = value as {
+    age?: unknown;
+    trade_experience_level?: unknown;
+  };
+  const age = typeof rawProfile.age === "number" && Number.isFinite(rawProfile.age) ? rawProfile.age : null;
+  const tradeExperienceLevel = EXPERIENCE_LEVELS.includes(rawProfile.trade_experience_level as UserTradeExperienceLevel)
+    ? (rawProfile.trade_experience_level as UserTradeExperienceLevel)
+    : null;
+
+  return {
+    age,
+    trade_experience_level: tradeExperienceLevel,
+  };
+}
+
+function loadReportUserProfile(): UserProfile {
+  if (typeof window === "undefined") {
+    return emptyUserProfile();
+  }
+
+  try {
+    return normalizeUserProfile(JSON.parse(window.localStorage.getItem(USER_PROFILE_STORAGE_KEY) ?? "null"));
+  } catch {
+    return emptyUserProfile();
+  }
+}
+
+function saveReportUserProfile(profile: UserProfile): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
 
 function buildSampleScanResult(
   scanId: string,
@@ -376,8 +420,8 @@ function topActionMeta(view: ReportView) {
   if (view === "settings") {
     return {
       title: "Settings",
-      copy: "계정, 로그인, 보호 프로필과 기본 해석 강도를 조정합니다.",
-      pill: "Account",
+      copy: "나이와 중고거래 경험을 입력해 scan 위험도 계산에 사용할 사용자 맥락을 설정합니다.",
+      pill: "Profile",
     };
   }
 
@@ -1100,15 +1144,8 @@ export function App() {
   const [sellerContextError, setSellerContextError] = useState<string | null>(null);
   const [isSellerContextLoading, setIsSellerContextLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profileMode, setProfileMode] = useState<ProfileMode>("cautious");
-  const [account, setAccount] = useState<AccountState | null>(null);
-  const [emailInput, setEmailInput] = useState("");
-  const [passwordInput, setPasswordInput] = useState("");
-  const [preferences, setPreferences] = useState<PreferencesState>({
-    emailAlerts: true,
-    autoOpenReport: true,
-    loginRequired: false,
-  });
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => loadReportUserProfile());
+  const [profileSaveStatus, setProfileSaveStatus] = useState<ProfileSaveStatus>("자동 저장");
 
   useEffect(() => {
     const syncRoute = () => {
@@ -1292,39 +1329,34 @@ export function App() {
     [],
   );
 
-  const profileSummary =
-    profileMode === "newcomer"
-      ? "거래 경험이 적은 사용자 기준으로 추가 입금 요청, 외부 메신저 이동, 계좌 재입력을 더 보수적으로 해석합니다."
-      : profileMode === "cautious"
-        ? "경고 민감도를 높게 잡아 거래 중단과 계좌 재확인을 우선 안내합니다."
-        : "일반 사용자 기준으로 신호를 요약하고, 반복 패턴과 명시적 근거를 함께 보여줍니다.";
-
   const mainHref = buildRouteHref("dashboard", route.scanId);
   const reportsHref = buildRouteHref("reports", route.scanId);
   const settingsHref = buildRouteHref("settings");
   const hasActiveScanContext = route.view !== "settings" && Boolean(route.scanId);
   const isScanContextLoading = hasActiveScanContext && !error && (!scanResult || !pipelineDebug);
 
-  const handleLoginSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setAccount({
-      name: emailInput.trim().split("@")[0] || "safe-ticket user",
-      email: emailInput.trim() || "demo@safe-ticket.local",
+  const persistUserProfile = (nextProfile: UserProfile) => {
+    setUserProfile(nextProfile);
+    saveReportUserProfile(nextProfile);
+    setProfileSaveStatus("저장됨");
+    window.setTimeout(() => {
+      setProfileSaveStatus("자동 저장");
+    }, 1200);
+  };
+
+  const handleAgeChange = (value: string) => {
+    const nextAge = value.trim() === "" ? null : Number.parseInt(value, 10);
+    persistUserProfile({
+      ...userProfile,
+      age: Number.isFinite(nextAge) ? nextAge : null,
     });
   };
 
-  const handleDemoAuth = (mode: "login" | "signup") => {
-    setAccount({
-      name: emailInput.trim().split("@")[0] || (mode === "signup" ? "new safe-ticket user" : "safe-ticket user"),
-      email: emailInput.trim() || "demo@safe-ticket.local",
+  const handleExperienceChange = (level: UserTradeExperienceLevel) => {
+    persistUserProfile({
+      ...userProfile,
+      trade_experience_level: level,
     });
-  };
-
-  const togglePreference = (key: keyof PreferencesState) => {
-    setPreferences((current) => ({
-      ...current,
-      [key]: !current[key],
-    }));
   };
 
   const renderDashboardView = () => {
@@ -1632,122 +1664,57 @@ export function App() {
     <>
       <ShellActionRow view="settings" />
 
-      {!account ? (
-        <section className="dashboard-grid dashboard-settings-login-only">
-          <article className="dashboard-card dashboard-col-6 dashboard-settings-auth-card">
-            <header className="dashboard-card-header">
-              <div>
-                <h3>Account & login</h3>
-                <p>실제 서비스처럼 먼저 계정 진입을 만들고, 로그인 이후에만 보호 설정을 노출합니다.</p>
-              </div>
-            </header>
-            <div className="dashboard-card-body">
-              <form className="dashboard-form" onSubmit={handleLoginSubmit}>
-                <label>
-                  아이디 또는 이메일
-                  <input onChange={(event) => setEmailInput(event.target.value)} placeholder="safe-ticket@example.com" type="text" value={emailInput} />
-                </label>
-                <label>
-                  비밀번호
-                  <input onChange={(event) => setPasswordInput(event.target.value)} placeholder="••••••••" type="password" value={passwordInput} />
-                </label>
-                <div className="dashboard-auth-actions">
-                  <button className="dashboard-btn dashboard-btn-primary" type="submit">로그인</button>
-                  <button className="dashboard-btn dashboard-btn-muted" onClick={() => handleDemoAuth("signup")} type="button">회원가입</button>
-                </div>
-                <div className="dashboard-auth-links">
-                  <button className="dashboard-link-button" type="button">아이디 찾기</button>
-                  <button className="dashboard-link-button" type="button">비밀번호 찾기</button>
-                </div>
-              </form>
-            </div>
-          </article>
-        </section>
-      ) : (
-        <section className="dashboard-grid">
-          <article className="dashboard-card dashboard-col-6">
+      <section className="dashboard-grid dashboard-settings-profile-only">
+        <article className="dashboard-card dashboard-col-6 dashboard-settings-profile-card">
           <header className="dashboard-card-header">
             <div>
-              <h3>Account & login</h3>
-              <p>계정 및 로그인</p>
+              <h3>사용자 정보 설정</h3>
+              <p>스캔 결과를 사용자 상황에 맞춰 더 보수적으로 해석하기 위한 최소 정보입니다.</p>
             </div>
-            <span className={`dashboard-pill ${account ? "is-ok" : "is-neutral"}`}>
-              {account ? "Logged in" : "Guest"}
+            <span className={`dashboard-pill ${profileSaveStatus === "저장됨" ? "is-ok" : "is-neutral"}`}>
+              {profileSaveStatus}
             </span>
           </header>
           <div className="dashboard-card-body">
-            <div className="dashboard-account-panel">
-              <strong>{account.name}</strong>
-              <p>{account.email}</p>
-              <small>데모용 로컬 로그인 상태입니다. 이후 실제 인증 연동 시 세션 또는 토큰 상태로 교체됩니다.</small>
-              <button className="dashboard-btn dashboard-btn-primary" onClick={() => setAccount(null)} type="button">
-                로그아웃
-              </button>
-            </div>
-          </div>
-        </article>
+            <div className="dashboard-form">
+              <label>
+                나이
+                <input
+                  inputMode="numeric"
+                  max={120}
+                  min={0}
+                  onChange={(event) => handleAgeChange(event.target.value)}
+                  placeholder="예: 24"
+                  type="number"
+                  value={userProfile.age ?? ""}
+                />
+              </label>
 
-        <article className="dashboard-card dashboard-col-6">
-          <header className="dashboard-card-header">
-            <div>
-              <h3>Preferences</h3>
-              <p>기본 보호 설정</p>
-            </div>
-            <span className="dashboard-pill is-warning">{profileMode}</span>
-          </header>
-          <div className="dashboard-card-body">
-            <div className="dashboard-preference-list">
-              <button className="dashboard-preference-row" onClick={() => togglePreference("emailAlerts")} type="button">
-                <div>
-                  <strong>이메일 알림</strong>
-                  <p>고위험 게시글 분석 결과를 메일로 받습니다.</p>
+              <div className="dashboard-field-group">
+                <span>중고거래 경험</span>
+                <div className="dashboard-choice-grid" role="radiogroup" aria-label="중고거래 경험">
+                  {EXPERIENCE_LEVELS.map((level) => (
+                    <button
+                      aria-checked={userProfile.trade_experience_level === level}
+                      className={`dashboard-choice ${userProfile.trade_experience_level === level ? "is-active" : ""}`}
+                      key={level}
+                      onClick={() => handleExperienceChange(level)}
+                      role="radio"
+                      type="button"
+                    >
+                      {EXPERIENCE_LABELS[level]}
+                    </button>
+                  ))}
                 </div>
-                <span className={`dashboard-toggle ${preferences.emailAlerts ? "is-enabled" : ""}`} />
-              </button>
-              <button className="dashboard-preference-row" onClick={() => togglePreference("autoOpenReport")} type="button">
-                <div>
-                  <strong>상세 분석 자동 열기</strong>
-                  <p>스캔 완료 후 report page를 바로 여는 기본 동작입니다.</p>
-                </div>
-                <span className={`dashboard-toggle ${preferences.autoOpenReport ? "is-enabled" : ""}`} />
-              </button>
-              <button className="dashboard-preference-row" onClick={() => togglePreference("loginRequired")} type="button">
-                <div>
-                  <strong>로그인 필요 모드</strong>
-                  <p>조회와 신고 연계를 위해 계정 로그인을 우선 요구합니다.</p>
-                </div>
-                <span className={`dashboard-toggle ${preferences.loginRequired ? "is-enabled" : ""}`} />
-              </button>
-            </div>
-          </div>
-        </article>
+              </div>
 
-        <article className="dashboard-card dashboard-col-12">
-          <header className="dashboard-card-header">
-            <div>
-              <h3>Protection profiles</h3>
-              <p>사용자 유형별 기본 해석 강도</p>
-            </div>
-          </header>
-          <div className="dashboard-card-body">
-            <div className="dashboard-profile-grid">
-              <div className="dashboard-profile-card">
-                <strong>Current profile</strong>
-                <p>{profileSummary}</p>
-              </div>
-              <div className="dashboard-profile-card">
-                <strong>세션 상태</strong>
-                <p>{account ? "활성 세션 1개 / 데모 계정 로그인 완료" : "비로그인 상태 / 확장 로컬 세션만 사용 중"}</p>
-              </div>
-              <div className="dashboard-profile-card">
-                <strong>외부 연계 준비</strong>
-                <p>더치트 / 경찰청 연계를 위해 향후 본인 동의와 신고 이력 동기화 슬롯을 이 영역에 추가합니다.</p>
-              </div>
+              <p className="dashboard-helper-copy">
+                입력한 나이와 거래 경험은 맞춤형 위험도 계산에 활용됩니다.
+              </p>
             </div>
           </div>
         </article>
-        </section>
-      )}
+      </section>
     </>
   );
 
@@ -1805,10 +1772,10 @@ export function App() {
         {showSidebarAccount ? (
           <div className="dashboard-sidebar-footer">
             <div className="dashboard-sidebar-profile">
-              <div className="dashboard-avatar">{account ? account.name.charAt(0).toUpperCase() : "S"}</div>
+              <div className="dashboard-avatar">S</div>
               <div>
-                <strong>{account ? account.name : "safe-ticket"}</strong>
-                <span>{account ? account.email : "Scan workspace"}</span>
+                <strong>safe-ticket</strong>
+                <span>Scan workspace</span>
               </div>
             </div>
           </div>
@@ -1824,7 +1791,7 @@ export function App() {
             <div className="dashboard-topbar-divider" />
             <button className="dashboard-userchip" type="button">
               <span className="dashboard-userchip-dot" />
-              <strong>{account ? account.name : "safe-ticket"}</strong>
+              <strong>safe-ticket</strong>
             </button>
           </div>
         </header>
