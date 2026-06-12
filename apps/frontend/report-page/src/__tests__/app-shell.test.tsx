@@ -65,4 +65,12 @@ describe("report page shell", () => {
     expect(html).not.toContain("데모용 로컬 로그인 상태");
     expect(html).not.toContain("로그인 필요 모드");
   });
+
+  it("keeps the active scan id in sidebar links from settings", () => {
+    const html = renderWithHash("#/settings?scanId=scan_65efe38f");
+
+    expect(html).toContain('href="#/dashboard?scanId=scan_65efe38f"');
+    expect(html).toContain('href="#/reports/scan_65efe38f"');
+    expect(html).toContain('href="#/settings?scanId=scan_65efe38f"');
+  });
 });

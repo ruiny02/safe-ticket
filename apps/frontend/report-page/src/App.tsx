@@ -1098,7 +1098,7 @@ export function App() {
   }, [dashboard, pipelineDebug, scanResult]);
   const mainHref = buildRouteHref("dashboard", route.scanId);
   const reportsHref = buildRouteHref("reports", route.scanId);
-  const settingsHref = buildRouteHref("settings");
+  const settingsHref = buildRouteHref("settings", route.scanId);
   const hasActiveScanContext = route.view !== "settings" && Boolean(route.scanId);
   const isScanContextLoading = hasActiveScanContext && !error && (!scanResult || !pipelineDebug);
 

@@ -27,6 +27,11 @@ describe("parseReportRoute", () => {
       view: "settings",
       scanId: null,
     });
+
+    expect(parseReportRoute("#/settings?scanId=scan_65efe38f", "")).toEqual({
+      view: "settings",
+      scanId: "scan_65efe38f",
+    });
   });
 
   it("preserves scan ids encoded in hash query for non-report routes", () => {
@@ -62,6 +67,6 @@ describe("parseReportRoute", () => {
   it("builds route hrefs that preserve the active scan id across views", () => {
     expect(buildRouteHref("dashboard", "scan_65efe38f")).toBe("#/dashboard?scanId=scan_65efe38f");
     expect(buildRouteHref("reports", "scan_65efe38f")).toBe("#/reports/scan_65efe38f");
-    expect(buildRouteHref("settings")).toBe("#/settings");
+    expect(buildRouteHref("settings", "scan_65efe38f")).toBe("#/settings?scanId=scan_65efe38f");
   });
 });
