@@ -140,8 +140,9 @@ describe("buildDashboardModel", () => {
       "Protected buyers",
       "Manual review",
     ]);
-    expect(model.embedding.title).toBe("임베딩 시각화 대기");
-    expect(model.embedding.pipeline).toBe("backend risk-map required");
+    expect(model.embedding.title).toBe("Risk-map 좌표 로딩 중");
+    expect(model.embedding.description).toContain("backend risk-map에서 실제 DB 임베딩 좌표를 가져오고 있습니다");
+    expect(model.embedding.pipeline).toBe("waiting for backend risk-map");
     expect(model.embedding.points).toEqual([]);
     expect(model.embedding.summary.nearestCluster).toBe("fraud");
     expect(model.embedding.summary.clusterCounts).toEqual({

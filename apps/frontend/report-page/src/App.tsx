@@ -599,10 +599,21 @@ function EmbeddingMapExplorer({ points }: { points: EmbeddingPoint[] }) {
   if (!points.length) {
     return (
       <div className="dashboard-embedding-panel">
-        <div className="dashboard-card dashboard-empty">
-          <div className="dashboard-card-body">
-            <h3>시각화할 임베딩 좌표가 없습니다</h3>
-            <p>backend risk-map 응답이 없는 경우 임의 좌표를 표시하지 않습니다. 스캔을 먼저 실행한 뒤 다시 열어 주세요.</p>
+        <div className="dashboard-embedding-loading-card">
+          <div className="dashboard-embedding-loading-visual" aria-hidden="true">
+            <span className="dashboard-embedding-loading-orbit" />
+            <span className="dashboard-embedding-loading-dot is-safe" />
+            <span className="dashboard-embedding-loading-dot is-borderline" />
+            <span className="dashboard-embedding-loading-dot is-fraud" />
+            <span className="dashboard-embedding-loading-dot is-current" />
+          </div>
+          <div className="dashboard-embedding-loading-copy">
+            <span>backend risk-map</span>
+            <h3>서버에서 임베딩 좌표를 가져오고 있습니다</h3>
+            <p>
+              safe-ticket backend가 현재 scan과 DB 사례 임베딩을 비교해 2D/3D 좌표를 계산하고 있습니다.
+              응답이 도착하면 이 영역에 실제 risk-map 시각화가 표시됩니다.
+            </p>
           </div>
         </div>
       </div>

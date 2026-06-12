@@ -183,10 +183,10 @@ function buildEmbeddingModel({
 
   if (!caseUmap?.points.length) {
     return {
-      title: "임베딩 시각화 대기",
+      title: "Risk-map 좌표 로딩 중",
       description:
-        "backend risk-map 응답이 도착하면 실제 DB 임베딩 기반 2D/3D 시각화를 표시합니다. 먼저 확장 프로그램에서 스캔을 실행하고 결과를 불러와 주세요.",
-      pipeline: "backend risk-map required",
+        "backend risk-map에서 실제 DB 임베딩 좌표를 가져오고 있습니다. 응답이 도착하면 2D/3D 시각화가 자동으로 표시됩니다.",
+      pipeline: "waiting for backend risk-map",
       points: [],
       summary: {
         nearestCluster:
