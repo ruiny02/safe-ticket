@@ -10,6 +10,7 @@ import {
   isReliableJoongnaProductPayload,
 } from "../../shared/joonggonara";
 import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
+import { isSupportedMarketplacePage } from "../../shared/page-target";
 import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
 import { createScan, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
@@ -288,7 +289,7 @@ export function App({ pageUrl }: AppProps) {
   const [localHighlightTargets, setLocalHighlightTargets] = useState<ScanHighlightTarget[]>([]);
   const [appliedHighlights, setAppliedHighlights] = useState<ScanHighlightTarget[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(() => !isSupportedMarketplacePage(pageUrl));
   const [isSending, setIsSending] = useState(false);
   const [activePanelTab, setActivePanelTab] = useState<PanelTab>("analysis");
   const [chatInput, setChatInput] = useState("");
@@ -492,6 +493,12 @@ export function App({ pageUrl }: AppProps) {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    if (isSupportedMarketplacePage(currentPageUrl)) {
+      setIsCollapsed(false);
+    }
+  }, [currentPageUrl]);
 
   useEffect(() => {
     if (payload || !document.body) {
