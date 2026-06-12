@@ -11,7 +11,7 @@ import {
 } from "../../shared/joonggonara";
 import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
 import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
-import { createScan, createScanSync, getScan } from "../../shared/scan-api";
+import { createScan, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { buildLocalChatHighlightTargets, mergeHighlightTargets } from "./lib/chat-rules";
 import { buildAssistantReply, buildSuggestedPrompts } from "./lib/chatbot";
@@ -390,14 +390,8 @@ export function App({ pageUrl }: AppProps) {
         ...payload,
         user_profile: storedUserProfile,
       };
-      let nextScanResult: ScanResultResponse;
-
-      try {
-        nextScanResult = await createScanSync(API_BASE_URL, requestPayload);
-      } catch {
-        const nextResponse = await createScan(API_BASE_URL, requestPayload);
-        nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
-      }
+      const nextResponse = await createScan(API_BASE_URL, requestPayload);
+      const nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
 
       setLocalHighlightTargets(isTradeChatPayload(payload) ? buildLocalChatHighlightTargets(payload) : []);
       setScanResult(nextScanResult);
