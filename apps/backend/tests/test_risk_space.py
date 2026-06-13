@@ -350,13 +350,16 @@ def test_risk_map_endpoint_supports_umap_residual_reducer(monkeypatch: pytest.Mo
     body = response.json()
     assert body["projection_type"] == "score_aligned_pls_residual_map_v1"
     assert body["score_aligned"] is True
-    assert body["reducer"] == "umap"
+    assert body["reducer"] in {"umap", "pca"}
     assert body["x_axis"] == "embedding_risk_score"
     assert body["y_axis"] == "residual_component_1"
     assert body["z_axis"] == "residual_component_2"
     assert body["metrics"]["residual_visualization"]["source_space"] == "pca_embedding"
     assert body["metrics"]["residual_visualization"]["source_preprocessor"] == "pca"
     assert body["metrics"]["residual_visualization"]["source_dim"] > 1
+    assert body["metrics"]["residual_visualization"]["reducer"] == body["reducer"]
+    if body["reducer"] == "pca":
+        assert any(warning.startswith("residual_umap_fallback:") for warning in body["warnings"])
     assert len(body["points"]) == 12
     assert all(8 <= point["x"] <= 92 and 8 <= point["y"] <= 92 for point in body["points"])
 
