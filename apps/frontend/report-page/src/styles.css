@@ -1289,8 +1289,9 @@ svg {
 
 .dashboard-seller-report-card {
   background:
-    radial-gradient(circle at 12% 0%, rgba(62, 201, 114, 0.12), transparent 28%),
-    radial-gradient(circle at 94% 16%, rgba(132, 112, 255, 0.1), transparent 26%),
+    radial-gradient(circle at 12% 0%, rgba(132, 112, 255, 0.14), transparent 30%),
+    radial-gradient(circle at 94% 16%, rgba(132, 112, 255, 0.1), transparent 28%),
+    linear-gradient(180deg, #fff, #faf9ff),
     #fff;
 }
 
@@ -1480,7 +1481,7 @@ svg {
   margin: 0;
   padding: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #8470ff, #22c55e);
+  background: linear-gradient(90deg, #8470ff, #67bfff);
   animation: seller-report-progress 1.8s ease-in-out infinite;
 }
 
@@ -2028,5 +2029,537 @@ svg {
 
   .dashboard-bar-stack span {
     width: 14px;
+  }
+}
+
+/* ============================================================
+   Presentation polish — motion, depth & micro-interactions
+   Theme-preserving; no markup or logic changes.
+   Entrance animations use fill-mode: backwards so they never
+   trap a transform and block :hover lifts afterwards.
+   ============================================================ */
+
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dash-fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dash-hero-sheen {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes dash-live-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--hero-accent, 132, 112, 255), 0.46);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(var(--hero-accent, 132, 112, 255), 0);
+  }
+}
+
+@keyframes dash-halo-fade {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes dash-pill-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 86, 86, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 86, 86, 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Staggered entrance for the page header and each dashboard section */
+  .dashboard-actions,
+  .dashboard-grid > * {
+    animation: dash-rise 0.62s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .dashboard-actions {
+    animation-delay: 0.02s;
+  }
+  .dashboard-grid > *:nth-child(1) {
+    animation-delay: 0.07s;
+  }
+  .dashboard-grid > *:nth-child(2) {
+    animation-delay: 0.13s;
+  }
+  .dashboard-grid > *:nth-child(3) {
+    animation-delay: 0.19s;
+  }
+  .dashboard-grid > *:nth-child(4) {
+    animation-delay: 0.25s;
+  }
+  .dashboard-grid > *:nth-child(5) {
+    animation-delay: 0.31s;
+  }
+  .dashboard-grid > *:nth-child(6) {
+    animation-delay: 0.37s;
+  }
+  .dashboard-grid > *:nth-child(7) {
+    animation-delay: 0.43s;
+  }
+  .dashboard-grid > *:nth-child(n + 8) {
+    animation-delay: 0.49s;
+  }
+
+  .dashboard-topbar {
+    animation: dash-fade-down 0.5s ease backwards;
+  }
+
+  /* Headline metrics gently settle in */
+  .dashboard-report-score strong,
+  .dashboard-summary-value strong {
+    animation: dash-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation-delay: 0.28s;
+  }
+
+  .dashboard-report-hero::after {
+    animation: dash-hero-sheen 2.6s ease 0.45s 1;
+  }
+
+  .dashboard-report-score span::before {
+    animation: dash-live-dot 1.9s ease-in-out infinite;
+  }
+
+  .dashboard-userchip-dot::after {
+    animation: dash-live-dot 2s ease-in-out infinite;
+  }
+
+  .embedding-current-star-halo,
+  .embedding-3d-current-star-halo {
+    animation: dash-halo-fade 2.2s ease-in-out infinite;
+  }
+
+  .dashboard-report-hero .dashboard-pill.is-danger,
+  .dashboard-card-header .dashboard-pill.is-danger {
+    animation: dash-pill-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+/* --- Card depth + hover lift ------------------------------------------ */
+.dashboard-card {
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s ease,
+    border-color 0.28s ease;
+}
+
+.dashboard-card:hover {
+  border-color: rgba(132, 112, 255, 0.32);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.1);
+}
+
+/* Lift the static info cards; leave the draggable plot and hero stable */
+.dashboard-card:not(.dashboard-embedding-card):not(.dashboard-report-hero):hover {
+  transform: translateY(-3px);
+}
+
+/* Inner tiles respond to hover too */
+.dashboard-overview-item,
+.dashboard-signal-list li,
+.dashboard-observation-item,
+.dashboard-source-box,
+.dashboard-embedding-summary-strip div,
+.dashboard-seller-report-summary div {
+  transition:
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.24s ease,
+    border-color 0.24s ease;
+}
+
+.dashboard-overview-item:hover,
+.dashboard-signal-list li:hover,
+.dashboard-observation-item:hover,
+.dashboard-source-box:hover,
+.dashboard-embedding-summary-strip div:hover,
+.dashboard-seller-report-summary div:hover {
+  transform: translateY(-2px);
+  border-color: rgba(132, 112, 255, 0.3);
+  box-shadow: 0 14px 30px rgba(17, 24, 39, 0.08);
+}
+
+/* --- Risk-aware accent edge on overview tiles (pure CSS via :has) ------ */
+.dashboard-overview-item {
+  position: relative;
+}
+
+.dashboard-overview-item::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--violet-500);
+  opacity: 0.5;
+  transition: opacity 0.24s ease;
+}
+
+.dashboard-overview-item:has(.dashboard-pill.is-danger)::before {
+  background: var(--red-500);
+  opacity: 0.92;
+}
+
+.dashboard-overview-item:has(.dashboard-pill.is-warning)::before {
+  background: #f0623f;
+  opacity: 0.95;
+}
+
+.dashboard-overview-item:has(.dashboard-pill.is-ok)::before {
+  background: var(--violet-500);
+  opacity: 0.8;
+}
+
+.dashboard-overview-item:hover::before {
+  opacity: 1;
+}
+
+/* Medium risk reads red-leaning inside risk tiles (status pills stay amber) */
+.dashboard-overview-item .dashboard-pill.is-warning,
+.dashboard-observation-item .dashboard-pill.is-warning {
+  background: rgba(240, 98, 63, 0.16);
+  color: #c43a18;
+}
+
+/* --- Risk-tinted alert hero (driven by dashboard.hero.tone) ----------- */
+.dashboard-report-hero.is-danger {
+  --hero-accent: 250, 73, 73;
+  border-color: rgba(255, 86, 86, 0.28);
+  background:
+    radial-gradient(circle at 88% -14%, rgba(255, 86, 86, 0.13), transparent 46%),
+    linear-gradient(180deg, #fff, #fff1f0);
+}
+
+.dashboard-report-hero.is-warning {
+  --hero-accent: 240, 98, 63;
+  border-color: rgba(240, 98, 63, 0.26);
+  background:
+    radial-gradient(circle at 88% -14%, rgba(240, 98, 63, 0.12), transparent 46%),
+    linear-gradient(180deg, #fff, #fff5f1);
+}
+
+.dashboard-report-hero.is-ok {
+  --hero-accent: 132, 112, 255;
+  border-color: rgba(132, 112, 255, 0.26);
+  background:
+    radial-gradient(circle at 88% -14%, rgba(132, 112, 255, 0.12), transparent 46%),
+    linear-gradient(180deg, #fff, #f6f4ff);
+}
+
+.dashboard-report-hero.is-danger::before {
+  background: linear-gradient(90deg, #fa4949, #ff8a6e 58%, #ff5656);
+}
+
+.dashboard-report-hero.is-warning::before {
+  background: linear-gradient(90deg, #f0623f, #ff9472 58%, #f0623f);
+}
+
+.dashboard-report-hero.is-ok::before {
+  background: linear-gradient(90deg, var(--violet-500), #9c8cff 58%, var(--sky-500));
+}
+
+/* --- Risk alert hero: brand rail, live sheen, emphasised score --------- */
+.dashboard-report-hero {
+  --hero-accent: 132, 112, 255;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.dashboard-report-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  height: 3px;
+  background: linear-gradient(90deg, var(--violet-500), #9c8cff 52%, var(--sky-500));
+  opacity: 0.92;
+}
+
+.dashboard-report-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(132, 112, 255, 0.1) 48%, transparent 64%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.dashboard-report-hero .dashboard-card-pad {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-report-score {
+  position: relative;
+  background: linear-gradient(180deg, #fff, rgba(var(--hero-accent, 132, 112, 255), 0.05));
+  border-color: rgba(var(--hero-accent, 132, 112, 255), 0.24);
+  box-shadow: 0 10px 26px rgba(var(--hero-accent, 132, 112, 255), 0.1);
+}
+
+.dashboard-report-score strong {
+  color: rgb(var(--hero-accent, 132, 112, 255));
+}
+
+.dashboard-report-score span {
+  position: relative;
+  padding-left: 14px;
+}
+
+.dashboard-report-score span::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 999px;
+  background: rgb(var(--hero-accent, 132, 112, 255));
+}
+
+/* --- Sidebar navigation interactions ---------------------------------- */
+.dashboard-sidebar-link {
+  position: relative;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.dashboard-sidebar-link:hover {
+  transform: translateX(2px);
+}
+
+.dashboard-sidebar-subnav a {
+  position: relative;
+  padding-left: 12px;
+  transition:
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.dashboard-sidebar-subnav a:hover {
+  color: var(--gray-800);
+  transform: translateX(2px);
+}
+
+.dashboard-sidebar-subnav a.is-active::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 999px;
+  background: var(--violet-500);
+}
+
+/* --- Top bar interactions --------------------------------------------- */
+.dashboard-topicon {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.dashboard-topicon:hover {
+  transform: translateY(-1px);
+}
+
+.dashboard-topicon:active {
+  transform: scale(0.92);
+}
+
+.dashboard-userchip {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.dashboard-userchip:hover {
+  border-color: rgba(132, 112, 255, 0.4);
+  box-shadow: 0 8px 20px rgba(111, 92, 243, 0.12);
+  transform: translateY(-1px);
+}
+
+.dashboard-userchip-dot {
+  position: relative;
+}
+
+.dashboard-userchip-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  box-shadow: 0 0 0 0 rgba(132, 112, 255, 0.5);
+}
+
+/* --- Buttons, choices, links ------------------------------------------ */
+.dashboard-choice {
+  transition:
+    transform 160ms ease,
+    box-shadow 200ms ease,
+    background 200ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.dashboard-choice:hover {
+  transform: translateY(-1px);
+  border-color: rgba(132, 112, 255, 0.34);
+}
+
+.dashboard-choice:active {
+  transform: scale(0.98);
+}
+
+.dashboard-embedding-3d-meta button {
+  transition:
+    transform 140ms ease,
+    filter 140ms ease;
+}
+
+.dashboard-embedding-3d-meta button:hover {
+  filter: brightness(1.14);
+  transform: translateY(-1px);
+}
+
+.dashboard-embedding-3d-meta button:active {
+  transform: scale(0.95);
+}
+
+.dashboard-link {
+  transition:
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.dashboard-link:hover {
+  color: var(--violet-500);
+  opacity: 0.92;
+}
+
+.dashboard-highlight-pill {
+  transition:
+    transform 160ms ease,
+    box-shadow 200ms ease;
+}
+
+.dashboard-highlight-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 86, 86, 0.18);
+}
+
+/* --- Focus-visible rings ---------------------------------------------- */
+.dashboard-topicon:focus-visible,
+.dashboard-userchip:focus-visible,
+.dashboard-choice:focus-visible,
+.dashboard-link:focus-visible,
+.dashboard-embedding-3d-meta button:focus-visible,
+.dashboard-sidebar-link:focus-visible {
+  outline: 2px solid rgba(132, 112, 255, 0.55);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+/* --- Refined product touches ------------------------------------------ */
+.dashboard-main {
+  scroll-behavior: smooth;
+}
+
+/* Data rows in the signals table feel interactive */
+.dashboard-table tbody tr {
+  transition: background-color 160ms ease;
+}
+
+.dashboard-table tbody tr:hover {
+  background: rgba(132, 112, 255, 0.045);
+}
+
+/* Crisp, aligned numerals give the metrics a premium data feel */
+.dashboard-summary-value strong,
+.dashboard-report-score strong,
+.dashboard-inline-stat strong,
+.dashboard-embedding-summary-strip strong {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Embedding markers brighten on hover */
+.embedding-point,
+.embedding-3d-point {
+  transition: opacity 140ms ease;
+}
+
+.embedding-point:hover,
+.embedding-3d-point:hover {
+  opacity: 1;
+}
+
+/* --- Respect reduced motion: freeze decorative loops ------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-main {
+    scroll-behavior: auto;
+  }
+
+  .dashboard-embedding-loading-orbit,
+  .dashboard-embedding-loading-dot,
+  .dashboard-seller-report-dossier::after,
+  .dashboard-seller-report-skeleton-line::after,
+  .dashboard-seller-report-checklist i,
+  .dashboard-seller-report-progress span {
+    animation: none !important;
   }
 }

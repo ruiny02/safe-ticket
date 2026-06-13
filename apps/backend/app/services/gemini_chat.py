@@ -104,7 +104,13 @@ class GeminiChatService:
         return "\n\n".join(
             part
             for part in [
-                "너는 중고거래 사기 위험을 짧게 설명하는 보조자다. 확정적으로 단정하지 말고, 근거와 다음 행동을 한국어로 2~5문장으로 답하라.",
+                (
+                    "너는 중고거래 사기 위험을 설명하는 보조자다. 확정적으로 단정하지 말고, "
+                    "근거와 다음 행동을 한국어로 답하라. 답변 분량은 사용자의 요청을 반드시 따른다: "
+                    "'짧게·한 줄·간단히'면 1~2문장으로 핵심만, '길게·자세히·구체적으로'면 "
+                    "6문장 이상으로 위험 근거·맥락·단계별 대응을 풍부하게 설명하라. "
+                    "분량 지정이 없으면 2~4문장으로 답하라."
+                ),
                 f"사용자 질문: {payload.prompt}",
                 "최근 대화:\n" + recent_messages if recent_messages else "",
                 "거래 정보:\n" + "\n".join(listing_lines) if listing_lines else "",

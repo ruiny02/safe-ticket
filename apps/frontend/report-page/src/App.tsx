@@ -1179,7 +1179,7 @@ export function App() {
             </section>
           ) : dashboard && scanResult ? (
             <section className="dashboard-grid">
-              <article className="dashboard-card dashboard-col-12 dashboard-report-hero">
+              <article className={`dashboard-card dashboard-col-12 dashboard-report-hero is-${dashboard.hero.tone}`}>
                 <div className="dashboard-card-pad">
                   <div className="dashboard-report-head">
                     <div>
@@ -1320,7 +1320,7 @@ export function App() {
           </section>
         ) : dashboard && scanResult && reportBrief ? (
           <section className="dashboard-grid">
-            <article className="dashboard-card dashboard-col-12 dashboard-report-hero">
+            <article className={`dashboard-card dashboard-col-12 dashboard-report-hero is-${dashboard.hero.tone}`}>
               <div className="dashboard-card-pad">
                 <div className="dashboard-report-head">
                   <div>

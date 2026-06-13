@@ -1036,7 +1036,14 @@ export function App({ pageUrl }: AppProps) {
                   ))}
 
                   {isChatLoading ? (
-                    <p className="safe-ticket-chat-message bot">답변을 정리하고 있어요...</p>
+                    <p className="safe-ticket-chat-message bot safe-ticket-chat-typing" role="status" aria-live="polite">
+                      <span>답변을 정리하고 있어요</span>
+                      <span className="safe-ticket-typing-dots" aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    </p>
                   ) : null}
                 </div>
 
