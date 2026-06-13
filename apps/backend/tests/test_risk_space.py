@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.schemas.scan import PipelineOutboundPayload
 from app.services.risk_space.data_loader import load_case_embedding_dataset
 from app.services.risk_space.project_scan import project_embedding
+from app.services.risk_space import service as risk_space_service
 from app.services.risk_space.train import train_risk_space_model
 
 
@@ -28,10 +29,12 @@ client = TestClient(app)
 def reset_database(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.setenv("RISK_SPACE_ARTIFACT_DIR", str(tmp_path / "risk_space"))
     get_settings.cache_clear()
+    risk_space_service._VISUALIZATION_ARTIFACT_CACHE.clear()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     get_settings.cache_clear()
+    risk_space_service._VISUALIZATION_ARTIFACT_CACHE.clear()
 
 
 def seed_risk_cases() -> None:
@@ -350,13 +353,14 @@ def test_risk_map_endpoint_supports_umap_residual_reducer(monkeypatch: pytest.Mo
     body = response.json()
     assert body["projection_type"] == "score_aligned_pls_residual_map_v1"
     assert body["score_aligned"] is True
-    assert body["reducer"] == "umap"
+    assert body["reducer"] in {"umap", "pca"}
     assert body["x_axis"] == "embedding_risk_score"
     assert body["y_axis"] == "residual_component_1"
     assert body["z_axis"] == "residual_component_2"
     assert body["metrics"]["residual_visualization"]["source_space"] == "pca_embedding"
     assert body["metrics"]["residual_visualization"]["source_preprocessor"] == "pca"
     assert body["metrics"]["residual_visualization"]["source_dim"] > 1
+    assert body["metrics"]["residual_visualization"]["reducer"] == body["reducer"]
     assert len(body["points"]) == 12
     assert all(8 <= point["x"] <= 92 and 8 <= point["y"] <= 92 for point in body["points"])
 

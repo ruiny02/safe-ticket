@@ -53,6 +53,15 @@
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://*:3000/report/*",
+        "http://localhost:3000/report/*",
+        "http://127.0.0.1:3000/report/*"
+      ],
+      "js": ["profile-bridge.js"],
+      "run_at": "document_idle"
     }
   ],
   "background": {
