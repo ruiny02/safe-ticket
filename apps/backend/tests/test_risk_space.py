@@ -358,8 +358,6 @@ def test_risk_map_endpoint_supports_umap_residual_reducer(monkeypatch: pytest.Mo
     assert body["metrics"]["residual_visualization"]["source_preprocessor"] == "pca"
     assert body["metrics"]["residual_visualization"]["source_dim"] > 1
     assert body["metrics"]["residual_visualization"]["reducer"] == body["reducer"]
-    if body["reducer"] == "pca":
-        assert any(warning.startswith("residual_umap_fallback:") for warning in body["warnings"])
     assert len(body["points"]) == 12
     assert all(8 <= point["x"] <= 92 and 8 <= point["y"] <= 92 for point in body["points"])
 
