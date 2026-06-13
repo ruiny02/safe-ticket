@@ -483,6 +483,7 @@ def _fit_semantic_residual_reducer(
                 n_neighbors=n_neighbors,
                 min_dist=min_dist,
                 metric="euclidean",
+                init="random",
                 random_state=42,
             )
             reduced = np.asarray(reducer_object.fit_transform(matrix), dtype=float)

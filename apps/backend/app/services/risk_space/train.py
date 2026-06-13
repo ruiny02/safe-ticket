@@ -516,6 +516,7 @@ def _fit_residual_reducer(residual_matrix: np.ndarray, *, reducer: str) -> tuple
                 n_neighbors=max(2, min(15, residual_matrix.shape[0] - 1)),
                 min_dist=0.25,
                 metric="euclidean",
+                init="random",
                 random_state=42,
             )
             reduced = np.asarray(reducer_object.fit_transform(residual_matrix), dtype=float)
