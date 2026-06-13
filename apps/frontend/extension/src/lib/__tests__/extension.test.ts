@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import manifest from "../../../public/manifest.json";
 import {
   getSupportedMarketplacePageStatus,
   getSupportedSafeTicketPageStatus,
@@ -55,5 +56,14 @@ describe("feature-compatible safe-ticket aliases", () => {
       supported: true,
       label: "지원되는 페이지에서 패널이 동작하고 있습니다.",
     });
+  });
+});
+
+describe("extension manifest", () => {
+  it("injects a profile bridge on report pages so settings sync into extension storage", () => {
+    const profileBridgeScript = manifest.content_scripts.find((script) => script.js.includes("profile-bridge.js"));
+
+    expect(profileBridgeScript?.matches).toContain("http://*:3000/report/*");
+    expect(profileBridgeScript?.run_at).toBe("document_idle");
   });
 });

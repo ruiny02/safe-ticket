@@ -37,6 +37,8 @@ const DEMO_JOONGNA_CHAT_URL = `${FRONTEND_BASE_URL}/joongna-chat.html`;
 const DEMO_BUNJANG_CHAT_URL = `${FRONTEND_BASE_URL}/bunjang-chat.html`;
 const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
 const USER_PROFILE_STORAGE_KEY = "safeTicketUserProfile";
+const USER_PROFILE_UPDATED_MESSAGE_TYPE = "safe-ticket-user-profile-updated";
+const USER_PROFILE_SYNC_MESSAGE_TYPE = "safe-ticket-user-profile-sync";
 
 type Tone = "danger" | "warning" | "ok" | "neutral";
 type SignalFlag = "Matched" | "Review" | "Not found";
@@ -122,6 +124,13 @@ function saveReportUserProfile(profile: UserProfile): void {
   }
 
   window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  window.postMessage(
+    {
+      type: USER_PROFILE_UPDATED_MESSAGE_TYPE,
+      userProfile: profile,
+    },
+    window.location.origin,
+  );
 }
 
 function getCurrentRoute() {
@@ -964,6 +973,26 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => loadReportUserProfile());
   const [profileSaveStatus, setProfileSaveStatus] = useState<ProfileSaveStatus>("자동 저장");
+
+  useEffect(() => {
+    const syncUserProfileFromExtension = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin) {
+        return;
+      }
+
+      const data = event.data as { type?: unknown; userProfile?: unknown } | null;
+      if (!data || data.type !== USER_PROFILE_SYNC_MESSAGE_TYPE) {
+        return;
+      }
+
+      const nextProfile = normalizeUserProfile(data.userProfile);
+      setUserProfile(nextProfile);
+      window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(nextProfile));
+    };
+
+    window.addEventListener("message", syncUserProfileFromExtension);
+    return () => window.removeEventListener("message", syncUserProfileFromExtension);
+  }, []);
 
   useEffect(() => {
     const syncRoute = () => {
