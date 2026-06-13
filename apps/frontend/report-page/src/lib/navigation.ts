@@ -30,7 +30,7 @@ export function buildRouteHref(view: ReportView, scanId?: string | null): string
   }
 
   if (view === "settings") {
-    return "#/settings";
+    return scanId ? `#/settings?scanId=${encodeURIComponent(scanId)}` : "#/settings";
   }
 
   return scanId ? `#/dashboard?scanId=${encodeURIComponent(scanId)}` : "#/dashboard";
@@ -67,7 +67,7 @@ export function parseReportRoute(hash: string, search: string): ReportRoute {
   if (normalizedPath.startsWith("/settings")) {
     return {
       view: "settings",
-      scanId: null,
+      scanId: routeSearchParams.get("scanId"),
     };
   }
 

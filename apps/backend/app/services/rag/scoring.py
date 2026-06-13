@@ -66,36 +66,53 @@ def score_rag_context(context: RAGContext) -> RAGScore:
             )
         )
 
-    user_points = _user_vulnerability_points(context)
-    if user_points:
-        user_adjustment = user_points / 100
-        rule_adjustment += user_adjustment
+    review_points = _seller_review_history_points(context)
+    if review_points:
+        review_adjustment = review_points / 100
+        rule_adjustment += review_adjustment
         breakdown.append(
             RiskScoreComponent(
-                component="user_vulnerability",
-                points=user_points,
-                reason="사용자 연령대와 중고거래 경험을 반영해 더 보수적으로 조정했습니다.",
-                value=user_adjustment,
+                component="seller_review_history",
+                points=review_points,
+                reason="판매자의 거래후기 수를 신뢰 신호로 반영해 위험도를 보정했습니다.",
+                value=review_adjustment,
+                metadata={"seller_review_count": context.scoring_signals.get("seller_review_count")},
+            )
+        )
+
+    user_multiplier = _user_profile_multiplier(context)
+    if user_multiplier != 1.0:
+        breakdown.append(
+            RiskScoreComponent(
+                component="user_profile_multiplier",
+                points=round((user_multiplier - 1.0) * 100),
+                reason="사용자 연령대와 중고거래 경험을 최종 위험도 multiplier로 반영했습니다.",
+                value=user_multiplier,
                 metadata={
                     "age_group": context.user_context.age_group,
                     "trade_experience": context.user_context.trade_experience,
+                    "age_multiplier": _age_multiplier(context),
+                    "experience_multiplier": _trade_experience_multiplier(context),
                 },
             )
         )
 
-    final_score = max(rule_floor, min(base_score + rule_adjustment, 1.0))
+    adjusted_score = max(rule_floor, base_score + rule_adjustment)
+    final_score = min(adjusted_score * user_multiplier, 1.0)
     risk_points = round(final_score * 100)
     risk_score = round(final_score, 4)
     breakdown.append(
         RiskScoreComponent(
             component="final_score",
             points=risk_points,
-            reason="embedding risk score에 rule/user adjustment를 최종 단계에서만 반영했습니다.",
+            reason="embedding risk score에 rule/review adjustment를 더한 뒤 user multiplier를 최종 적용했습니다.",
             value=risk_score,
             metadata={
                 "embedding_risk_score": round(base_score, 6),
                 "rule_floor": rule_floor,
                 "rule_adjustment": round(rule_adjustment, 6),
+                "pre_multiplier_score": round(adjusted_score, 6),
+                "user_multiplier": round(user_multiplier, 6),
                 "external_override": False,
                 "projection_type": "embedding_pls1_primary_pls7_cosine_v1",
                 "model_version": artifact.model_version if artifact else None,
@@ -112,12 +129,36 @@ def score_rag_context(context: RAGContext) -> RAGScore:
     )
 
 
-def _user_vulnerability_points(context: RAGContext) -> int:
-    points = 0
-    if context.user_context.age_group == "60_plus":
-        points += 15
+def _user_profile_multiplier(context: RAGContext) -> float:
+    return round(_age_multiplier(context) * _trade_experience_multiplier(context), 6)
+
+
+def _age_multiplier(context: RAGContext) -> float:
+    if context.user_context.age_group == "70_plus":
+        return 1.15
+    if context.user_context.age_group in {"50_69", "60_plus"}:
+        return 1.10
+    return 1.0
+
+
+def _trade_experience_multiplier(context: RAGContext) -> float:
     if context.user_context.trade_experience == "low":
-        points += 15
-    elif context.user_context.trade_experience == "medium":
-        points += 7
-    return points
+        return 1.05
+    if context.user_context.trade_experience == "high":
+        return 0.95
+    return 1.0
+
+
+def _seller_review_history_points(context: RAGContext) -> int:
+    review_count = context.scoring_signals.get("seller_review_count")
+    if not isinstance(review_count, int):
+        return 0
+    if review_count <= 0:
+        return 5
+    if review_count <= 4:
+        return 0
+    if review_count <= 19:
+        return -5
+    if review_count <= 49:
+        return -10
+    return -15

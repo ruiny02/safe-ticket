@@ -23,7 +23,7 @@ from app.services.risk_space.train import _fit_residual_reducer, _residualize, t
 
 
 RiskLevel = Literal["low", "medium", "high"]
-RISK_TARGET_SOURCE = "case_risk_score_continuous_pls7_v1"
+RISK_TARGET_SOURCE = "case_risk_score_continuous_pls7_v2"
 _VISUALIZATION_ARTIFACT_CACHE: dict[tuple[str, str], RiskSpaceArtifact] = {}
 
 
@@ -52,7 +52,7 @@ def load_or_train_active_artifact() -> RiskSpaceArtifact:
         return artifact
 
     dataset = load_case_embedding_dataset()
-    artifact, _report = train_risk_space_model(dataset, reducer="pca")
+    artifact, _report = train_risk_space_model(dataset, reducer="pca", candidate_mode="active")
     save_artifact(artifact, activate=True)
     return artifact
 
@@ -483,6 +483,7 @@ def _fit_semantic_residual_reducer(
                 n_neighbors=n_neighbors,
                 min_dist=min_dist,
                 metric="euclidean",
+                init="random",
                 random_state=42,
             )
             reduced = np.asarray(reducer_object.fit_transform(matrix), dtype=float)

@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type PointerEvent,
   type ReactNode,
   type WheelEvent,
@@ -16,9 +15,11 @@ import type {
   RiskMapResponse,
   ScanResultResponse,
   SellerContextReportResponse,
+  UserProfile,
+  UserTradeExperienceLevel,
 } from "../../shared/types";
 import { buildDashboardModel, type DashboardModel } from "./lib/dashboard-model";
-import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./lib/demo-embedding";
+import type { EmbeddingPoint } from "./lib/embedding-types";
 import {
   buildStarPolygonPoints,
   projectEmbeddingAxis3D,
@@ -35,22 +36,25 @@ const DEMO_PAGE_URL = `${FRONTEND_BASE_URL}/product/227242032.html`;
 const DEMO_JOONGNA_CHAT_URL = `${FRONTEND_BASE_URL}/joongna-chat.html`;
 const DEMO_BUNJANG_CHAT_URL = `${FRONTEND_BASE_URL}/bunjang-chat.html`;
 const HEALTHCHECK_URL = `${API_BASE_URL}/api/v1/health/live`;
+const USER_PROFILE_STORAGE_KEY = "safeTicketUserProfile";
 
-type ProfileMode = "general" | "newcomer" | "cautious";
 type Tone = "danger" | "warning" | "ok" | "neutral";
-
-type PreferencesState = {
-  emailAlerts: boolean;
-  autoOpenReport: boolean;
-  loginRequired: boolean;
-};
-
-type AccountState = {
-  name: string;
-  email: string;
-};
-
 type SignalFlag = "Matched" | "Review" | "Not found";
+type ProfileSaveStatus = "자동 저장" | "저장됨";
+type SignalRow = {
+  source: string;
+  status: SignalFlag;
+  location: string;
+  excerpt: string;
+  detail: string;
+};
+
+const EXPERIENCE_LEVELS: UserTradeExperienceLevel[] = ["beginner", "intermediate", "advanced"];
+const EXPERIENCE_LABELS: Record<UserTradeExperienceLevel, string> = {
+  beginner: "초급",
+  intermediate: "중급",
+  advanced: "고급",
+};
 
 const DASHBOARD_OVERVIEW_ITEMS = [
   {
@@ -60,253 +64,65 @@ const DASHBOARD_OVERVIEW_ITEMS = [
     tone: "danger" as const,
   },
   {
-    label: "Protected buyers",
-    value: "312",
-    detail: "최근 7일 동안 보호 기준으로 재가공된 사용자 수",
+    label: "Flagged text",
+    value: "0",
+    detail: "원문에서 backend가 위험 근거로 표시한 문구 수",
     tone: "ok" as const,
   },
   {
-    label: "Manual review",
-    value: "19",
-    detail: "수동 검토로 넘긴 거래. watchlist 기준 -4%",
+    label: "Similar cases",
+    value: "0",
+    detail: "RAG 검색으로 연결된 유사 거래 사례 수",
     tone: "warning" as const,
   },
 ];
 
-const SIGNAL_ROWS: Array<{
-  source: string;
-  status: SignalFlag;
-  location: string;
-  excerpt: string;
-  detail: string;
-}> = [
-  {
-    source: "적금통장 패턴",
-    status: "Matched",
-    location: "상품 본문 > 계좌 번호",
-    excerpt: "3355-28-8620726",
-    detail: "카카오뱅크 355 패턴과 유사한 계좌 형식",
-  },
-  {
-    source: "모니터링 은행명",
-    status: "Matched",
-    location: "상품 본문 > 입금 은행",
-    excerpt: "카카오뱅크",
-    detail: "사기 악용 빈도가 높은 은행명 언급",
-  },
-  {
-    source: "시간 압박 표현",
-    status: "Review",
-    location: "상품 본문 > 거래 설명",
-    excerpt: "답변 지연 시 다음 분께 넘어갈 수 있습니다.",
-    detail: "거래 결정을 서두르게 만드는 문구",
-  },
-  {
-    source: "외부 메신저 이동",
-    status: "Not found",
-    location: "-",
-    excerpt: "-",
-    detail: "현재 데모 게시글에서는 직접 매칭되지 않음",
-  },
-];
-
-const RECENT_SCANS = [
-  { id: "scan_41f2a8a9", title: "뮤지컬 티켓 양도", tone: "danger" as Tone, summary: "계좌 재전송과 외부 메신저 이동이 함께 감지됨" },
-  { id: "scan_20ce1f11", title: "콘서트 플로어 좌석 급처", tone: "warning" as Tone, summary: "급한 입금 유도 표현과 과도한 할인 문구 감지" },
-  { id: "scan_8d93a4bb", title: "정가 양도 게시글", tone: "ok" as Tone, summary: "현재 규칙 기준 뚜렷한 경고는 적음" },
-  { id: "scan_921ce7df", title: "아이돌 팬미팅 양도", tone: "warning" as Tone, summary: "본인 확인 정보 요구와 메신저 이동이 동시에 감지됨" },
-];
-
-function buildSampleScanResult(
-  scanId: string,
-  riskLevel: NonNullable<ScanResultResponse["risk_level"]>,
-  riskScore: number,
-  summary: string,
-  highlights: Array<{ text: string; reason: string }>,
-  actions: string[],
-): ScanResultResponse {
-  const highlightTargets = highlights.map((item, index) => ({
-    block_id: "body-1",
-    start: index * 10,
-    end: index * 10 + item.text.length,
-    matched_text: item.text,
-    reason_code: `sample-${index}`,
-    reason: item.reason,
-    css_class: riskLevel === "high" ? "safe-ticket-highlight-danger" : "safe-ticket-highlight-warning",
-  }));
-
+function emptyUserProfile(): UserProfile {
   return {
-    scan_id: scanId,
-    status: "completed",
-    risk_level: riskLevel,
-    risk_score: riskScore,
-    summary,
-    risk_tags: highlights.map((item) => item.text),
-    evidence_items: highlightTargets,
-    highlight_targets: highlightTargets,
-    similar_cases: [
-      {
-        case_id: `${scanId}-similar-1`,
-        score: Math.max(0.51, Math.min(0.93, riskScore + 0.08)),
-        summary,
-      },
-    ],
-    recommended_actions: actions.map((action, index) => ({
-      action: `권장 행동 ${index + 1}`,
-      description: action,
-    })),
-    external_lookup_results: [],
-    degraded: false,
-    report_url: null,
+    age: null,
+    trade_experience_level: null,
   };
 }
 
-const SAMPLE_SCAN_RESULTS: Record<string, ScanResultResponse> = {
-  scan_41f2a8a9: buildSampleScanResult(
-    "scan_41f2a8a9",
-    "high",
-    0.82,
-    "계좌 재전송 요청과 외부 메신저 이동 문구가 함께 감지돼 위험도가 높습니다.",
-    [
-      { text: "계좌 다시 보내드릴게요", reason: "계좌 재전송 요청이 반복될 때 사칭 또는 대리 판매 가능성을 의심해야 합니다." },
-      { text: "카톡으로 연락 주세요", reason: "플랫폼 밖 메신저 이동은 분쟁 보호 범위를 벗어날 가능성이 큽니다." },
-    ],
-    ["플랫폼 안심결제 여부를 먼저 확인하세요.", "판매자 계정과 계좌 명의가 일치하는지 추가 확인하세요."],
-  ),
-  scan_20ce1f11: buildSampleScanResult(
-    "scan_20ce1f11",
-    "medium",
-    0.56,
-    "급한 입금 유도 표현과 과도한 할인 문구가 함께 잡혀 추가 확인이 필요합니다.",
-    [
-      { text: "오늘 안에 입금 가능하신 분만", reason: "시간 압박 문구는 거래 결정을 서두르게 만듭니다." },
-      { text: "시세보다 싸게", reason: "과도한 할인은 미끼 매물일 가능성이 있습니다." },
-    ],
-    ["판매 내역과 실물 인증을 먼저 요청하세요.", "입금 전 좌석 정보와 예매 내역을 다시 확인하세요."],
-  ),
-  scan_8d93a4bb: buildSampleScanResult(
-    "scan_8d93a4bb",
-    "low",
-    0.14,
-    "현재 규칙 기준으로는 뚜렷한 고위험 신호가 적습니다.",
-    [{ text: "정가 양도", reason: "가격 관련 신호는 있으나 과도한 압박이나 외부 이동은 적습니다." }],
-    ["거래 전 본인 인증과 예매 내역을 한 번 더 확인하세요."],
-  ),
-  scan_921ce7df: buildSampleScanResult(
-    "scan_921ce7df",
-    "medium",
-    0.61,
-    "본인 확인 정보 요구와 메신저 이동 문구가 같이 감지돼 주의가 필요합니다.",
-    [
-      { text: "신분증 일부 보여주세요", reason: "과도한 개인정보 요구는 2차 피해로 이어질 수 있습니다." },
-      { text: "오픈채팅으로 이동", reason: "플랫폼 외부로 이동하면 보호 장치가 약해집니다." },
-    ],
-    ["민감한 개인정보는 가리고 전달하세요.", "플랫폼 내 채팅과 결제 수단을 우선 사용하세요."],
-  ),
-};
+function normalizeUserProfile(value: unknown): UserProfile {
+  if (!value || typeof value !== "object") {
+    return emptyUserProfile();
+  }
 
-const SAMPLE_PIPELINE_DEBUG: Record<string, PipelineExchangeResponse> = {
-  scan_41f2a8a9: {
-    scan_id: "scan_41f2a8a9",
-    outbound_payload: {
-      scan_id: "scan_41f2a8a9",
-      platform: "joonggonara",
-      page_url: "https://web.joongna.com/product/229241708",
-      page_title: "뮤지컬 티켓 양도",
-      price: 180000,
-      seller: { seller_id: "seller-410", nickname: "뮤지컬양도맨" },
-      content_blocks: [{ block_id: "body-1", text: "계좌 다시 보내드릴게요. 카톡으로 연락 주세요." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "high",
-      risk_score: 0.82,
-      summary: "계좌 재전송 요청과 외부 메신저 이동 문구가 함께 감지돼 위험도가 높습니다.",
-      risk_tags: ["계좌 다시 보내드릴게요", "카톡으로 연락 주세요"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-  scan_20ce1f11: {
-    scan_id: "scan_20ce1f11",
-    outbound_payload: {
-      scan_id: "scan_20ce1f11",
-      platform: "bunjang",
-      page_url: "https://m.bunjang.co.kr/products/411763350",
-      page_title: "콘서트 플로어 좌석 급처",
-      price: 95000,
-      seller: { seller_id: "seller-233", nickname: "플로어양도" },
-      content_blocks: [{ block_id: "body-1", text: "오늘 안에 입금 가능하신 분만 연락 주세요. 시세보다 싸게 드려요." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "medium",
-      risk_score: 0.56,
-      summary: "급한 입금 유도 표현과 과도한 할인 문구가 함께 잡혀 추가 확인이 필요합니다.",
-      risk_tags: ["오늘 안에 입금 가능하신 분만", "시세보다 싸게"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-  scan_8d93a4bb: {
-    scan_id: "scan_8d93a4bb",
-    outbound_payload: {
-      scan_id: "scan_8d93a4bb",
-      platform: "joonggonara",
-      page_url: "https://web.joongna.com/product/229245101",
-      page_title: "정가 양도 게시글",
-      price: 230000,
-      seller: { seller_id: "seller-812", nickname: "고상한사고견과류" },
-      content_blocks: [{ block_id: "body-1", text: "정가 양도합니다. 예매 내역 확인 가능합니다." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "low",
-      risk_score: 0.14,
-      summary: "현재 규칙 기준으로는 뚜렷한 고위험 신호가 적습니다.",
-      risk_tags: ["정가 양도"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-  scan_921ce7df: {
-    scan_id: "scan_921ce7df",
-    outbound_payload: {
-      scan_id: "scan_921ce7df",
-      platform: "bunjang",
-      page_url: "https://m.bunjang.co.kr/products/410576644",
-      page_title: "아이돌 팬미팅 양도",
-      price: 72000,
-      seller: { seller_id: "seller-921", nickname: "팬미팅양도" },
-      content_blocks: [{ block_id: "body-1", text: "신분증 일부 보여주세요. 오픈채팅으로 이동 부탁드려요." }],
-      marketplace_signals: [],
-      user_profile: null,
-    },
-    inbound_payload: {
-      risk_level: "medium",
-      risk_score: 0.61,
-      summary: "본인 확인 정보 요구와 메신저 이동 문구가 같이 감지돼 주의가 필요합니다.",
-      risk_tags: ["신분증 일부 보여주세요", "오픈채팅으로 이동"],
-      evidence_items: [],
-      highlight_targets: [],
-      similar_cases: [],
-      recommended_actions: [],
-      degraded: false,
-    },
-  },
-};
+  const rawProfile = value as {
+    age?: unknown;
+    trade_experience_level?: unknown;
+  };
+  const age = typeof rawProfile.age === "number" && Number.isFinite(rawProfile.age) ? rawProfile.age : null;
+  const tradeExperienceLevel = EXPERIENCE_LEVELS.includes(rawProfile.trade_experience_level as UserTradeExperienceLevel)
+    ? (rawProfile.trade_experience_level as UserTradeExperienceLevel)
+    : null;
+
+  return {
+    age,
+    trade_experience_level: tradeExperienceLevel,
+  };
+}
+
+function loadReportUserProfile(): UserProfile {
+  if (typeof window === "undefined") {
+    return emptyUserProfile();
+  }
+
+  try {
+    return normalizeUserProfile(JSON.parse(window.localStorage.getItem(USER_PROFILE_STORAGE_KEY) ?? "null"));
+  } catch {
+    return emptyUserProfile();
+  }
+}
+
+function saveReportUserProfile(profile: UserProfile): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
 
 function getCurrentRoute() {
   if (typeof window === "undefined") {
@@ -376,8 +192,8 @@ function topActionMeta(view: ReportView) {
   if (view === "settings") {
     return {
       title: "Settings",
-      copy: "계정, 로그인, 보호 프로필과 기본 해석 강도를 조정합니다.",
-      pill: "Account",
+      copy: "나이와 중고거래 경험을 입력해 scan 위험도 계산에 사용할 사용자 맥락을 설정합니다.",
+      pill: "Profile",
     };
   }
 
@@ -406,19 +222,6 @@ function iconSvg(path: string) {
 
 function IconButton({ children }: { children: ReactNode }) {
   return <button className="dashboard-topicon" type="button">{children}</button>;
-}
-
-function getSampleScanContext(scanId: string) {
-  const scanResult = SAMPLE_SCAN_RESULTS[scanId];
-  if (!scanResult) {
-    return null;
-  }
-
-  return {
-    scanResult,
-    pipelineDebug: SAMPLE_PIPELINE_DEBUG[scanId] ?? null,
-    caseUmap: null,
-  };
 }
 
 function OverviewCard({
@@ -456,7 +259,7 @@ function OverviewCard({
   );
 }
 
-function EmbeddingMap({ points }: { points: DemoEmbeddingPoint[] }) {
+function EmbeddingMap({ points }: { points: EmbeddingPoint[] }) {
   const currentPoint = points.find((point) => point.variant === "current");
   const historicalPoints = points.filter((point) => point.variant !== "current");
 
@@ -614,7 +417,7 @@ function PointTooltip({ point }: { point: ProjectedEmbeddingPoint }) {
   );
 }
 
-function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
+function EmbeddingMap3D({ points }: { points: EmbeddingPoint[] }) {
   const [camera, setCamera] = useState({ pitch: -31, yaw: 42, zoom: 1 });
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
@@ -792,7 +595,31 @@ function EmbeddingMap3D({ points }: { points: DemoEmbeddingPoint[] }) {
   );
 }
 
-function EmbeddingMapExplorer({ points }: { points: DemoEmbeddingPoint[] }) {
+function EmbeddingMapExplorer({ points }: { points: EmbeddingPoint[] }) {
+  if (!points.length) {
+    return (
+      <div className="dashboard-embedding-panel">
+        <div className="dashboard-embedding-loading-card">
+          <div className="dashboard-embedding-loading-visual" aria-hidden="true">
+            <span className="dashboard-embedding-loading-orbit" />
+            <span className="dashboard-embedding-loading-dot is-safe" />
+            <span className="dashboard-embedding-loading-dot is-borderline" />
+            <span className="dashboard-embedding-loading-dot is-fraud" />
+            <span className="dashboard-embedding-loading-dot is-current" />
+          </div>
+          <div className="dashboard-embedding-loading-copy">
+            <span>backend risk-map</span>
+            <h3>서버에서 임베딩 좌표를 가져오고 있습니다</h3>
+            <p>
+              safe-ticket backend가 현재 scan과 DB 사례 임베딩을 비교해 2D/3D 좌표를 계산하고 있습니다.
+              응답이 도착하면 이 영역에 실제 risk-map 시각화가 표시됩니다.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-embedding-panel">
       <div className="dashboard-embedding-toolbar" aria-label="Embedding map view mode">
@@ -982,13 +809,35 @@ function SellerContextReportCard({
           {levelLabel}
         </span>
       </header>
-      <div className="dashboard-card-body dashboard-seller-report-scroll">
+      <div className="dashboard-card-body">
         {!profileUrl ? (
           <p className="dashboard-muted-copy">
             이 scan에는 자동 추출된 판매자 프로필 URL이 없습니다. 중고나라 또는 번개장터 상품 페이지에서 다시 scan하면 자동 분석을 시도합니다.
           </p>
         ) : isLoading ? (
-          <p className="dashboard-muted-copy">판매자 프로필을 가져와서 Gemini 분석글을 작성하는 중입니다.</p>
+          <div className="dashboard-seller-report-loading" role="status" aria-live="polite">
+            <div className="dashboard-seller-report-dossier" aria-hidden="true">
+              <div className="dashboard-seller-report-dossier-header">
+                <span className="dashboard-seller-report-avatar-skeleton" />
+                <span className="dashboard-seller-report-status-stamp">profiling</span>
+              </div>
+              <span className="dashboard-seller-report-skeleton-line is-name" />
+              <span className="dashboard-seller-report-skeleton-line is-meta" />
+              <div className="dashboard-seller-report-checklist">
+                <span><i />프로필 이력</span>
+                <span><i />거래 신호</span>
+                <span><i />현재 scan</span>
+              </div>
+            </div>
+            <div className="dashboard-seller-report-loading-copy">
+              <span>seller context</span>
+              <strong>판매자 프로필을 분석하고 있습니다</strong>
+              <p>공개 거래 이력과 현재 scan 위험 근거를 비교해 판매자 분석글을 생성하는 중입니다.</p>
+              <div className="dashboard-seller-report-progress" aria-hidden="true">
+                <span />
+              </div>
+            </div>
+          </div>
         ) : error ? (
           <div className="dashboard-seller-report-section">
             <strong>판매자 분석을 불러오지 못했습니다</strong>
@@ -1007,10 +856,6 @@ function SellerContextReportCard({
               <div>
                 <span>Pattern</span>
                 <strong>{report.pattern_consistency}</strong>
-              </div>
-              <div>
-                <span>Source</span>
-                <strong>{report.source}</strong>
               </div>
             </div>
 
@@ -1064,7 +909,7 @@ function SellerContextReportCard({
   );
 }
 
-function buildSignalRowsFromDashboard(dashboard: DashboardModel): typeof SIGNAL_ROWS {
+function buildSignalRowsFromDashboard(dashboard: DashboardModel): SignalRow[] {
   const matchedRows = dashboard.reasons.slice(0, 4).map((reason) => ({
     source: reason.label,
     status: "Matched" as const,
@@ -1073,7 +918,7 @@ function buildSignalRowsFromDashboard(dashboard: DashboardModel): typeof SIGNAL_
     detail: reason.value,
   }));
 
-  return matchedRows.length > 0 ? matchedRows : SIGNAL_ROWS;
+  return matchedRows;
 }
 
 function ShellActionRow({ view }: { view: ReportView }) {
@@ -1090,6 +935,23 @@ function ShellActionRow({ view }: { view: ReportView }) {
   );
 }
 
+function ScanFirstPrompt({ view }: { view: "dashboard" | "reports" }) {
+  return (
+    <section className="dashboard-card dashboard-empty">
+      <div className="dashboard-card-body">
+        <h3>스캔 결과를 먼저 선택해 주세요</h3>
+        <p>
+          확장 프로그램에서 스캔을 실행하면 {view === "dashboard" ? "대시보드" : "리포트"}가 해당 scan 결과를
+          불러와 위험 신호, 유사 사례, 외부 조회 결과를 표시합니다.
+        </p>
+        <p className="dashboard-muted-copy">
+          데모 페이지나 실제 중고나라 상품 페이지에서 safe-ticket 패널을 열고 스캔을 먼저 실행해 주세요.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const initialRoute = getCurrentRoute();
   const [route, setRoute] = useState(initialRoute);
@@ -1100,15 +962,8 @@ export function App() {
   const [sellerContextError, setSellerContextError] = useState<string | null>(null);
   const [isSellerContextLoading, setIsSellerContextLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profileMode, setProfileMode] = useState<ProfileMode>("cautious");
-  const [account, setAccount] = useState<AccountState | null>(null);
-  const [emailInput, setEmailInput] = useState("");
-  const [passwordInput, setPasswordInput] = useState("");
-  const [preferences, setPreferences] = useState<PreferencesState>({
-    emailAlerts: true,
-    autoOpenReport: true,
-    loginRequired: false,
-  });
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => loadReportUserProfile());
+  const [profileSaveStatus, setProfileSaveStatus] = useState<ProfileSaveStatus>("자동 저장");
 
   useEffect(() => {
     const syncRoute = () => {
@@ -1164,18 +1019,6 @@ export function App() {
       setIsSellerContextLoading(false);
 
       try {
-        const sampleContext = getSampleScanContext(scanId);
-        if (sampleContext) {
-          if (cancelled) {
-            return;
-          }
-
-          setScanResult(sampleContext.scanResult);
-          setPipelineDebug(sampleContext.pipelineDebug);
-          setCaseRiskMap(null);
-          return;
-        }
-
         const [result, debug] = await Promise.all([
           pollScanResult(scanId),
           getPipelineDebug(API_BASE_URL, scanId),
@@ -1282,53 +1125,38 @@ export function App() {
       pipelineDebug,
     });
   }, [dashboard, pipelineDebug, scanResult]);
-  const dashboardEmbedding = useMemo(
-    () =>
-      buildDemoEmbeddingResult({
-        scanId: "dashboard-demo",
-        riskLevel: "high",
-        highlightCount: 5,
-      }),
-    [],
-  );
-
-  const profileSummary =
-    profileMode === "newcomer"
-      ? "거래 경험이 적은 사용자 기준으로 추가 입금 요청, 외부 메신저 이동, 계좌 재입력을 더 보수적으로 해석합니다."
-      : profileMode === "cautious"
-        ? "경고 민감도를 높게 잡아 거래 중단과 계좌 재확인을 우선 안내합니다."
-        : "일반 사용자 기준으로 신호를 요약하고, 반복 패턴과 명시적 근거를 함께 보여줍니다.";
-
   const mainHref = buildRouteHref("dashboard", route.scanId);
   const reportsHref = buildRouteHref("reports", route.scanId);
-  const settingsHref = buildRouteHref("settings");
+  const settingsHref = buildRouteHref("settings", route.scanId);
   const hasActiveScanContext = route.view !== "settings" && Boolean(route.scanId);
   const isScanContextLoading = hasActiveScanContext && !error && (!scanResult || !pipelineDebug);
 
-  const handleLoginSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setAccount({
-      name: emailInput.trim().split("@")[0] || "safe-ticket user",
-      email: emailInput.trim() || "demo@safe-ticket.local",
+  const persistUserProfile = (nextProfile: UserProfile) => {
+    setUserProfile(nextProfile);
+    saveReportUserProfile(nextProfile);
+    setProfileSaveStatus("저장됨");
+    window.setTimeout(() => {
+      setProfileSaveStatus("자동 저장");
+    }, 1200);
+  };
+
+  const handleAgeChange = (value: string) => {
+    const nextAge = value.trim() === "" ? null : Number.parseInt(value, 10);
+    persistUserProfile({
+      ...userProfile,
+      age: Number.isFinite(nextAge) ? nextAge : null,
     });
   };
 
-  const handleDemoAuth = (mode: "login" | "signup") => {
-    setAccount({
-      name: emailInput.trim().split("@")[0] || (mode === "signup" ? "new safe-ticket user" : "safe-ticket user"),
-      email: emailInput.trim() || "demo@safe-ticket.local",
+  const handleExperienceChange = (level: UserTradeExperienceLevel) => {
+    persistUserProfile({
+      ...userProfile,
+      trade_experience_level: level,
     });
-  };
-
-  const togglePreference = (key: keyof PreferencesState) => {
-    setPreferences((current) => ({
-      ...current,
-      [key]: !current[key],
-    }));
   };
 
   const renderDashboardView = () => {
-    const signalRows = dashboard ? buildSignalRowsFromDashboard(dashboard) : SIGNAL_ROWS;
+    const signalRows = dashboard ? buildSignalRowsFromDashboard(dashboard) : [];
 
     return (
       <>
@@ -1351,7 +1179,7 @@ export function App() {
             </section>
           ) : dashboard && scanResult ? (
             <section className="dashboard-grid">
-              <article className="dashboard-card dashboard-col-12 dashboard-report-hero">
+              <article className={`dashboard-card dashboard-col-12 dashboard-report-hero is-${dashboard.hero.tone}`}>
                 <div className="dashboard-card-pad">
                   <div className="dashboard-report-head">
                     <div>
@@ -1421,9 +1249,9 @@ export function App() {
                         <th>Excerpt</th>
                         <th>Detail</th>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {signalRows.map((row) => (
+                  </thead>
+                  <tbody>
+                    {signalRows.length ? signalRows.map((row) => (
                         <tr key={row.source}>
                           <td>{row.source}</td>
                           <td><span className={signalPillClass(row.status)}>{row.status}</span></td>
@@ -1431,9 +1259,13 @@ export function App() {
                           <td>{row.excerpt}</td>
                           <td>{row.detail}</td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    )) : (
+                      <tr>
+                        <td colSpan={5}>현재 scan에서 표시할 주요 신호가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
                 </div>
               </article>
 
@@ -1457,91 +1289,7 @@ export function App() {
               </article>
             </section>
           ) : null
-        ) : (
-          <section className="dashboard-grid">
-            <OverviewCard
-              description="최근 보호 지표를 먼저 보고, 그다음 어떤 경고 신호가 현재 게시글에서 발견됐는지 이어서 확인합니다."
-              items={DASHBOARD_OVERVIEW_ITEMS}
-              title="Risk overview"
-            />
-
-            <article className="dashboard-card dashboard-col-12">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Top signals</h3>
-                  <p>현재 데모 게시글에서 실제로 감지된 신호와 아직 찾지 못한 항목을 함께 보여줍니다.</p>
-                </div>
-                <span className="dashboard-pill is-warning">Current post</span>
-              </header>
-              <div className="dashboard-card-body dashboard-table-wrap">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Signal</th>
-                      <th>Flag</th>
-                      <th>Location</th>
-                      <th>Excerpt</th>
-                      <th>Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {SIGNAL_ROWS.map((row) => (
-                      <tr key={row.source}>
-                        <td>{row.source}</td>
-                        <td><span className={signalPillClass(row.status)}>{row.status}</span></td>
-                        <td>{row.location}</td>
-                        <td>{row.excerpt}</td>
-                        <td>{row.detail}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article className="dashboard-card dashboard-col-12 dashboard-embedding-card">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Embedding map</h3>
-                  <p>원본 임베딩을 PLS7 risk-aware latent space로 변환한 뒤 unsupervised UMAP으로 축소해 2D와 3D에서 유사 사례 라벨 그룹을 함께 보여줍니다.</p>
-                </div>
-                <span className="dashboard-pill is-neutral">{dashboardEmbedding.pipeline}</span>
-              </header>
-              <div className="dashboard-card-body">
-                <div className="dashboard-embedding-summary-strip">
-                  <div>
-                    <span>nearest label group</span>
-                    <strong>{dashboardEmbedding.summary.nearestCluster}</strong>
-                  </div>
-                </div>
-                <EmbeddingMapExplorer points={dashboardEmbedding.points} />
-              </div>
-            </article>
-
-            <article className="dashboard-card dashboard-col-12">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Recent scans</h3>
-                  <p>최근 스캔된 거래 요약</p>
-                </div>
-                <a className="dashboard-link" href={reportsHref}>View reports</a>
-              </header>
-              <div className="dashboard-card-body">
-                <div className="dashboard-list">
-                  {RECENT_SCANS.map((scan) => (
-                    <a className="dashboard-list-row" href={`#/reports/${scan.id}`} key={scan.id}>
-                      <div>
-                        <strong>{scan.title}</strong>
-                        <p>{scan.summary}</p>
-                      </div>
-                      <span className={`dashboard-pill ${getToneClass(scan.tone)}`}>{toneLabel(scan.tone)}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </article>
-          </section>
-        )}
+        ) : <ScanFirstPrompt view="dashboard" />}
       </>
     );
   };
@@ -1555,29 +1303,7 @@ export function App() {
         <ShellActionRow view="reports" />
 
         {!route.scanId ? (
-          <section className="dashboard-grid">
-            <article className="dashboard-card dashboard-col-12">
-              <header className="dashboard-card-header">
-                <div>
-                  <h3>Recent reports</h3>
-                  <p>최근 스캔 결과를 열어 상세 분석으로 이동합니다. 실제 서비스에서는 사용자별 저장 report 목록이 이 자리를 대체합니다.</p>
-                </div>
-              </header>
-              <div className="dashboard-card-body">
-                <div className="dashboard-list">
-                  {RECENT_SCANS.map((scan) => (
-                    <a className="dashboard-list-row" href={`#/reports/${scan.id}`} key={scan.id}>
-                      <div>
-                        <strong>{scan.title}</strong>
-                        <p>{scan.summary}</p>
-                      </div>
-                      <span className={`dashboard-pill ${getToneClass(scan.tone)}`}>{toneLabel(scan.tone)}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </article>
-          </section>
+          <ScanFirstPrompt view="reports" />
         ) : isScanContextLoading ? (
           <section className="dashboard-card dashboard-empty">
             <div className="dashboard-card-body">
@@ -1594,7 +1320,7 @@ export function App() {
           </section>
         ) : dashboard && scanResult && reportBrief ? (
           <section className="dashboard-grid">
-            <article className="dashboard-card dashboard-col-12 dashboard-report-hero">
+            <article className={`dashboard-card dashboard-col-12 dashboard-report-hero is-${dashboard.hero.tone}`}>
               <div className="dashboard-card-pad">
                 <div className="dashboard-report-head">
                   <div>
@@ -1632,122 +1358,57 @@ export function App() {
     <>
       <ShellActionRow view="settings" />
 
-      {!account ? (
-        <section className="dashboard-grid dashboard-settings-login-only">
-          <article className="dashboard-card dashboard-col-6 dashboard-settings-auth-card">
-            <header className="dashboard-card-header">
-              <div>
-                <h3>Account & login</h3>
-                <p>실제 서비스처럼 먼저 계정 진입을 만들고, 로그인 이후에만 보호 설정을 노출합니다.</p>
-              </div>
-            </header>
-            <div className="dashboard-card-body">
-              <form className="dashboard-form" onSubmit={handleLoginSubmit}>
-                <label>
-                  아이디 또는 이메일
-                  <input onChange={(event) => setEmailInput(event.target.value)} placeholder="safe-ticket@example.com" type="text" value={emailInput} />
-                </label>
-                <label>
-                  비밀번호
-                  <input onChange={(event) => setPasswordInput(event.target.value)} placeholder="••••••••" type="password" value={passwordInput} />
-                </label>
-                <div className="dashboard-auth-actions">
-                  <button className="dashboard-btn dashboard-btn-primary" type="submit">로그인</button>
-                  <button className="dashboard-btn dashboard-btn-muted" onClick={() => handleDemoAuth("signup")} type="button">회원가입</button>
-                </div>
-                <div className="dashboard-auth-links">
-                  <button className="dashboard-link-button" type="button">아이디 찾기</button>
-                  <button className="dashboard-link-button" type="button">비밀번호 찾기</button>
-                </div>
-              </form>
-            </div>
-          </article>
-        </section>
-      ) : (
-        <section className="dashboard-grid">
-          <article className="dashboard-card dashboard-col-6">
+      <section className="dashboard-grid dashboard-settings-profile-only">
+        <article className="dashboard-card dashboard-col-6 dashboard-settings-profile-card">
           <header className="dashboard-card-header">
             <div>
-              <h3>Account & login</h3>
-              <p>계정 및 로그인</p>
+              <h3>사용자 정보 설정</h3>
+              <p>스캔 결과를 사용자 상황에 맞춰 더 보수적으로 해석하기 위한 최소 정보입니다.</p>
             </div>
-            <span className={`dashboard-pill ${account ? "is-ok" : "is-neutral"}`}>
-              {account ? "Logged in" : "Guest"}
+            <span className={`dashboard-pill ${profileSaveStatus === "저장됨" ? "is-ok" : "is-neutral"}`}>
+              {profileSaveStatus}
             </span>
           </header>
           <div className="dashboard-card-body">
-            <div className="dashboard-account-panel">
-              <strong>{account.name}</strong>
-              <p>{account.email}</p>
-              <small>데모용 로컬 로그인 상태입니다. 이후 실제 인증 연동 시 세션 또는 토큰 상태로 교체됩니다.</small>
-              <button className="dashboard-btn dashboard-btn-primary" onClick={() => setAccount(null)} type="button">
-                로그아웃
-              </button>
-            </div>
-          </div>
-        </article>
+            <div className="dashboard-form">
+              <label>
+                나이
+                <input
+                  inputMode="numeric"
+                  max={120}
+                  min={0}
+                  onChange={(event) => handleAgeChange(event.target.value)}
+                  placeholder="예: 24"
+                  type="number"
+                  value={userProfile.age ?? ""}
+                />
+              </label>
 
-        <article className="dashboard-card dashboard-col-6">
-          <header className="dashboard-card-header">
-            <div>
-              <h3>Preferences</h3>
-              <p>기본 보호 설정</p>
-            </div>
-            <span className="dashboard-pill is-warning">{profileMode}</span>
-          </header>
-          <div className="dashboard-card-body">
-            <div className="dashboard-preference-list">
-              <button className="dashboard-preference-row" onClick={() => togglePreference("emailAlerts")} type="button">
-                <div>
-                  <strong>이메일 알림</strong>
-                  <p>고위험 게시글 분석 결과를 메일로 받습니다.</p>
+              <div className="dashboard-field-group">
+                <span>중고거래 경험</span>
+                <div className="dashboard-choice-grid" role="radiogroup" aria-label="중고거래 경험">
+                  {EXPERIENCE_LEVELS.map((level) => (
+                    <button
+                      aria-checked={userProfile.trade_experience_level === level}
+                      className={`dashboard-choice ${userProfile.trade_experience_level === level ? "is-active" : ""}`}
+                      key={level}
+                      onClick={() => handleExperienceChange(level)}
+                      role="radio"
+                      type="button"
+                    >
+                      {EXPERIENCE_LABELS[level]}
+                    </button>
+                  ))}
                 </div>
-                <span className={`dashboard-toggle ${preferences.emailAlerts ? "is-enabled" : ""}`} />
-              </button>
-              <button className="dashboard-preference-row" onClick={() => togglePreference("autoOpenReport")} type="button">
-                <div>
-                  <strong>상세 분석 자동 열기</strong>
-                  <p>스캔 완료 후 report page를 바로 여는 기본 동작입니다.</p>
-                </div>
-                <span className={`dashboard-toggle ${preferences.autoOpenReport ? "is-enabled" : ""}`} />
-              </button>
-              <button className="dashboard-preference-row" onClick={() => togglePreference("loginRequired")} type="button">
-                <div>
-                  <strong>로그인 필요 모드</strong>
-                  <p>조회와 신고 연계를 위해 계정 로그인을 우선 요구합니다.</p>
-                </div>
-                <span className={`dashboard-toggle ${preferences.loginRequired ? "is-enabled" : ""}`} />
-              </button>
-            </div>
-          </div>
-        </article>
+              </div>
 
-        <article className="dashboard-card dashboard-col-12">
-          <header className="dashboard-card-header">
-            <div>
-              <h3>Protection profiles</h3>
-              <p>사용자 유형별 기본 해석 강도</p>
-            </div>
-          </header>
-          <div className="dashboard-card-body">
-            <div className="dashboard-profile-grid">
-              <div className="dashboard-profile-card">
-                <strong>Current profile</strong>
-                <p>{profileSummary}</p>
-              </div>
-              <div className="dashboard-profile-card">
-                <strong>세션 상태</strong>
-                <p>{account ? "활성 세션 1개 / 데모 계정 로그인 완료" : "비로그인 상태 / 확장 로컬 세션만 사용 중"}</p>
-              </div>
-              <div className="dashboard-profile-card">
-                <strong>외부 연계 준비</strong>
-                <p>더치트 / 경찰청 연계를 위해 향후 본인 동의와 신고 이력 동기화 슬롯을 이 영역에 추가합니다.</p>
-              </div>
+              <p className="dashboard-helper-copy">
+                입력한 나이와 거래 경험은 맞춤형 위험도 계산에 활용됩니다.
+              </p>
             </div>
           </div>
         </article>
-        </section>
-      )}
+      </section>
     </>
   );
 
@@ -1805,10 +1466,10 @@ export function App() {
         {showSidebarAccount ? (
           <div className="dashboard-sidebar-footer">
             <div className="dashboard-sidebar-profile">
-              <div className="dashboard-avatar">{account ? account.name.charAt(0).toUpperCase() : "S"}</div>
+              <div className="dashboard-avatar">S</div>
               <div>
-                <strong>{account ? account.name : "safe-ticket"}</strong>
-                <span>{account ? account.email : "Scan workspace"}</span>
+                <strong>safe-ticket</strong>
+                <span>Scan workspace</span>
               </div>
             </div>
           </div>
@@ -1824,7 +1485,7 @@ export function App() {
             <div className="dashboard-topbar-divider" />
             <button className="dashboard-userchip" type="button">
               <span className="dashboard-userchip-dot" />
-              <strong>{account ? account.name : "safe-ticket"}</strong>
+              <strong>safe-ticket</strong>
             </button>
           </div>
         </header>

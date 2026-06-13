@@ -12,7 +12,7 @@ import {
   externalLookupTitle,
   formatExternalLookupKeyword,
 } from "../../../shared/external-lookup-display";
-import { buildDemoEmbeddingResult, type DemoEmbeddingPoint } from "./demo-embedding";
+import type { EmbeddingPoint } from "./embedding-types";
 
 type Tone = "danger" | "warning" | "ok";
 
@@ -59,7 +59,7 @@ export interface DashboardModel {
     title: string;
     description: string;
     pipeline: string;
-    points: DemoEmbeddingPoint[];
+    points: EmbeddingPoint[];
     summary: {
       nearestCluster: "fraud" | "safe" | "borderline";
       clusterCounts: {
@@ -131,6 +131,16 @@ function extractAccountNumber(contentBlocks: { text: string }[]): string {
   return match?.[0] ?? "미확인";
 }
 
+function uniqueVisibleValues(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value) && value !== "미확인"),
+    ),
+  );
+}
+
 function lookupTone(result: ExternalLookupResult): Tone {
   if (result.status === "failed" || result.risk_found === true) {
     return "danger";
@@ -162,30 +172,36 @@ function buildEmbeddingModel({
   caseUmap,
   caseRiskMap,
   scanResult,
-  highlightCount,
 }: {
   caseUmap: CaseUmapResponse | null;
   caseRiskMap?: RiskMapResponse | null;
   scanResult: ScanResultResponse;
-  highlightCount: number;
 }): DashboardModel["embedding"] {
   if (caseRiskMap?.points.length) {
     return buildRiskMapEmbeddingModel(caseRiskMap, scanResult);
   }
 
   if (!caseUmap?.points.length) {
-    const demoEmbedding = buildDemoEmbeddingResult({
-      scanId: scanResult.scan_id,
-      riskLevel: scanResult.risk_level,
-      highlightCount,
-    });
     return {
-      title: "임베딩 공간 시각화",
+      title: "Risk-map 좌표 로딩 중",
       description:
-        "데모 임베딩 DB를 만들고, 원본 임베딩에서 PCA(50)를 거쳐 UMAP(3)로 축소한 좌표를 2D와 3D로 함께 보여줍니다.",
-      pipeline: demoEmbedding.pipeline,
-      points: demoEmbedding.points,
-      summary: demoEmbedding.summary,
+        "backend risk-map에서 실제 DB 임베딩 좌표를 가져오고 있습니다. 응답이 도착하면 2D/3D 시각화가 자동으로 표시됩니다.",
+      pipeline: "waiting for backend risk-map",
+      points: [],
+      summary: {
+        nearestCluster:
+          scanResult.risk_level === "low" ? "safe" : scanResult.risk_level === "medium" ? "borderline" : "fraud",
+        clusterCounts: {
+          fraud: 0,
+          safe: 0,
+          borderline: 0,
+        },
+        distances: {
+          fraud: 0,
+          safe: 0,
+          borderline: 0,
+        },
+      },
     };
   }
 
@@ -328,8 +344,7 @@ export function buildDashboardModel({
   const seller = pipelineDebug?.outbound_payload.seller;
   const highlightCount = scanResult.highlight_targets.length;
   const similarCaseCount = scanResult.similar_cases.length;
-  const riskPercentile = Math.min(99, Math.max(3, Math.round((scanResult.risk_score ?? 0.5) * 100)));
-  const embedding = buildEmbeddingModel({ caseUmap, caseRiskMap, scanResult, highlightCount });
+  const embedding = buildEmbeddingModel({ caseUmap, caseRiskMap, scanResult });
   const accountNumber = extractAccountNumber(pipelineDebug?.outbound_payload.content_blocks ?? []);
 
   return {
@@ -351,16 +366,16 @@ export function buildDashboardModel({
           tone: headline.tone,
         },
         {
-          label: "Protected buyers",
-          value: `${Math.max(200, 240 + highlightCount * 18)}`,
-          detail: "계정 보호 기준으로 재가공된 사용자 수",
-          tone: "ok",
+          label: "Flagged text",
+          value: `${highlightCount}`,
+          detail: "원문에서 backend가 위험 근거로 표시한 문구 수",
+          tone: highlightCount > 0 ? headline.tone : "ok",
         },
         {
-          label: "Manual review",
-          value: `${Math.max(9, similarCaseCount + highlightCount)}`,
-          detail: `상위 ${riskPercentile}% 위험 구간`,
-          tone: "warning",
+          label: "Similar cases",
+          value: `${similarCaseCount}`,
+          detail: "RAG 검색으로 연결된 유사 거래 사례 수",
+          tone: similarCaseCount > 0 ? "warning" : "ok",
         },
       ],
     },
@@ -378,8 +393,8 @@ export function buildDashboardModel({
       priceText: formatPrice(pipelineDebug?.outbound_payload.price),
       trustSignals: pipelineDebug?.outbound_payload.marketplace_signals ?? [],
       accountNumber,
-      recentFraudCases: similarCaseCount + 1,
-      observedAliases: [seller?.nickname ?? "미확인", "급처티켓", "openchat123"],
+      recentFraudCases: similarCaseCount,
+      observedAliases: uniqueVisibleValues([seller?.nickname]),
     },
     sellerSignals: [
       {

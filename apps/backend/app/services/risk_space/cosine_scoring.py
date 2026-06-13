@@ -12,7 +12,7 @@ import numpy as np
 from app.services.risk_space.data_loader import VALUE_TO_LABEL, l2_normalize_matrix, l2_normalize_vector
 
 
-DEFAULT_SCORE_WEIGHTS = {"pls": 0.80, "prototype": 0.10, "neighbor": 0.10}
+DEFAULT_SCORE_WEIGHTS = {"pls": 0.70, "prototype": 0.15, "neighbor": 0.15}
 LABEL_VALUES = {"safe": 0.0, "borderline": 0.5, "fraud": 1.0}
 
 
@@ -116,7 +116,7 @@ def score_query_in_artifact(
         component_signs = np.pad(component_signs, (0, query_z.size - component_signs.size), constant_values=1.0)
     query_z = query_z * component_signs[: query_z.size]
     if getattr(artifact, "scoring_variant", "") == "weighted_pls7_cosine":
-        # In the PLS7 policy, the main 0.80 score term intentionally uses only
+        # In the PLS7 policy, the main 0.70 score term intentionally uses only
         # component 1. Prototype and neighbor stabilizers use the full weighted
         # PLS7 vector below.
         calibrated_pls_score = float(artifact.calibrator.transform(np.asarray([query_z[0]], dtype=float))[0])
@@ -173,9 +173,9 @@ def score_query_in_artifact(
     weights = artifact.score_weights or DEFAULT_SCORE_WEIGHTS
     embedding_risk_score = float(
         np.clip(
-            weights.get("pls", 0.80) * calibrated_pls_score
-            + weights.get("prototype", 0.10) * prototype_score
-            + weights.get("neighbor", 0.10) * neighbor_score,
+            weights.get("pls", 0.70) * calibrated_pls_score
+            + weights.get("prototype", 0.15) * prototype_score
+            + weights.get("neighbor", 0.15) * neighbor_score,
             0.0,
             1.0,
         )
@@ -186,9 +186,9 @@ def score_query_in_artifact(
             "scoring_variant": getattr(artifact, "scoring_variant", "unknown"),
             "prototype_similarity_type": prototype_strategy,
             "neighbor_similarity_type": neighbor_strategy,
-            "score_weight_pls": float(weights.get("pls", 0.80)),
-            "score_weight_prototype": float(weights.get("prototype", 0.10)),
-            "score_weight_neighbor": float(weights.get("neighbor", 0.10)),
+            "score_weight_pls": float(weights.get("pls", 0.70)),
+            "score_weight_prototype": float(weights.get("prototype", 0.15)),
+            "score_weight_neighbor": float(weights.get("neighbor", 0.15)),
         }
     )
 

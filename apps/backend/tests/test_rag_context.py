@@ -10,11 +10,13 @@ from app.db.base import Base
 from app.db.models import Case, CaseChunk
 from app.db.session import SessionLocal, engine
 from app.schemas.external_lookup import ExternalLookupResponse
-from app.schemas.scan import ContentBlock, ScanCreateRequest, UserRiskContext
+from app.schemas.scan import ContentBlock, MarketplaceSignal, ScanCreateRequest, UserRiskContext
 from app.services.rag import retrieval as retrieval_module
+from app.services.rag import scoring as scoring_module
 from app.services.rag.context import build_rag_context
 from app.services.rag.retrieval import retrieve_similar_cases
 from app.services.rag.scoring import score_rag_context
+from app.services.risk_space.cosine_scoring import RiskSpaceScore
 
 
 def reset_database() -> None:
@@ -170,8 +172,8 @@ def test_score_rag_context_forces_high_risk_when_external_lookup_is_positive() -
     assert score.breakdown[0].component == "external_lookup_positive"
 
 
-def test_score_rag_context_adds_user_vulnerability_without_external_positive(monkeypatch) -> None:
-    """Older and low-experience users should receive a higher deterministic score."""
+def test_score_rag_context_applies_user_profile_multiplier_without_external_positive(monkeypatch) -> None:
+    """User age and trade experience should scale the deterministic score."""
     reset_database()
     seed_case("case_fraud_1", "콘서트 티켓 안전결제 없이 계좌이체 선입금 요구")
     monkeypatch.setattr(
@@ -180,6 +182,27 @@ def test_score_rag_context_adds_user_vulnerability_without_external_positive(mon
         lambda _text, *, output_dimensionality: [1.0, 0.0, 0.0],
     )
     payload = build_payload()
+    payload.content_blocks = [
+        ContentBlock(block_id="body-1", text="안전결제 가능한 일반 티켓 거래입니다.")
+    ]
+    monkeypatch.setattr(
+        scoring_module,
+        "score_listing_text",
+        lambda _text: (
+            RiskSpaceScore(
+                embedding_risk_score=0.40,
+                calibrated_pls_score=0.40,
+                prototype_score=0.40,
+                neighbor_score=0.40,
+                prototype_cosines={},
+                prototype_probabilities={},
+                top_neighbors=[],
+                confidence={},
+            ),
+            None,
+            [],
+        ),
+    )
 
     low_context = build_rag_context(
         scan_payload=payload,
@@ -189,12 +212,76 @@ def test_score_rag_context_adds_user_vulnerability_without_external_positive(mon
     cautious_context = build_rag_context(
         scan_payload=payload,
         external_lookup_results=[],
-        user_context=UserRiskContext(age_group="60_plus", trade_experience="low"),
+        user_context=UserRiskContext(age_group="70_plus", trade_experience="low"),
     )
 
     low_score = score_rag_context(low_context)
     cautious_score = score_rag_context(cautious_context)
 
-    assert cautious_score.risk_points == min(100, low_score.risk_points + 30)
-    assert cautious_score.risk_score >= low_score.risk_score
-    assert any(item.component == "user_vulnerability" for item in cautious_score.breakdown)
+    assert low_score.risk_score == 0.38
+    assert cautious_score.risk_score == 0.483
+    assert any(item.component == "user_profile_multiplier" for item in cautious_score.breakdown)
+
+
+def test_score_rag_context_adjusts_review_history_as_trust_signal(monkeypatch) -> None:
+    """Seller review counts should add small caution or trust adjustments."""
+    reset_database()
+    seed_case("case_fraud_1", "콘서트 티켓 안전결제 없이 계좌이체 선입금 요구")
+    monkeypatch.setattr(
+        retrieval_module,
+        "embed_query_text",
+        lambda _text, *, output_dimensionality: [1.0, 0.0, 0.0],
+    )
+    monkeypatch.setattr(
+        scoring_module,
+        "score_listing_text",
+        lambda _text: (
+            RiskSpaceScore(
+                embedding_risk_score=0.40,
+                calibrated_pls_score=0.40,
+                prototype_score=0.40,
+                neighbor_score=0.40,
+                prototype_cosines={},
+                prototype_probabilities={},
+                top_neighbors=[],
+                confidence={},
+            ),
+            None,
+            [],
+        ),
+    )
+    low_review_payload = build_payload()
+    low_review_payload.content_blocks = [
+        ContentBlock(block_id="body-1", text="안전결제 가능한 일반 티켓 거래입니다.")
+    ]
+    low_review_payload.marketplace_signals = [
+        MarketplaceSignal(key="review_count", label="거래후기", value="0"),
+    ]
+    trusted_review_payload = build_payload()
+    trusted_review_payload.content_blocks = [
+        ContentBlock(block_id="body-1", text="안전결제 가능한 일반 티켓 거래입니다.")
+    ]
+    trusted_review_payload.marketplace_signals = [
+        MarketplaceSignal(key="review_count", label="거래후기", value="31"),
+    ]
+
+    low_review_score = score_rag_context(
+        build_rag_context(
+            scan_payload=low_review_payload,
+            external_lookup_results=[],
+            user_context=UserRiskContext(age_group="under_30", trade_experience="medium"),
+        )
+    )
+    trusted_review_score = score_rag_context(
+        build_rag_context(
+            scan_payload=trusted_review_payload,
+            external_lookup_results=[],
+            user_context=UserRiskContext(age_group="under_30", trade_experience="medium"),
+        )
+    )
+
+    assert low_review_score.risk_score == 0.45
+    assert trusted_review_score.risk_score == 0.30
+    assert low_review_score.risk_points > trusted_review_score.risk_points
+    assert any(item.component == "seller_review_history" for item in low_review_score.breakdown)
+    assert any(item.component == "seller_review_history" for item in trusted_review_score.breakdown)

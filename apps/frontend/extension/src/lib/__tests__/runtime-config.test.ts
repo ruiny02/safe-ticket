@@ -28,37 +28,37 @@ describe("runtime config defaults", () => {
   it("uses the hosted safe-ticket origin for public demo/report pages", () => {
     vi.stubGlobal("window", {
       location: {
-        hostname: "54.180.226.121",
-        host: "54.180.226.121:3000",
+        hostname: "203.0.113.10",
+        host: "203.0.113.10:3000",
         port: "3000",
         protocol: "http:",
       },
     });
 
-    expect(buildDefaultApiBaseUrl()).toBe("http://54.180.226.121:8000");
-    expect(buildDefaultFrontendBaseUrl()).toBe("http://54.180.226.121:3000");
+    expect(buildDefaultApiBaseUrl()).toBe("http://203.0.113.10:8000");
+    expect(buildDefaultFrontendBaseUrl()).toBe("http://203.0.113.10:3000");
   });
 
   it("ignores loopback build-time URLs on public hosted pages", () => {
     vi.stubGlobal("window", {
       location: {
-        hostname: "54.180.226.121",
-        host: "54.180.226.121:3000",
+        hostname: "203.0.113.10",
+        host: "203.0.113.10:3000",
         port: "3000",
         protocol: "http:",
       },
     });
 
-    expect(resolveApiBaseUrl("http://localhost:8000")).toBe("http://54.180.226.121:8000");
-    expect(resolveApiBaseUrl("http://127.0.0.1:8000")).toBe("http://54.180.226.121:8000");
-    expect(resolveFrontendBaseUrl("http://localhost:3000")).toBe("http://54.180.226.121:3000");
+    expect(resolveApiBaseUrl("http://localhost:8000")).toBe("http://203.0.113.10:8000");
+    expect(resolveApiBaseUrl("http://127.0.0.1:8000")).toBe("http://203.0.113.10:8000");
+    expect(resolveFrontendBaseUrl("http://localhost:3000")).toBe("http://203.0.113.10:3000");
   });
 
   it("keeps explicit public build-time URLs on hosted pages", () => {
     vi.stubGlobal("window", {
       location: {
-        hostname: "54.180.226.121",
-        host: "54.180.226.121:3000",
+        hostname: "203.0.113.10",
+        host: "203.0.113.10:3000",
         port: "3000",
         protocol: "http:",
       },

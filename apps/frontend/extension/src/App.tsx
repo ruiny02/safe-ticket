@@ -6,12 +6,13 @@ import {
   type ChatConversationMessage,
 } from "../../shared/chat-api";
 import {
-  enhanceJoongnaProductPayloadFromDocument,
-  isReliableJoongnaProductPayload,
-} from "../../shared/joonggonara";
-import { buildScanPayload, parseMarketplacePageHtml } from "../../shared/marketplace";
+  buildScanPayload,
+  enhanceMarketplacePayloadFromDocument,
+  isReliableMarketplacePayload,
+  parseMarketplacePageHtml,
+} from "../../shared/marketplace";
 import { getSafeTicketApiBaseUrl, getSafeTicketFrontendBaseUrl } from "../../shared/runtime-config";
-import { createScan, createScanSync, getScan } from "../../shared/scan-api";
+import { createScan, getScan } from "../../shared/scan-api";
 import type { ScanCreateRequest, ScanHighlightTarget, ScanResultResponse } from "../../shared/types";
 import { buildLocalChatHighlightTargets, mergeHighlightTargets } from "./lib/chat-rules";
 import { buildAssistantReply, buildSuggestedPrompts } from "./lib/chatbot";
@@ -30,7 +31,6 @@ import {
   buildDashboardPageUrl,
   buildReportListUrl,
   buildReportPageUrl,
-  buildSettingsPageUrl,
 } from "./lib/report-link";
 
 const API_BASE_URL = getSafeTicketApiBaseUrl();
@@ -330,8 +330,8 @@ export function App({ pageUrl }: AppProps) {
     try {
       const sourceHtml = await readMarketplaceHtml(activePageUrl);
       const parsedPayload = buildScanPayload(parseMarketplacePageHtml(sourceHtml, activePageUrl));
-      const nextPayload = enhanceJoongnaProductPayloadFromDocument(document, parsedPayload);
-      const isReliablePayload = isReliableJoongnaProductPayload(nextPayload);
+      const nextPayload = enhanceMarketplacePayloadFromDocument(document, parsedPayload);
+      const isReliablePayload = isReliableMarketplacePayload(nextPayload);
 
       if (requestId !== parseRequestIdRef.current || activePageUrl !== readCurrentPageUrl()) {
         return false;
@@ -391,14 +391,8 @@ export function App({ pageUrl }: AppProps) {
         ...payload,
         user_profile: storedUserProfile,
       };
-      let nextScanResult: ScanResultResponse;
-
-      try {
-        nextScanResult = await createScanSync(API_BASE_URL, requestPayload);
-      } catch {
-        const nextResponse = await createScan(API_BASE_URL, requestPayload);
-        nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
-      }
+      const nextResponse = await createScan(API_BASE_URL, requestPayload);
+      const nextScanResult = await pollScanResult(nextResponse.scan_id, nextResponse.poll_after_ms);
 
       setLocalHighlightTargets(isTradeChatPayload(payload) ? buildLocalChatHighlightTargets(payload) : []);
       setScanResult(nextScanResult);
@@ -566,7 +560,7 @@ export function App({ pageUrl }: AppProps) {
     let scheduled = 0;
 
     const syncVisibleDetails = () => {
-      const nextPayload = enhanceJoongnaProductPayloadFromDocument(document, payload);
+      const nextPayload = enhanceMarketplacePayloadFromDocument(document, payload);
 
       if (JSON.stringify(nextPayload) !== JSON.stringify(payload)) {
         setPayload(nextPayload);
@@ -800,16 +794,6 @@ export function App({ pageUrl }: AppProps) {
           </div>
         </div>
         <div className="safe-ticket-header-actions">
-          {!isCollapsed ? (
-            <a
-              className="safe-ticket-icon-button safe-ticket-link-button safe-ticket-header-login-button"
-              href={buildSettingsPageUrl()}
-              rel="noreferrer"
-              target="_blank"
-            >
-              로그인
-            </a>
-          ) : null}
           <button
             className="safe-ticket-icon-button"
             onClick={() => setIsCollapsed((value) => !value)}
@@ -1052,7 +1036,14 @@ export function App({ pageUrl }: AppProps) {
                   ))}
 
                   {isChatLoading ? (
-                    <p className="safe-ticket-chat-message bot">답변을 정리하고 있어요...</p>
+                    <p className="safe-ticket-chat-message bot safe-ticket-chat-typing" role="status" aria-live="polite">
+                      <span>답변을 정리하고 있어요</span>
+                      <span className="safe-ticket-typing-dots" aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    </p>
                   ) : null}
                 </div>
 

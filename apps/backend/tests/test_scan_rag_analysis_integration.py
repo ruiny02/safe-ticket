@@ -179,7 +179,7 @@ def test_scan_result_uses_rag_scoring_and_validated_llm_highlights(monkeypatch: 
     body = create_response.json()
     assert body["status"] == "completed"
     assert body["risk_points"] >= 70
-    assert body["risk_score"] == round(body["risk_points"] / 100, 4)
+    assert body["risk_points"] == round(body["risk_score"] * 100)
     assert body["risk_level"] == "high"
     assert body["embedding_risk_score"] == 0.32
     assert body["summary"] == "계좌이체 유도와 적금계좌 패턴 때문에 추가 확인이 필요합니다."
@@ -190,7 +190,7 @@ def test_scan_result_uses_rag_scoring_and_validated_llm_highlights(monkeypatch: 
     assert {item["component"] for item in body["risk_score_breakdown"]} >= {
         "embedding_risk_score",
         "savings_account_pattern",
-        "user_vulnerability",
+        "user_profile_multiplier",
         "final_score",
     }
 

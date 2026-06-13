@@ -10,10 +10,6 @@ export function buildDashboardBaseUrl(): string {
   return `${getSafeTicketFrontendBaseUrl()}/report/#/dashboard`;
 }
 
-export function buildSettingsPageUrl(): string {
-  return `${getSafeTicketFrontendBaseUrl()}/report/#/settings`;
-}
-
 export function buildReportListUrl(): string {
   return `${getSafeTicketFrontendBaseUrl()}/report/#/reports`;
 }

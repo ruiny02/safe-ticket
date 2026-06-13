@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from app.schemas.external_lookup import ExternalLookupResponse
 from app.schemas.scan import EvidenceItem, PipelineOutboundPayload, ScanCreateRequest, UserRiskContext
@@ -66,6 +67,7 @@ def build_rag_context(
             "max_similarity_score": similarity_summary.max_score,
             "age_group": resolved_user_context.age_group,
             "trade_experience": resolved_user_context.trade_experience,
+            "seller_review_count": extract_seller_review_count(scan_payload),
         },
     )
 
@@ -83,6 +85,18 @@ def build_listing_text(scan_payload: ScanCreateRequest | PipelineOutboundPayload
         ]
         if part.strip()
     )
+
+
+def extract_seller_review_count(scan_payload: ScanCreateRequest | PipelineOutboundPayload) -> int | None:
+    """Extract marketplace review count from normalized frontend signals."""
+    for signal in scan_payload.marketplace_signals:
+        if signal.key != "review_count":
+            continue
+        match = re.search(r"\d[\d,]*", signal.value)
+        if not match:
+            continue
+        return int(match.group(0).replace(",", ""))
+    return None
 
 
 def _build_similarity_summary(similar_cases: list[RetrievedCase]) -> SimilaritySummary:

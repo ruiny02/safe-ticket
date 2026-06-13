@@ -126,7 +126,7 @@ const pipelineDebug: PipelineExchangeResponse = {
 };
 
 describe("buildDashboardModel", () => {
-  it("builds a report-page dashboard model with consolidated overview, seller observation, and embedding metadata", () => {
+  it("builds a report-page dashboard model with consolidated overview and seller observation", () => {
     const model = buildDashboardModel({
       scanResult,
       pipelineDebug,
@@ -137,27 +137,28 @@ describe("buildDashboardModel", () => {
     expect(model.overview.label).toBe("Risk overview");
     expect(model.overview.items.map((item) => item.label)).toEqual([
       "Scan quality",
-      "Protected buyers",
-      "Manual review",
+      "Flagged text",
+      "Similar cases",
     ]);
-    expect(model.embedding.pipeline).toBe("Raw embedding -> PCA(50) -> UMAP(3)");
-    expect(model.embedding.points.length).toBeGreaterThanOrEqual(60);
-    expect(model.embedding.points.some((point) => point.variant === "current")).toBe(true);
-    expect(model.embedding.points.some((point) => point.variant === "fraud")).toBe(true);
-    expect(model.embedding.points.some((point) => point.variant === "safe")).toBe(true);
-    expect(model.embedding.points.some((point) => point.variant === "borderline")).toBe(true);
+    expect(model.overview.items.map((item) => item.value)).toEqual(["91점", "2", "2"]);
+    expect(model.overview.items[1].detail).toBe("원문에서 backend가 위험 근거로 표시한 문구 수");
+    expect(model.overview.items[2].detail).toBe("RAG 검색으로 연결된 유사 거래 사례 수");
+    expect(model.embedding.title).toBe("Risk-map 좌표 로딩 중");
+    expect(model.embedding.description).toContain("backend risk-map에서 실제 DB 임베딩 좌표를 가져오고 있습니다");
+    expect(model.embedding.pipeline).toBe("waiting for backend risk-map");
+    expect(model.embedding.points).toEqual([]);
     expect(model.embedding.summary.nearestCluster).toBe("fraud");
     expect(model.embedding.summary.clusterCounts).toEqual({
-      fraud: 24,
-      safe: 24,
-      borderline: 18,
+      fraud: 0,
+      safe: 0,
+      borderline: 0,
     });
     expect(model.sellerObservation).toEqual({
       sellerName: "낭닥SJ",
       primaryAlias: "낭닥SJ",
       accountNumber: "3355-28-8620726",
-      recentFraudCases: 3,
-      observedAliases: ["낭닥SJ", "급처티켓", "openchat123"],
+      recentFraudCases: 2,
+      observedAliases: ["낭닥SJ"],
       listingTitle: "tuki. 츠키 아시아투어콘서트 정가*~-",
       priceText: "163,000원",
       trustSignals: [],

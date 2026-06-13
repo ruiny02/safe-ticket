@@ -176,11 +176,11 @@ function buildExternalLookupSummary(results: ExternalLookupResult[] = []): strin
 
 function buildSimilarCaseSummary(similarCases: SimilarCase[]): string {
   if (!similarCases.length) {
-    return "현재 연결된 유사 사례는 없습니다. 다만 지금 파이프라인의 유사 사례는 아직 임시 데이터일 수 있어요.";
+    return "현재 연결된 유사 사례는 없습니다. 스캔 결과에 유사 사례가 포함되면 가장 가까운 사례 3개를 요약해 보여드립니다.";
   }
 
   return [
-    "현재 결과와 가까운 사례입니다.",
+    "현재 스캔 결과와 가장 가까운 유사 사례입니다.",
     ...similarCases.slice(0, 3).map((similarCase) => `- ${describeSimilarCase(similarCase)}`),
   ].join("\n");
 }

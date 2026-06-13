@@ -36,9 +36,9 @@
 
 예시 주소:
 
-- frontend/report/demo: `http://54.180.226.121:3000`
-- backend: `http://54.180.226.121:8000`
-- lookup-browser/noVNC: `http://54.180.226.121:6080`
+- frontend/report/demo: `http://<SERVER_HOST>:3000`
+- backend: `http://<SERVER_HOST>:8000`
+- lookup-browser/noVNC: `http://<SERVER_HOST>:6080`
 
 주의:
 
@@ -54,8 +54,8 @@
 
 아래 값은 코드에 직접 박지 않는다.
 
-- AWS public IP: 예 `54.180.226.121`
-- local tunnel URL: 예 `*.loca.lt`
+- AWS public IP 또는 도메인: 예 `<SERVER_HOST>`
+- 임시 tunnel URL
 - backend base URL
 - frontend base URL
 - Chrome extension ID
@@ -111,8 +111,9 @@ pnpm --dir apps/frontend/report-page build
 서버 build 예시:
 
 ```bash
-VITE_SAFE_TICKET_API_BASE_URL=http://54.180.226.121:8000 \
-VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://54.180.226.121:3000 \
+SERVER_HOST=your.server.example \
+VITE_SAFE_TICKET_API_BASE_URL=http://${SERVER_HOST}:8000 \
+VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://${SERVER_HOST}:3000 \
 pnpm --dir apps/frontend/report-page build
 ```
 
@@ -122,9 +123,9 @@ pnpm --dir apps/frontend/report-page build
 
 관련 파일:
 
-- `apps/frontend/web-demo/public/manifest.json`
-- `apps/frontend/web-demo/public/popup.js`
-- `apps/frontend/web-demo/src/content-root.ts`
+- `apps/frontend/extension/public/manifest.json`
+- `apps/frontend/extension/public/popup.js`
+- `apps/frontend/extension/src/content-root.ts`
 - `apps/frontend/shared/page-target.ts`
 - `apps/frontend/shared/runtime-config.ts`
 
@@ -142,15 +143,16 @@ pnpm --dir apps/frontend/report-page build
 ```bash
 VITE_SAFE_TICKET_API_BASE_URL=http://localhost:8000 \
 VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://localhost:3000 \
-pnpm --dir apps/frontend/web-demo build
+pnpm --dir apps/frontend/extension build
 ```
 
 서버 extension build 예시:
 
 ```bash
-VITE_SAFE_TICKET_API_BASE_URL=http://54.180.226.121:8000 \
-VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://54.180.226.121:3000 \
-pnpm --dir apps/frontend/web-demo build
+SERVER_HOST=your.server.example \
+VITE_SAFE_TICKET_API_BASE_URL=http://${SERVER_HOST}:8000 \
+VITE_SAFE_TICKET_FRONTEND_BASE_URL=http://${SERVER_HOST}:3000 \
+pnpm --dir apps/frontend/extension build
 ```
 
 서버용 extension에서 주의할 점:
@@ -180,7 +182,7 @@ pnpm --dir apps/frontend/web-demo build
 예시:
 
 ```env
-BACKEND_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://54.180.226.121:3000,chrome-extension://piplejjlfnkhpaaepdmmpbljnmcnjaga
+BACKEND_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://<SERVER_HOST>:3000,chrome-extension://<EXTENSION_ID>
 ```
 
 주의:
@@ -278,7 +280,7 @@ args:
 ### 공통 테스트
 
 ```bash
-pnpm --dir apps/frontend/web-demo test
+pnpm --dir apps/frontend/extension test
 pnpm --dir apps/frontend/report-page test
 pytest apps/backend/tests
 docker compose config
@@ -310,7 +312,7 @@ docker compose config
 
 먼저 확인할 것:
 
-- `apps/frontend/web-demo/dist`를 다시 build했는가
+- `apps/frontend/extension/dist`를 다시 build했는가
 - Chrome에서 Reload했는가
 - `manifest.json` host permission이 맞는가
 - backend CORS에 extension ID가 들어갔는가

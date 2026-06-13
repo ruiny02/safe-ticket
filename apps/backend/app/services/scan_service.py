@@ -253,10 +253,12 @@ class ScanService:
 
         if user_profile.age is None:
             age_group = "unknown"
-        elif user_profile.age >= 60:
-            age_group = "60_plus"
+        elif user_profile.age >= 70:
+            age_group = "70_plus"
+        elif user_profile.age >= 50:
+            age_group = "50_69"
         elif user_profile.age >= 30:
-            age_group = "30_59"
+            age_group = "30_49"
         else:
             age_group = "under_30"
 

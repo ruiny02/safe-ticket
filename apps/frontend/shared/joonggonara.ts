@@ -124,7 +124,8 @@ function buildJoongnaSellerProfileUrl(sellerId: string | undefined, href: string
   }
 
   const idFromHref = fallbackMatch(absoluteHref ?? href ?? "", /\/store\/(\d+)/i);
-  const profileSellerId = sellerId && /^\d+$/.test(sellerId) ? sellerId : idFromHref;
+  const idFromSellerId = sellerId?.match(/(?:store|seller|user)[^\d]*(\d{3,})/i)?.[1] ?? sellerId?.match(/^(\d{3,})$/)?.[1];
+  const profileSellerId = idFromSellerId ?? idFromHref;
   if (profileSellerId) {
     return `https://web.joongna.com/store/${profileSellerId}`;
   }

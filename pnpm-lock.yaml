@@ -8,20 +8,14 @@ importers:
 
   .: {}
 
-  apps/frontend/report-page:
+  apps/frontend/extension:
     dependencies:
-      ml-pca:
-        specifier: ^4.1.1
-        version: 4.1.1
       react:
         specifier: ^18.3.1
         version: 18.3.1
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
-      umap-js:
-        specifier: ^1.4.0
-        version: 1.4.0
     devDependencies:
       '@types/node':
         specifier: ^22.15.3
@@ -45,14 +39,20 @@ importers:
         specifier: ^3.1.1
         version: 3.2.4(@types/node@22.19.17)
 
-  apps/frontend/web-demo:
+  apps/frontend/report-page:
     dependencies:
+      ml-pca:
+        specifier: ^4.1.1
+        version: 4.1.1
       react:
         specifier: ^18.3.1
         version: 18.3.1
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      umap-js:
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@types/node':
         specifier: ^22.15.3
