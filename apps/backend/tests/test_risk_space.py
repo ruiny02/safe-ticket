@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.schemas.scan import PipelineOutboundPayload
 from app.services.risk_space.data_loader import load_case_embedding_dataset
 from app.services.risk_space.project_scan import project_embedding
+from app.services.risk_space import service as risk_space_service
 from app.services.risk_space.train import train_risk_space_model
 
 
@@ -28,10 +29,12 @@ client = TestClient(app)
 def reset_database(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.setenv("RISK_SPACE_ARTIFACT_DIR", str(tmp_path / "risk_space"))
     get_settings.cache_clear()
+    risk_space_service._VISUALIZATION_ARTIFACT_CACHE.clear()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     get_settings.cache_clear()
+    risk_space_service._VISUALIZATION_ARTIFACT_CACHE.clear()
 
 
 def seed_risk_cases() -> None:
